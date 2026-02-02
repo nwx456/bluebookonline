@@ -59,6 +59,23 @@ function isSvgContent(text: string | null): boolean {
   return t.startsWith("<svg") || t.includes("<svg");
 }
 
+/** CSA legacy fallback: question_text contains code when passage_text is empty (old uploads). */
+function looksLikeCode(text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  return (
+    (t.includes("public ") || t.includes("private ") || t.includes("void ") || t.includes("int ")) &&
+    (t.includes("{") || t.includes("}"))
+  );
+}
+
+/** Option text looks like code (for CSA: render as code block). */
+function optionLooksLikeCode(text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  return (t.includes(";") || t.includes("{")) && (t.includes("{") || t.includes("}"));
+}
+
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
@@ -190,6 +207,17 @@ export default function ExamPage() {
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
   const isCsa = subject === "AP_CSA";
+  const isCsaLegacyFallback =
+    isCsa &&
+    !currentQuestion?.passage_text?.trim() &&
+    !!currentQuestion?.question_text?.trim() &&
+    looksLikeCode(currentQuestion.question_text);
+  const leftPanelContent = isCsaLegacyFallback
+    ? currentQuestion?.question_text ?? ""
+    : currentQuestion?.passage_text ?? "";
+  const rightPanelQuestionText = isCsaLegacyFallback
+    ? "No question text."
+    : (currentQuestion?.question_text ?? "");
 
   if (loading) {
     return (
@@ -340,21 +368,21 @@ export default function ExamPage() {
           style={{ width: `${leftPanelPercent}%` }}
         >
           <div className="p-4 h-full">
-            {currentQuestion?.passage_text ? (
+            {leftPanelContent ? (
               subject === "AP_CSA" ? (
                 <pre className="text-sm font-mono bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto whitespace-pre">
-                  <code>{currentQuestion.passage_text}</code>
+                  <code>{leftPanelContent}</code>
                 </pre>
-              ) : isSvgContent(currentQuestion.passage_text) ? (
+              ) : isSvgContent(leftPanelContent) ? (
                 <div
                   className="overflow-auto max-w-full"
                   dangerouslySetInnerHTML={{
-                    __html: currentQuestion.passage_text.trim(),
+                    __html: leftPanelContent.trim(),
                   }}
                 />
               ) : (
                 <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
-                  {currentQuestion.passage_text}
+                  {leftPanelContent}
                 </div>
               )
             ) : (
@@ -401,11 +429,13 @@ export default function ExamPage() {
               </div>
             </div>
 
-            <p className="text-gray-900 font-medium">{currentQuestion?.question_text ?? ""}</p>
+            <p className="text-gray-900 font-medium">{rightPanelQuestionText}</p>
 
             <div className="space-y-2">
               {options.map(({ key, text }) => {
                 const isSelected = currentQuestion && answers[currentQuestion.id] === key;
+                const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
+                const optionContent = text ?? "";
                 return (
                   <button
                     key={key}
@@ -420,16 +450,24 @@ export default function ExamPage() {
                       );
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors",
+                      "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors",
                       isSelected
                         ? "border-[#1B365D] bg-[#1B365D]/5 text-gray-900"
                         : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 text-gray-800"
                     )}
                   >
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 font-medium">
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 font-medium mt-0.5">
                       {key}
                     </span>
-                    <span className="flex-1">{text ?? ""}</span>
+                    <span className="flex-1 min-w-0">
+                      {showAsCode ? (
+                        <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-gray-50 rounded p-2 overflow-x-auto">
+                          <code>{optionContent}</code>
+                        </pre>
+                      ) : (
+                        optionContent
+                      )}
+                    </span>
                   </button>
                 );
               })}

@@ -10,6 +10,8 @@ const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 interface GeminiQuestion {
   type?: "code" | "image" | "text";
   content?: string;
+  code?: string;
+  question?: string;
   image_description?: string | null;
   options?: string[];
   correct?: string;
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
       systemInstruction: getSystemPrompt(subject as SubjectKey),
     });
 
-    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). Do not include any markdown or explanation, only the JSON array.`;
+    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -174,9 +176,13 @@ export async function POST(request: NextRequest) {
     const rows = questions.slice(0, questionCount).map((q, i) => {
       const opts = optionsToColumns(q.options);
       const correct = normalizeCorrect(q.correct);
-      const questionText = (q.content ?? "").trim() || "No question text.";
-      const passageText =
-        (q.type === "code" ? q.content : q.image_description ?? q.content)?.trim() || null;
+      const isCodeType = q.type === "code";
+      const questionText = isCodeType
+        ? (q.question ?? q.content ?? "").trim() || "No question text."
+        : (q.content ?? "").trim() || "No question text.";
+      const passageText = isCodeType
+        ? (q.code ?? q.content)?.trim() || null
+        : (q.image_description ?? q.content)?.trim() || null;
 
       return {
         upload_id: uploadId,
