@@ -41,7 +41,7 @@ function LoginFormInner() {
           refresh_token: data.session.refresh_token,
         });
       }
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     } catch {
       setError("Connection error. Please try again.");

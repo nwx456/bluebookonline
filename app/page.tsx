@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderNav } from "@/components/HeaderNav";
 
 export default function Home() {
   return (
@@ -6,20 +7,7 @@ export default function Home() {
       <header className="border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
           <span className="font-semibold text-gray-900">Bluebook Online</span>
-          <nav className="flex gap-4">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-gray-600 hover:text-[#1B365D]"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-md bg-[#1B365D] px-4 py-2 text-sm font-medium text-white hover:bg-[#152a4a]"
-            >
-              Sign up
-            </Link>
-          </nav>
+          <HeaderNav />
         </div>
       </header>
       <main className="flex-1 flex items-center justify-center p-8">
