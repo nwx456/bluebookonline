@@ -48,6 +48,8 @@ export default function DashboardPage() {
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
@@ -429,6 +431,19 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
             My exams
           </h2>
+          {deleteError && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
+              <span>{deleteError}</span>
+              <button
+                type="button"
+                onClick={() => setDeleteError(null)}
+                className="text-red-500 hover:text-red-700 font-medium"
+                aria-label="Dismiss"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {uploads.length === 0 ? (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
               No exams yet. Upload a PDF above.
@@ -489,10 +504,35 @@ export default function DashboardPage() {
                           </Link>
                           <button
                             type="button"
-                            onClick={() =>
-                              setUploads((prev) => prev.filter((u) => u.id !== exam.id))
-                            }
-                            className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                            disabled={deletingId === exam.id}
+                            onClick={async () => {
+                              setDeleteError(null);
+                              setDeletingId(exam.id);
+                              try {
+                                const supabase = createClient();
+                                const {
+                                  data: { session },
+                                } = await supabase.auth.getSession();
+                                const token = session?.access_token;
+                                if (!token) {
+                                  setDeleteError("Please sign in again.");
+                                  return;
+                                }
+                                const res = await fetch(`/api/upload/${exam.id}`, {
+                                  method: "DELETE",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) {
+                                  setDeleteError((data.error as string) || "Failed to delete exam.");
+                                  return;
+                                }
+                                setUploads((prev) => prev.filter((u) => u.id !== exam.id));
+                              } finally {
+                                setDeletingId(null);
+                              }
+                            }}
+                            className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Delete"
                           >
                             <Trash2 className="h-4 w-4" />

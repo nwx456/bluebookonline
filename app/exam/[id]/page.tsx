@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+
+const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 
 const SUBJECTS = [
   { value: "AP_CSA", label: "AP CSA (Computer Science)" },
@@ -29,6 +32,7 @@ interface PdfUpload {
   id: string;
   subject: string | null;
   filename: string | null;
+  storage_path?: string | null;
 }
 
 interface Question {
@@ -43,6 +47,7 @@ interface Question {
   option_d: string | null;
   option_e: string | null;
   correct_answer: string | null;
+  page_number?: number | null;
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
@@ -76,6 +81,31 @@ function optionLooksLikeCode(text: string | null): boolean {
   return (t.includes(";") || t.includes("{")) && (t.includes("{") || t.includes("}"));
 }
 
+/**
+ * When question_text contains both code and a question stem (CSA legacy), split so code goes left and stem right.
+ * Returns the stem if found (e.g. "Which replacement...?" or sentence ending with ?), else null.
+ */
+function splitCsaQuestionStem(fullText: string | null): { codePart: string; questionStem: string | null } {
+  if (!fullText?.trim()) return { codePart: fullText ?? "", questionStem: null };
+  const t = fullText.trim();
+  // Match a question sentence: starts with Which/What/How and ends with ?, or last sentence ending with ?
+  const stemMatch = t.match(/\b(Which|What|How)\s+[\s\S]+?\?/);
+  if (stemMatch) {
+    const stemStart = t.indexOf(stemMatch[0]);
+    const codePart = t.slice(0, stemStart).trim();
+    const questionStem = t.slice(stemStart).trim();
+    return { codePart, questionStem: questionStem || null };
+  }
+  // Fallback: take the last line (or segment) that ends with ?
+  const lastQ = t.match(/\n([^\n]*\?)\s*$/);
+  if (lastQ) {
+    const stemStart = t.lastIndexOf(lastQ[1]);
+    const codePart = t.slice(0, stemStart).trim();
+    return { codePart, questionStem: lastQ[1].trim() };
+  }
+  return { codePart: t, questionStem: null };
+}
+
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
@@ -94,6 +124,7 @@ export default function ExamPage() {
   const [leftPanelPercent, setLeftPanelPercent] = useState(45);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [questionListOpen, setQuestionListOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
@@ -115,7 +146,11 @@ export default function ExamPage() {
     }
     const supabase = createClient();
     Promise.all([
-      supabase.from("pdf_uploads").select("id, subject, filename").eq("id", id).single(),
+      supabase
+        .from("pdf_uploads")
+        .select("id, subject, filename, storage_path")
+        .eq("id", id)
+        .single(),
       supabase
         .from("questions")
         .select("*")
@@ -127,6 +162,31 @@ export default function ExamPage() {
       if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
     });
   }, [id]);
+
+  useEffect(() => {
+    const isEconomics =
+      upload?.subject === "AP_MICROECONOMICS" || upload?.subject === "AP_MACROECONOMICS";
+    if (!id || !upload?.storage_path || !isEconomics) {
+      setPdfUrl(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session?.access_token) return;
+      fetch(`/api/upload/${id}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && data?.url) setPdfUrl(data.url);
+        })
+        .catch(() => setPdfUrl(null));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, upload?.storage_path, upload?.subject]);
 
   const startExam = useCallback(async () => {
     if (!id || !userEmail || questions.length === 0) return;
@@ -207,16 +267,20 @@ export default function ExamPage() {
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
   const isCsa = subject === "AP_CSA";
+  const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
   const isCsaLegacyFallback =
     isCsa &&
     !currentQuestion?.passage_text?.trim() &&
     !!currentQuestion?.question_text?.trim() &&
     looksLikeCode(currentQuestion.question_text);
+  const csaSplit = isCsaLegacyFallback
+    ? splitCsaQuestionStem(currentQuestion?.question_text ?? null)
+    : null;
   const leftPanelContent = isCsaLegacyFallback
-    ? currentQuestion?.question_text ?? ""
-    : currentQuestion?.passage_text ?? "";
+    ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
+    : (currentQuestion?.passage_text ?? "");
   const rightPanelQuestionText = isCsaLegacyFallback
-    ? "No question text."
+    ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
 
   if (loading) {
@@ -368,7 +432,15 @@ export default function ExamPage() {
           style={{ width: `${leftPanelPercent}%` }}
         >
           <div className="p-4 h-full">
-            {leftPanelContent ? (
+            {isEconomics && pdfUrl && currentQuestion?.page_number != null ? (
+              <div className="overflow-auto max-w-full">
+                <PdfPageView
+                  pdfUrl={pdfUrl}
+                  pageNumber={currentQuestion.page_number}
+                  className="max-w-full h-auto"
+                />
+              </div>
+            ) : leftPanelContent ? (
               subject === "AP_CSA" ? (
                 <pre className="text-sm font-mono bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto whitespace-pre">
                   <code>{leftPanelContent}</code>

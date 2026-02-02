@@ -13,6 +13,7 @@ interface GeminiQuestion {
   code?: string;
   question?: string;
   image_description?: string | null;
+  page_number?: number | null;
   options?: string[];
   correct?: string;
 }
@@ -50,6 +51,33 @@ function optionsToColumns(options: unknown): {
     option_d: strings[3] || null,
     option_e: strings[4] || null,
   };
+}
+
+/** CSA: Strip trailing question sentence from code so only reference code remains in passage_text. */
+function stripQuestionFromCode(code: string | null | undefined): {
+  codeOnly: string | null;
+  strippedQuestion: string | null;
+} {
+  if (!code?.trim()) return { codeOnly: code?.trim() || null, strippedQuestion: null };
+  const t = code.trim();
+  // Match trailing question: line(s) that look like "Which...?", "What...?", or any sentence ending with ?
+  const questionPattern = /\n?\s*(Which\s+.+\?|What\s+(?:is|does|will|would)\s+.+\?|\.\s+\d+\.\s+.+\?)(\s*)$/is;
+  const match = t.match(questionPattern);
+  if (match) {
+    const idx = t.indexOf(match[1]);
+    const codeOnly = t.slice(0, idx).trim();
+    const strippedQuestion = match[1].trim();
+    return { codeOnly: codeOnly || null, strippedQuestion: strippedQuestion || null };
+  }
+  // Fallback: last line ending with ? (sentence that shouldn't be in code)
+  const lastLineQ = /\n([^\n]*\?)\s*$/;
+  const m2 = t.match(lastLineQ);
+  if (m2) {
+    const idx = t.lastIndexOf(m2[1]);
+    const codeOnly = t.slice(0, idx).trim();
+    return { codeOnly: codeOnly || null, strippedQuestion: m2[1].trim() };
+  }
+  return { codeOnly: t, strippedQuestion: null };
 }
 
 export async function POST(request: NextRequest) {
@@ -119,7 +147,7 @@ export async function POST(request: NextRequest) {
       systemInstruction: getSystemPrompt(subject as SubjectKey),
     });
 
-    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. Do not include any markdown or explanation, only the JSON array.`;
+    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -173,16 +201,47 @@ export async function POST(request: NextRequest) {
     }
 
     const uploadId = uploadRow.id;
+
+    // Store PDF in Storage for exam page rendering (Macro/Micro graph = exact page image)
+    const bucket = "exam-pdfs";
+    const storageKey = `${uploadId}.pdf`;
+    try {
+      const { error: storageError } = await supabase.storage
+        .from(bucket)
+        .upload(storageKey, buffer, { contentType: "application/pdf", upsert: true });
+      if (!storageError) {
+        await supabase
+          .from("pdf_uploads")
+          .update({ storage_path: storageKey })
+          .eq("id", uploadId);
+      }
+    } catch {
+      // non-fatal; exam still works with passage_text/SVG
+    }
+
     const rows = questions.slice(0, questionCount).map((q, i) => {
       const opts = optionsToColumns(q.options);
       const correct = normalizeCorrect(q.correct);
       const isCodeType = q.type === "code";
-      const questionText = isCodeType
+      let questionText = isCodeType
         ? (q.question ?? q.content ?? "").trim() || "No question text."
         : (q.content ?? "").trim() || "No question text.";
-      const passageText = isCodeType
-        ? (q.code ?? q.content)?.trim() || null
-        : (q.image_description ?? q.content)?.trim() || null;
+      let passageText: string | null;
+      if (isCodeType) {
+        const rawCode = (q.code ?? q.content)?.trim() ?? "";
+        const { codeOnly, strippedQuestion } = stripQuestionFromCode(rawCode || null);
+        passageText = codeOnly;
+        if (strippedQuestion && (!questionText || questionText === "No question text.")) {
+          questionText = strippedQuestion;
+        }
+      } else {
+        passageText = (q.image_description ?? q.content)?.trim() || null;
+      }
+
+      const pageNum =
+        q.page_number != null && Number.isInteger(Number(q.page_number))
+          ? Number(q.page_number)
+          : null;
 
       return {
         upload_id: uploadId,
@@ -196,6 +255,7 @@ export async function POST(request: NextRequest) {
         option_e: opts.option_e,
         correct_answer: correct,
         image_url: null,
+        page_number: pageNum,
       };
     });
 

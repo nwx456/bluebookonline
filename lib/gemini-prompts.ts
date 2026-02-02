@@ -25,6 +25,20 @@ Her soru için şu JSON nesnesini üret:
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
+const OUTPUT_SCHEMA_ECONOMICS = `
+Her soru için şu JSON nesnesini üret (grafikli sorularda sayfa numarası zorunlu):
+{
+  "type": "code" | "image" | "text",
+  "content": "soru metni",
+  "image_description": "grafik/tablo varsa SVG veya tablo (yoksa null)",
+  "page_number": 1,
+  "options": ["A", "B", "C", "D"],
+  "correct": "A"
+}
+page_number: Soru veya grafiğin geçtiği PDF sayfası (1 tabanlı). Her soru için mutlaka ekle.
+Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+`;
+
 const OUTPUT_SCHEMA_CSA = `
 Kod içeren her MSQ için şu JSON nesnesini üret:
 {
@@ -48,6 +62,7 @@ const CSA_CODE_QUESTION_RULES = `
 - Soru numarası ("4."), "Questions 4-5 refer to..." cümlesi.
 - Soru cümlesi, Javadoc (soruyla ilgili metodun), "Which replacement for /* missing code */ is correct?" metni.
 - Şıklar (A-E) metni veya /* missing code */ içeren imza.
+- code, sınıf/metot kapanan süslü parantez (}) ile bitmeli; ardına "Which...?", "What...?" veya soru cümlesi ekleme. Soru metni yalnızca **question** alanında olmalı.
 
 **question** alanı – SADECE:
 - Çoktan seçmeli soru cümlesi (ör. "4. A client method, computeBonus, will return a salesRep bonus computed by multiplying his ytdSales by a percentage. Which replacement for /* missing code */ is correct?").
@@ -84,10 +99,11 @@ GÖREV:
 - Sayfadaki grafikleri (arz-talep, maliyet eğrileri, vb.) tespit et.
 - Grafiği sadece metinle betimlemek yerine, Bluebook stiline uygun temiz bir **tablo** veya **SVG kodu** olarak üret. Mümkünse SVG ile eksenleri, eğrileri ve etiketleri çiz.
 - Çoktan seçmeli soruları ayıkla; her soruda grafik/tablo varsa image_description alanına tablo veya SVG koy, soru metnini content'e yaz.
+- Her soru için **page_number** alanını ekle: soru veya grafiğin geçtiği PDF sayfası (1 tabanlı).
 
-ÇIKTI: ${OUTPUT_SCHEMA}
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: Grafik içeren sorularda type: "image" kullan; image_description'a tablo veya SVG koy. Layout: Sınav ekranında grafik sol, soru sağda gösterilecek.`;
+KURAL: Grafik içeren sorularda type: "image" kullan; image_description'a tablo veya SVG koy. Her nesnede page_number (1 tabanlı sayfa numarası) olsun. Layout: Sınav ekranında grafik sol, soru sağda gösterilecek.`;
 
     case "AP_CSA":
       return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
