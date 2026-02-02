@@ -45,7 +45,7 @@ Kod içeren her MSQ için şu JSON nesnesini üret:
   "type": "code",
   "code": "sadece sorunun referans aldığı Java kodu (sınıf tanımı vb.; girintiler korunmuş)",
   "question": "sadece çoktan seçmeli soru cümlesi (soru numarası + soru metni + 'Which replacement...' gibi)",
-  "content": "geriye dönük uyumluluk için",
+  "content": "optional; use only if duplicating question for compatibility; otherwise omit or leave empty",
   "image_description": null,
   "options": ["(A) seçenek metni", "(B) ..."],
   "correct": "A"

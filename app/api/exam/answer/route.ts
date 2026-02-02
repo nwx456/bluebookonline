@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
           { error: "Failed to save answer." },
           { status: 500 }
         );
+    }
     } else {
       const { error: insertError } = await supabase.from("attempt_answers").insert({
         attempt_id: attemptId,

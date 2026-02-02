@@ -251,7 +251,7 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-3 rounded-xl border-2 border-[#1B365D] bg-[#1B365D] px-6 py-4 text-base font-medium text-white shadow-sm hover:bg-[#152a4a] hover:border-[#152a4a] transition-colors"
             >
               <Sparkles className="h-6 w-6" />
-              AI Analiz Et
+              Analyze with AI
             </button>
             <p className="mt-2 text-sm text-gray-500">
               Click to open the file selection and analysis form.
@@ -259,11 +259,11 @@ export default function DashboardPage() {
           </section>
         ) : (
           <>
-            {/* 1. Sadece dosya seçimi – tıklanınca dosya penceresi bu alanda açılır */}
+            {/* File selection only – click to open file picker */}
             <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mb-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  PDF dosyası seçin
+                  Select PDF file
                 </h2>
                 <button
                   type="button"
@@ -297,10 +297,10 @@ export default function DashboardPage() {
                 />
                 <Upload className="mx-auto h-10 w-10 text-gray-400" />
                 <p className="mt-2 text-sm font-medium text-gray-700">
-                  PDF sürükleyip bırakın veya tıklayıp dosya seçin
+                  Drag and drop a PDF or click to choose a file
                 </p>
                 <p className="mt-1 text-xs text-gray-500">
-                  Tıklayınca klasör / dosya seçim penceresi açılır.
+                  Click to open the file picker.
                 </p>
                 {selectedFile && (
                   <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-white border border-gray-200 px-4 py-2 max-w-md mx-auto">
@@ -321,10 +321,10 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* 2. Ders, soru sayısı ve AI Analiz Et butonu – ayrı alan */}
+            {/* Subject and analysis section */}
             <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mb-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Ders ve analiz
+                Subject and analysis
               </h2>
               <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <div className="flex-1">
@@ -406,10 +406,10 @@ export default function DashboardPage() {
                   )}
                 >
                   <Sparkles className="h-4 w-4" />
-                  {isUploading ? "Analiz ediliyor…" : "AI Analiz Et"}
+                  {isUploading ? "Analyzing…" : "Analyze with AI"}
                 </button>
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Önce yukarıdan PDF seçin; ders ve soru sayısını girin. Sonra bu buton aktif olur.
+                  Select a PDF above and enter subject and question count to enable this button.
                 </p>
               </div>
               {isUploading && (
@@ -420,7 +420,7 @@ export default function DashboardPage() {
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500">Analiz ediliyor…</p>
+                  <p className="mt-1 text-xs text-gray-500">Analyzing…</p>
                 </div>
               )}
             </section>

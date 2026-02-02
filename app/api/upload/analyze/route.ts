@@ -80,6 +80,16 @@ function stripQuestionFromCode(code: string | null | undefined): {
   return { codeOnly: t, strippedQuestion: null };
 }
 
+/** Treat known placeholder or trivial text as empty so it is not shown as question/passage. */
+function isPlaceholderText(text: string | null | undefined): boolean {
+  if (text == null) return true;
+  const t = text.trim();
+  if (t.length < 3) return true;
+  if (/^\d+$/.test(t)) return true;
+  if (t === "geriye dönük uyumluluk için") return true;
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -237,6 +247,9 @@ export async function POST(request: NextRequest) {
       } else {
         passageText = (q.image_description ?? q.content)?.trim() || null;
       }
+
+      if (isPlaceholderText(questionText)) questionText = "No question text.";
+      if (passageText != null && isPlaceholderText(passageText)) passageText = null;
 
       const pageNum =
         q.page_number != null && Number.isInteger(Number(q.page_number))
