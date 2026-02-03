@@ -41,6 +41,7 @@ interface Question {
   question_number: number;
   question_text: string;
   passage_text: string | null;
+  precondition_text?: string | null;
   option_a: string | null;
   option_b: string | null;
   option_c: string | null;
@@ -279,9 +280,22 @@ export default function ExamPage() {
   const leftPanelContent = isCsaLegacyFallback
     ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
     : (currentQuestion?.passage_text ?? "");
-  const rightPanelQuestionText = isCsaLegacyFallback
+  const rawStem = isCsaLegacyFallback
     ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
+  const hasAnyOption =
+    currentQuestion &&
+    [
+      currentQuestion.option_a,
+      currentQuestion.option_b,
+      currentQuestion.option_c,
+      currentQuestion.option_d,
+      currentQuestion.option_e,
+    ].some((o) => o != null && String(o).trim() !== "");
+  const rightPanelQuestionText =
+    (!rawStem || rawStem === "No question text.") && hasAnyOption
+      ? "Which of the following is correct?"
+      : rawStem;
 
   if (loading) {
     return (
@@ -442,9 +456,21 @@ export default function ExamPage() {
               </div>
             ) : leftPanelContent ? (
               subject === "AP_CSA" ? (
-                <pre className="text-sm font-mono bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto whitespace-pre">
-                  <code>{leftPanelContent}</code>
-                </pre>
+                <>
+                  <pre className="text-sm font-mono bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto whitespace-pre">
+                    <code>{leftPanelContent}</code>
+                  </pre>
+                  {currentQuestion?.precondition_text?.trim() ? (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                        Precondition
+                      </p>
+                      <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-auto">
+                        {currentQuestion.precondition_text}
+                      </pre>
+                    </div>
+                  ) : null}
+                </>
               ) : isSvgContent(leftPanelContent) ? (
                 <div
                   className="overflow-auto max-w-full"
@@ -458,7 +484,9 @@ export default function ExamPage() {
                 </div>
               )
             ) : (
-              <p className="text-sm text-gray-500">No passage for this question.</p>
+              <p className="text-sm text-gray-500">
+                {isCsa ? "No code for this question." : "No passage for this question."}
+              </p>
             )}
           </div>
         </div>

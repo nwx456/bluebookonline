@@ -12,6 +12,7 @@ interface GeminiQuestion {
   content?: string;
   code?: string;
   question?: string;
+  precondition?: string;
   image_description?: string | null;
   page_number?: number | null;
   options?: string[];
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
       systemInstruction: getSystemPrompt(subject as SubjectKey),
     });
 
-    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
+    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -250,6 +251,13 @@ export async function POST(request: NextRequest) {
 
       if (isPlaceholderText(questionText)) questionText = "No question text.";
       if (passageText != null && isPlaceholderText(passageText)) passageText = null;
+
+      const hasAnyOption = [opts.option_a, opts.option_b, opts.option_c, opts.option_d, opts.option_e].some(
+        (o) => o != null && o.trim() !== ""
+      );
+      if (questionText === "No question text." && hasAnyOption) {
+        questionText = "Which of the following is correct?";
+      }
 
       const pageNum =
         q.page_number != null && Number.isInteger(Number(q.page_number))
