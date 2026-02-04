@@ -36,7 +36,7 @@ Her soru için şu JSON nesnesini üret (grafikli sorularda sayfa numarası zoru
   "correct": "A"
 }
 content her zaman soru gövdesini içermeli; boş bırakma.
-page_number: 1-based PDF sayfa numarası. Grafik içeren sorularda, grafiğin (veya sorunun ana figürünün) bulunduğu sayfayı ver; sadece soru metninin olduğu sayfayı değil. Örn: Soru 5'in grafiği PDF'in 12. sayfasındaysa, o soru için page_number: 12 olmalı.
+page_number: Grafik veya tablo içeren her soruda zorunlu. 1-based PDF sayfa numarası: ilgili grafik veya tablo görselinin bulunduğu sayfa. Soru metni farklı sayfada olsa bile grafik/tablo hangi sayfadaysa onu ver. Örn: Soru 5'in grafiği sayfa 12'deyse page_number: 12; Soru 5'in tablosu sayfa 8'deyse page_number: 8.
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
@@ -104,11 +104,11 @@ GÖREV:
 - Sayfadaki grafikleri (arz-talep, maliyet eğrileri, vb.) tespit et.
 - Grafiği sadece metinle betimlemek yerine, Bluebook stiline uygun temiz bir **tablo** veya **SVG kodu** olarak üret. Mümkünse SVG ile eksenleri, eğrileri ve etiketleri çiz.
 - Çoktan seçmeli soruları ayıkla; her soruda grafik/tablo varsa image_description alanına tablo veya SVG koy, soru metnini content'e yaz.
-- Her soru için **page_number** alanını ekle: grafik içeren sorularda, grafiğin (veya o sorunun ana figürünün) bulunduğu PDF sayfasının 1 tabanlı numarası. Sadece soru metninin yazılı olduğu sayfayı değil, grafiğin olduğu sayfayı ver (örn. grafik sayfa 12'deyse page_number: 12).
+- Grafik **veya** tablo içeren her soruda **page_number** zorunlu: ilgili grafik/tablo görselinin bulunduğu PDF sayfası (1 tabanlı). Soru metni farklı sayfada olsa bile grafik/tablo hangi sayfadaysa onu ver (örn. grafik sayfa 12'deyse page_number: 12; tablo sayfa 8'deyse page_number: 8).
 
 ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: Grafik içeren sorularda type: "image" kullan; image_description'a tablo veya SVG koy. Her nesnede page_number (grafiğin bulunduğu sayfa) olsun. Layout: Sınav ekranında grafik sol, soru sağda gösterilecek.`;
+KURAL: Grafik veya tablo içeren sorularda type: "image" kullan; image_description'a tablo veya SVG koy. Her nesnede page_number (grafik/tablonun bulunduğu sayfa) olsun. Layout: Sınav ekranında grafik/tablo sol, soru sağda gösterilecek.`;
 
     case "AP_CSA":
       return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
@@ -117,6 +117,8 @@ ${MSQ_ONLY_RULE}
 GÖREV:
 - Sadece çoktan seçmeli (MSQ) soruları ayıkla; FRQ bölümlerini atla.
 - Kod içeren her MSQ için **code** ve **question** alanlarını kesinlikle ayır; aynı içeriği her iki alana yazma.
+- Practice exam / Unit exam formatında da aynı kurallar geçerli. "Questions X–Y refer to the following class" gibi durumlarda: ortak kodu **her** X…Y sorusu için ayrı ayrı nesnede tekrarla (her soru kendi code + question + options nesnesine sahip olsun). Kod birden fazla sayfadaysa tamamını birleştirip tek blok olarak code alanına yaz.
+- Her çoktan seçmeli soru için tam olarak bir JSON nesnesi üret; soru atlama veya birleştirme. Çıktı sadece JSON dizi olmalı, açıklama ekleme.
 
 ${CSA_CODE_QUESTION_RULES}
 

@@ -24,9 +24,24 @@ function parseJsonFromResponse(raw: string): GeminiQuestion[] {
   const codeBlock = /^```(?:json)?\s*([\s\S]*?)```\s*$/m;
   const match = text.match(codeBlock);
   if (match) text = match[1].trim();
-  const parsed = JSON.parse(text) as unknown;
-  if (!Array.isArray(parsed)) return [];
-  return parsed as GeminiQuestion[];
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed as GeminiQuestion[];
+  } catch {
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
+    if (start !== -1 && end !== -1 && end > start) {
+      try {
+        const slice = text.slice(start, end + 1);
+        const parsed = JSON.parse(slice) as unknown;
+        if (Array.isArray(parsed)) return parsed as GeminiQuestion[];
+      } catch {
+        // fallback failed
+      }
+    }
+    return [];
+  }
 }
 
 function normalizeCorrect(value: unknown): string | null {

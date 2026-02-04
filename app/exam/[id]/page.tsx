@@ -65,6 +65,81 @@ function isSvgContent(text: string | null): boolean {
   return t.startsWith("<svg") || t.includes("<svg");
 }
 
+/** True if content looks like HTML table (for Economics passage). */
+function isTableHtml(text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  return t.includes("<table") && t.includes("</table>");
+}
+
+/** Sanitize table HTML: keep only table, thead, tbody, tr, th, td; strip attributes and remove other tags. */
+function sanitizeTableHtml(html: string): string {
+  let s = html.trim();
+  s = s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  s = s.replace(/<\/?(table|thead|tbody|tr|th|td)(\s[^>]*)?>/gi, (m, tag) =>
+    m.startsWith("</") ? `</${tag}>` : `<${tag}>`
+  );
+  s = s.replace(/<\/?[a-zA-Z][a-zA-Z0-9]*\b[^>]*>/g, "");
+  return s;
+}
+
+/** Split a line into columns: by tab, 2+ spaces, or single space. */
+function splitTableRow(line: string, mode: "tab" | "spaces2" | "space1"): string[] {
+  if (mode === "tab") return line.split(/\t+/).map((p) => p.trim()).filter(Boolean);
+  if (mode === "spaces2") return line.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
+  return line.split(/\s+/).map((p) => p.trim()).filter(Boolean);
+}
+
+function getTableSplitMode(lines: string[]): "tab" | "spaces2" | "space1" {
+  if (lines.some((l) => l.includes("\t"))) return "tab";
+  if (lines.some((l) => /\s{2,}/.test(l))) return "spaces2";
+  return "space1";
+}
+
+/** True if plain text looks like table data (2+ rows, 2+ columns, consistent column count). */
+function looksLikeTableText(text: string | null): boolean {
+  if (!text?.trim() || isTableHtml(text)) return false;
+  const lines = text.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return false;
+  const mode = getTableSplitMode(lines);
+  const rows = lines.map((l) => splitTableRow(l, mode));
+  if (rows.some((r) => r.length < 2)) return false;
+  const colCount = rows[0].length;
+  if (rows.some((r) => r.length !== colCount)) return false;
+  return true;
+}
+
+/** Convert plain text table (tab or 2+ space or single space separated) to HTML table. */
+function plainTextToTableHtml(text: string): string {
+  const lines = text.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+  const mode = getTableSplitMode(lines);
+  const rows = lines.map((l) => splitTableRow(l, mode));
+  const thead =
+    rows.length > 0
+      ? `<thead><tr>${rows[0].map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`
+      : "";
+  const tbody =
+    rows.length > 1
+      ? `<tbody>${rows
+          .slice(1)
+          .map(
+            (row) =>
+              `<tr>${row.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`
+          )
+          .join("")}</tbody>`
+      : "";
+  return `<table>${thead}${tbody}</table>`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /** CSA legacy fallback: question_text contains code when passage_text is empty (old uploads). */
 function looksLikeCode(text: string | null): boolean {
   if (!text?.trim()) return false;
@@ -471,6 +546,20 @@ export default function ExamPage() {
                     </div>
                   ) : null}
                 </>
+              ) : isTableHtml(leftPanelContent) ? (
+                <div
+                  className="overflow-auto max-w-full [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeTableHtml(leftPanelContent),
+                  }}
+                />
+              ) : looksLikeTableText(leftPanelContent) ? (
+                <div
+                  className="overflow-auto max-w-full [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeTableHtml(plainTextToTableHtml(leftPanelContent)),
+                  }}
+                />
               ) : isSvgContent(leftPanelContent) ? (
                 <div
                   className="overflow-auto max-w-full"
