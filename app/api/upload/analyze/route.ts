@@ -106,6 +106,28 @@ function isPlaceholderText(text: string | null | undefined): boolean {
   return false;
 }
 
+/** For Economics/Stats/Psych: strip numbered list block (I. II. III. ...) from questionText so only stem remains. */
+function stripReferenceListFromStem(questionText: string, passageText: string | null): string {
+  const q = questionText.trim();
+  if (!q) return q;
+  if (!passageText?.trim()) return q;
+  // Match stem (up to and including "?") followed by optional whitespace and "I." starting the list
+  const match = q.match(/^([\s\S]*?\?)\s*(?:\r?\n[\s\S]*?)?\s*I\.\s+[\s\S]*$/);
+  if (match) return match[1].trim();
+  return q;
+}
+
+/** True if text looks like a question stem only; should not go to left panel. */
+function looksLikeQuestionStemOnly(text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  if (t.includes("<table") || t.includes("<svg") || /^\|/.test(t)) return false;
+  const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const listLike = lines.filter((l) => /^\s*[IVX]+\.\s/.test(l) || /^\s*\d+\.\s/.test(l));
+  if (listLike.length >= 2 || (lines.length >= 2 && listLike.length >= 1)) return false;
+  return lines.length <= 3 && t.length < 600 && (t.endsWith("?") || /^(Which|What|How)\s/i.test(t));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -173,7 +195,10 @@ export async function POST(request: NextRequest) {
       systemInstruction: getSystemPrompt(subject as SubjectKey),
     });
 
-    const userPrompt = `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For CSA (code-type): Put ONLY the reference class/code block in "code". Put ONLY the multiple-choice question sentence(s) in "question". Do not repeat the class code in "question". In "options", preserve newlines (\\n) when the option is a code snippet. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
+    const isCsa = subject === "AP_CSA";
+    const userPrompt = isCsa
+      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
+      : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -203,6 +228,19 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       );
     }
+
+    // Skip items with no options (avoid irrelevant/instruction-only entries)
+    questions = questions.filter((q) => {
+      const opts = optionsToColumns(q.options);
+      const hasAnyOption = [
+        opts.option_a,
+        opts.option_b,
+        opts.option_c,
+        opts.option_d,
+        opts.option_e,
+      ].some((o) => o != null && o.trim() !== "");
+      return hasAnyOption;
+    });
 
     const supabase = createServerSupabaseAdmin();
 
@@ -261,11 +299,24 @@ export async function POST(request: NextRequest) {
           questionText = strippedQuestion;
         }
       } else {
-        passageText = (q.image_description ?? q.content)?.trim() || null;
+        passageText = (q.image_description ?? "")?.trim() || null;
       }
 
       if (isPlaceholderText(questionText)) questionText = "No question text.";
       if (passageText != null && isPlaceholderText(passageText)) passageText = null;
+
+      const isEconomicsOrPassage =
+        subject === "AP_MICROECONOMICS" ||
+        subject === "AP_MACROECONOMICS" ||
+        subject === "AP_PSYCHOLOGY" ||
+        subject === "AP_STATISTICS";
+      if (isEconomicsOrPassage && passageText != null && looksLikeQuestionStemOnly(passageText)) {
+        passageText = null;
+      }
+
+      if (isEconomicsOrPassage) {
+        questionText = stripReferenceListFromStem(questionText, passageText);
+      }
 
       const hasAnyOption = [opts.option_a, opts.option_b, opts.option_c, opts.option_d, opts.option_e].some(
         (o) => o != null && o.trim() !== ""
@@ -279,11 +330,15 @@ export async function POST(request: NextRequest) {
           ? Number(q.page_number)
           : null;
 
+      const preconditionText =
+        (q.precondition ?? "").trim() || null;
+
       return {
         upload_id: uploadId,
         question_number: i + 1,
         question_text: questionText,
         passage_text: passageText,
+        precondition_text: preconditionText,
         option_a: opts.option_a,
         option_b: opts.option_b,
         option_c: opts.option_c,

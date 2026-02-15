@@ -17,26 +17,26 @@ const OUTPUT_SCHEMA = `
 Her soru için şu JSON nesnesini üret:
 {
   "type": "code" | "image" | "text",
-  "content": "soru metni veya kod / grafik açıklaması (soru gövdesi; asla boş bırakma)",
-  "image_description": "grafik/tablo varsa detaylı betimleme veya SVG/table (yoksa null)",
+  "content": "SADECE soru kökü (stem): soruyu soran cümle. Uzun passage, liste (I. II. III.) veya tablo content'e YAZMA; bunlar image_description'da.",
+  "image_description": "grafik/tablo varsa SVG veya tablo; passage/liste varsa referans metni (yoksa null)",
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-content her zaman soru gövdesini (stem) içermeli; boş bırakma. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+content = SADECE soru kökü; passage/liste/tablo image_description'da. Boş bırakma. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
 const OUTPUT_SCHEMA_ECONOMICS = `
 Her soru için şu JSON nesnesini üret (grafikli sorularda sayfa numarası zorunlu):
 {
   "type": "code" | "image" | "text",
-  "content": "soru metni (soru gövdesi; asla boş bırakma)",
-  "image_description": "grafik/tablo varsa SVG veya tablo (yoksa null)",
+  "content": "SADECE soru kökü (stem): soruyu soran cümle, örn. 'Which of the following constitute the fundamental questions every economic system must answer?' Liste (I. II. III. IV. V.) veya tablo verisi content'e YAZMA.",
+  "image_description": "grafik (SVG), tablo (HTML veya pipe | col | formatında) veya referans listesi (I. What goods... II. How... vb.). Soruya referans veren tüm malzeme burada.",
   "page_number": 1,
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-content her zaman soru gövdesini içermeli; boş bırakma.
-page_number: Grafik veya tablo içeren her soruda zorunlu. 1-based PDF sayfa numarası: ilgili grafik veya tablo görselinin bulunduğu sayfa. Soru metni farklı sayfada olsa bile grafik/tablo hangi sayfadaysa onu ver. Örn: Soru 5'in grafiği sayfa 12'deyse page_number: 12; Soru 5'in tablosu sayfa 8'deyse page_number: 8.
+content = SADECE soru kökü cümlesi (stem); maddeler/liste/tablo image_description'da olmalı. Boş bırakma.
+page_number: Grafik veya tablo içeren her soruda zorunlu. 1-based PDF sayfa numarası: ilgili grafik veya tablo görselinin bulunduğu sayfa.
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
@@ -103,21 +103,24 @@ ${MSQ_ONLY_RULE}
 GÖREV:
 - Sayfadaki grafikleri (arz-talep, maliyet eğrileri, vb.) tespit et.
 - Grafiği sadece metinle betimlemek yerine, Bluebook stiline uygun temiz bir **tablo** veya **SVG kodu** olarak üret. Mümkünse SVG ile eksenleri, eğrileri ve etiketleri çiz.
-- Çoktan seçmeli soruları ayıkla; her soruda grafik/tablo varsa image_description alanına tablo veya SVG koy, soru metnini content'e yaz.
-- Grafik **veya** tablo içeren her soruda **page_number** zorunlu: ilgili grafik/tablo görselinin bulunduğu PDF sayfası (1 tabanlı). Soru metni farklı sayfada olsa bile grafik/tablo hangi sayfadaysa onu ver (örn. grafik sayfa 12'deyse page_number: 12; tablo sayfa 8'deyse page_number: 8).
+- Çoktan seçmeli soruları ayıkla. **content** = SADECE soru kökü (örn. "Which of the following constitute the fundamental questions...?"). Liste (I. What goods... II. How...), tablo verisi veya grafik **image_description**'a: tablo (HTML veya | col | formatında), SVG veya madde listesi. Aynı metni hem content hem image_description'a yazma.
+- Grafik **veya** tablo içeren her soruda **page_number** zorunlu: ilgili grafik/tablo görselinin bulunduğu PDF sayfası (1 tabanlı). Grafik sorularda mutlaka page_number verin; vermezseniz grafik ekranda görünmez.
 
 ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: Grafik veya tablo içeren sorularda type: "image" kullan; image_description'a tablo veya SVG koy. Her nesnede page_number (grafik/tablonun bulunduğu sayfa) olsun. Layout: Sınav ekranında grafik/tablo sol, soru sağda gösterilecek.`;
+KURAL: content = sadece soru kökü (stem). image_description = grafik/tablo/liste (sol panel). page_number her grafik/tablolu soruda. Layout: sol panel = image_description, sağ panel = content.`;
 
     case "AP_CSA":
       return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}
 
 GÖREV:
-- Sadece çoktan seçmeli (MSQ) soruları ayıkla; FRQ bölümlerini atla.
+- Sadece çoktan seçmeli (MSQ) soruları ayıkla. "Unit", "Practice Exam", "Part A/B" gibi bölüm başlıklarında bile **sadece MSQ** çıkar; talimat paragraflarını veya "Consider the following…" gibi giriş cümlelerini tek başına soru olarak yazma.
+- "Questions 4–5 refer to the following class" gibi durumda **her** soru (4 ve 5) için **ayrı** bir JSON nesnesi üret; her birinde aynı referans kodu tekrarlansın, soru metni sadece o soru numarasına ait olsun (4'ün sorusu 5'e karışmasın).
+- PDF'teki soru sırasını koru; sayfa veya bölüm atlama. Çıktıyı tek bir JSON dizisi olarak, sırayla ver.
+- "Free-response", "FRQ", "Write your solution" gibi ifadeler gördüğün bölümleri tamamen atla; sadece (A)(B)(C)(D) [ve E] şıkları olan soruları çıkar.
 - Kod içeren her MSQ için **code** ve **question** alanlarını kesinlikle ayır; aynı içeriği her iki alana yazma.
-- Practice exam / Unit exam formatında da aynı kurallar geçerli. "Questions X–Y refer to the following class" gibi durumlarda: ortak kodu **her** X…Y sorusu için ayrı ayrı nesnede tekrarla (her soru kendi code + question + options nesnesine sahip olsun). Kod birden fazla sayfadaysa tamamını birleştirip tek blok olarak code alanına yaz.
+- "Questions X–Y refer to the following class" gibi durumlarda: ortak kodu **her** X…Y sorusu için ayrı ayrı nesnede tekrarla (her soru kendi code + question + options nesnesine sahip olsun). Kod birden fazla sayfadaysa tamamını birleştirip tek blok olarak code alanına yaz.
 - Her çoktan seçmeli soru için tam olarak bir JSON nesnesi üret; soru atlama veya birleştirme. Çıktı sadece JSON dizi olmalı, açıklama ekleme.
 
 ${CSA_CODE_QUESTION_RULES}
@@ -135,12 +138,12 @@ ${MSQ_ONLY_RULE}
 
 GÖREV:
 - İstatistik tablolarını veya psikoloji metinlerini **yapılandırılmış veri** olarak çıkar.
-- Soru uzun bir okuma parçasına (reading passage) dayalıysa, metni content veya ayrı bir alanda tam ver; kullanıcı şıkları çözerken metni kaybetmesin.
-- Çoktan seçmeli soruları ayıkla; passage varsa content'te metni sabitle ki sınav ekranında sol sütunda gösterilsin.
+- **content** = SADECE soru kökü (stem). Uzun passage, liste veya tablo **image_description**'a koy; sol panelde gösterilecek.
+- Çoktan seçmeli soruları ayıkla. Passage/liste/tablo image_description'da; soru cümlesi content'te.
 
 ÇIKTI: ${OUTPUT_SCHEMA}
 
-KURAL: Uzun metin/passage varsa type: "text" ve content'e tam metni yaz. Layout: Sınav ekranında passage sol sütunda sabit, soru ve şıklar sağda.`;
+KURAL: content = sadece soru kökü. image_description = passage, tablo veya liste (sol sütun). Layout: sol = image_description, sağ = content + şıklar.`;
 
     default:
       return `Sen bir çoktan seçmeli sınav PDF analiz asistanısın.

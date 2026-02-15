@@ -5,13 +5,16 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import {
+  ArrowLeftRight,
   ChevronDown,
   Flag,
-  MoreHorizontal,
   Highlighter,
   Calculator,
-  BookOpen,
   ChevronUp,
+  MoreHorizontal,
+  Plus,
+  Star,
+  Superscript,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -83,14 +86,29 @@ function sanitizeTableHtml(html: string): string {
   return s;
 }
 
-/** Split a line into columns: by tab, 2+ spaces, or single space. */
-function splitTableRow(line: string, mode: "tab" | "spaces2" | "space1"): string[] {
+type TableSplitMode = "tab" | "spaces2" | "space1" | "pipe";
+
+/** Split a line into columns: by tab, 2+ spaces, single space, or pipe. */
+function splitTableRow(line: string, mode: TableSplitMode): string[] {
+  if (mode === "pipe") return line.split("|").map((p) => p.trim()).filter(Boolean);
   if (mode === "tab") return line.split(/\t+/).map((p) => p.trim()).filter(Boolean);
   if (mode === "spaces2") return line.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
   return line.split(/\s+/).map((p) => p.trim()).filter(Boolean);
 }
 
-function getTableSplitMode(lines: string[]): "tab" | "spaces2" | "space1" {
+/** True if row looks like markdown table separator (e.g. |---|------|). */
+function isPipeSeparatorRow(cells: string[]): boolean {
+  return cells.length >= 1 && cells.every((c) => /^[-:\s]+$/.test(c));
+}
+
+function getTableSplitMode(lines: string[]): TableSplitMode {
+  const pipeRows = lines.map((l) => splitTableRow(l, "pipe"));
+  const dataRows = pipeRows.filter((r) => r.length >= 2 && !isPipeSeparatorRow(r));
+  if (dataRows.length >= 2) {
+    const colCount = dataRows[0].length;
+    if (dataRows.every((r) => r.length === colCount) && lines.some((l) => (l.match(/\|/g)?.length ?? 0) >= 2))
+      return "pipe";
+  }
   if (lines.some((l) => l.includes("\t"))) return "tab";
   if (lines.some((l) => /\s{2,}/.test(l))) return "spaces2";
   return "space1";
@@ -103,25 +121,43 @@ function looksLikeTableText(text: string | null): boolean {
   if (lines.length < 2) return false;
   const mode = getTableSplitMode(lines);
   const rows = lines.map((l) => splitTableRow(l, mode));
-  if (rows.some((r) => r.length < 2)) return false;
-  const colCount = rows[0].length;
-  if (rows.some((r) => r.length !== colCount)) return false;
+  const dataRows = mode === "pipe" ? rows.filter((r) => r.length >= 2 && !isPipeSeparatorRow(r)) : rows;
+  if (dataRows.length < 2 || dataRows.some((r) => r.length < 2)) return false;
+  const colCount = dataRows[0].length;
+  if (dataRows.some((r) => r.length !== colCount)) return false;
   return true;
 }
 
-/** Convert plain text table (tab or 2+ space or single space separated) to HTML table. */
+/** True if text looks like a single question stem (e.g. "Which of the following…?"); not table/SVG/list. */
+function looksLikeQuestionStem(text: string | null): boolean {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  if (isTableHtml(t) || looksLikeTableText(t) || isSvgContent(t)) return false;
+  const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const listLikeLines = lines.filter(
+    (l) => /^\s*[IVX]+\.\s/.test(l) || /^\s*\d+\.\s/.test(l)
+  );
+  if (listLikeLines.length >= 2 || (lines.length >= 2 && listLikeLines.length >= 1)) return false;
+  const singleOrShort = lines.length <= 3 && t.length < 600;
+  const endsWithQ = t.endsWith("?");
+  const startsWithQuestion = /^(Which|What|How|Consider)\s/i.test(t);
+  return singleOrShort && (endsWithQ || startsWithQuestion);
+}
+
+/** Convert plain text table (tab, 2+ space, single space, or pipe) to HTML table. */
 function plainTextToTableHtml(text: string): string {
   const lines = text.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return "";
   const mode = getTableSplitMode(lines);
   const rows = lines.map((l) => splitTableRow(l, mode));
+  const dataRows = mode === "pipe" ? rows.filter((r) => r.length >= 2 && !isPipeSeparatorRow(r)) : rows;
   const thead =
-    rows.length > 0
-      ? `<thead><tr>${rows[0].map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`
+    dataRows.length > 0
+      ? `<thead><tr>${dataRows[0].map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`
       : "";
   const tbody =
-    rows.length > 1
-      ? `<tbody>${rows
+    dataRows.length > 1
+      ? `<tbody>${dataRows
           .slice(1)
           .map(
             (row) =>
@@ -155,6 +191,15 @@ function optionLooksLikeCode(text: string | null): boolean {
   if (!text?.trim()) return false;
   const t = text.trim();
   return (t.includes(";") || t.includes("{")) && (t.includes("{") || t.includes("}"));
+}
+
+/** For Economics/Stats/Psych: when question_text contains stem + numbered list (I. II. ...) and passage has the list, return only the stem for right panel. */
+function getStemOnlyIfListPresent(questionText: string | null, _passageText: string | null): string {
+  if (!questionText?.trim()) return questionText ?? "";
+  const q = questionText.trim();
+  const match = q.match(/^([\s\S]*?\?)\s*(?:\r?\n[\s\S]*?)?\s*I\.\s+[\s\S]*$/);
+  if (match) return match[1].trim();
+  return q;
 }
 
 /**
@@ -355,9 +400,19 @@ export default function ExamPage() {
   const leftPanelContent = isCsaLegacyFallback
     ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
     : (currentQuestion?.passage_text ?? "");
-  const rawStem = isCsaLegacyFallback
+  const isEconomicsOrPassage =
+    isEconomics || subject === "AP_PSYCHOLOGY" || subject === "AP_STATISTICS";
+  let rawStem = isCsaLegacyFallback
     ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
+  if (
+    !isCsaLegacyFallback &&
+    isEconomicsOrPassage &&
+    currentQuestion?.passage_text?.trim() &&
+    rawStem
+  ) {
+    rawStem = getStemOnlyIfListPresent(rawStem, currentQuestion.passage_text) || rawStem;
+  }
   const hasAnyOption =
     currentQuestion &&
     [
@@ -371,6 +426,15 @@ export default function ExamPage() {
     (!rawStem || rawStem === "No question text.") && hasAnyOption
       ? "Which of the following is correct?"
       : rawStem;
+
+  const hasMeaningfulLeftContent =
+    (isEconomics && !!pdfUrl && currentQuestion?.page_number != null) ||
+    (!!leftPanelContent?.trim() &&
+      (subject === "AP_CSA" ||
+        isTableHtml(leftPanelContent) ||
+        looksLikeTableText(leftPanelContent) ||
+        isSvgContent(leftPanelContent) ||
+        (isEconomicsOrPassage && !looksLikeQuestionStem(leftPanelContent))));
 
   if (loading) {
     return (
@@ -437,22 +501,93 @@ export default function ExamPage() {
     { key: "E" as const, text: currentQuestion?.option_e },
   ].filter((o) => o.text != null && o.text.trim() !== "");
 
+  const questionBlockContent = (
+    <>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
+          {currentQuestion?.question_number ?? 0}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={currentQuestion ? markedForReview.has(currentQuestion.id) : false}
+            onChange={() => currentQuestion && toggleMarkForReview(currentQuestion.id)}
+            className="rounded border-gray-300"
+          />
+          <Flag className="h-4 w-4" />
+          Mark for Review
+        </label>
+        <div className="ml-auto flex items-center justify-center rounded bg-blue-600 px-2 py-1 text-white text-xs font-medium">
+          AP
+        </div>
+      </div>
+      <p className="text-gray-900 font-medium">{rightPanelQuestionText}</p>
+      <div className="space-y-2">
+        {options.map(({ key, text }) => {
+          const isSelected = currentQuestion && answers[currentQuestion.id] === key;
+          const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
+          const optionContent = text ?? "";
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                if (!currentQuestion) return;
+                setAnswers((prev) => ({ ...prev, [currentQuestion.id]: key }));
+                saveAnswer(
+                  currentQuestion.id,
+                  key,
+                  markedForReview.has(currentQuestion.id)
+                );
+              }}
+              className={cn(
+                "w-full flex items-start gap-3 rounded-lg border border-gray-300 px-4 py-3 text-left text-sm transition-colors",
+                isSelected
+                  ? "border-[#1B365D] bg-[#1B365D]/5 text-gray-900"
+                  : "bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
+              )}
+            >
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium mt-0.5 bg-transparent">
+                {key}
+              </span>
+              <span className="flex-1 min-w-0">
+                {showAsCode ? (
+                  <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-gray-50 rounded p-2 overflow-x-auto">
+                    <code>{optionContent}</code>
+                  </pre>
+                ) : (
+                  optionContent
+                )}
+              </span>
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400">
+                <Plus className="h-4 w-4 text-gray-500" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
-      <header className="bg-[#1B365D] text-white flex-shrink-0">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="font-semibold hover:underline">
+      <header className="flex-shrink-0 border-b border-gray-200 bg-white text-gray-900">
+        <div className="relative flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-gray-700 hover:underline">
+              <span className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white">
+                <Star className="h-5 w-5 text-blue-600 fill-blue-600" />
+              </span>
               Bluebook
             </Link>
             <div>
-              <p className="text-sm font-medium">Section I</p>
+              <p className="text-xl font-bold text-gray-900">Section I</p>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setDirectionsOpen((o) => !o)}
-                  className="flex items-center gap-1 text-sm text-white/90 hover:text-white"
+                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
                 >
                   Directions <ChevronDown className="h-4 w-4" />
                 </button>
@@ -465,14 +600,14 @@ export default function ExamPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
             {timerVisible && (
               <div className="text-center">
-                <p className="text-lg font-mono">{formatTimer(elapsedSeconds)}</p>
+                <p className="text-lg font-mono text-gray-900">{formatTimer(elapsedSeconds)}</p>
                 <button
                   type="button"
                   onClick={() => setTimerVisible(false)}
-                  className="text-xs text-white/80 hover:text-white"
+                  className="mt-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
                 >
                   Hide
                 </button>
@@ -482,198 +617,162 @@ export default function ExamPage() {
               <button
                 type="button"
                 onClick={() => setTimerVisible(true)}
-                className="text-sm text-white/90 hover:text-white"
+                className="text-sm text-gray-600 hover:text-gray-900"
               >
                 Show timer
               </button>
             )}
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-sm text-white/90">
-                <Highlighter className="h-4 w-4" /> Highlights & Notes
+          </div>
+          <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+            <span className="flex items-center gap-1 text-sm text-gray-600">
+              <Highlighter className="h-4 w-4" /> Highlights & Notes
+            </span>
+            <span className="flex items-center gap-1 text-sm text-gray-600">
+              <Superscript className="h-4 w-4" /> Reference
+            </span>
+            {!isCsa && (
+              <span className="flex items-center gap-1 text-sm text-gray-600">
+                <Calculator className="h-4 w-4" /> Calculator
               </span>
-              {!isCsa && (
-                <span className="flex items-center gap-1 text-sm text-white/90">
-                  <Calculator className="h-4 w-4" /> Calculator
-                </span>
-              )}
-              <button type="button" className="p-1 rounded hover:bg-white/10">
-                <MoreHorizontal className="h-5 w-5" />
-              </button>
-            </div>
+            )}
+            <button type="button" className="p-1 rounded hover:bg-gray-100">
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
           </div>
         </div>
         {isCsa && (
-          <div className="bg-red-600/90 px-4 py-2 flex items-center gap-2 text-sm font-medium">
+          <div className="bg-[#f8d7da] border border-dashed border-red-300 px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium text-white">
             <Calculator className="h-4 w-4" />
             NO CALCULATOR ALLOWED
           </div>
         )}
-        <div className="bg-[#152a4a] px-4 py-2 text-center text-sm font-medium">
+        <div className="bg-[#f8d7da] border border-dashed border-red-300 px-4 py-2 text-center text-sm font-medium text-white">
           THIS IS A TEST PREVIEW
         </div>
       </header>
 
-      {/* Main: two panels */}
-      <main className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left panel */}
-        <div
-          className="flex-shrink-0 overflow-auto border-r border-gray-200 bg-white"
-          style={{ width: `${leftPanelPercent}%` }}
-        >
-          <div className="p-4 h-full">
-            {isEconomics && pdfUrl && currentQuestion?.page_number != null ? (
-              <div className="overflow-auto max-w-full">
-                <PdfPageView
-                  pdfUrl={pdfUrl}
-                  pageNumber={currentQuestion.page_number}
-                  className="max-w-full h-auto"
-                />
-              </div>
-            ) : leftPanelContent ? (
-              subject === "AP_CSA" ? (
-                <>
-                  <pre className="text-sm font-mono bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto whitespace-pre">
-                    <code>{leftPanelContent}</code>
-                  </pre>
-                  {currentQuestion?.precondition_text?.trim() ? (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                        Precondition
-                      </p>
-                      <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-auto">
-                        {currentQuestion.precondition_text}
+      {/* Main: split when left content exists, else single centered column */}
+      <main className={cn("flex-1 flex overflow-hidden min-h-0", hasMeaningfulLeftContent && "bg-gray-100")}>
+        {hasMeaningfulLeftContent ? (
+          <>
+            {/* Left panel */}
+            <div
+              className={cn(
+                "flex-shrink-0 overflow-auto border-r bg-white",
+                isCsa && leftPanelContent?.trim()
+                  ? "border-2 border-amber-400"
+                  : "border-r border-gray-200"
+              )}
+              style={{ width: `${leftPanelPercent}%` }}
+            >
+              <div className="p-4 h-full relative">
+                {isCsa && leftPanelContent?.trim() && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded border border-dashed border-red-300 bg-[#f8d7da] px-2 py-1 text-xs font-medium text-white">
+                    <Calculator className="h-3.5 w-3.5" />
+                    NO CALCULATOR ALLOWED
+                  </div>
+                )}
+                {isEconomics && pdfUrl && currentQuestion?.page_number != null ? (
+                  <div className="overflow-auto max-w-full">
+                    <PdfPageView
+                      pdfUrl={pdfUrl}
+                      pageNumber={currentQuestion.page_number}
+                      className="max-w-full h-auto"
+                    />
+                  </div>
+                ) : leftPanelContent ? (
+                  subject === "AP_CSA" ? (
+                    <>
+                      <p className="text-sm font-medium text-gray-900 mb-2">Consider the following code segment.</p>
+                      <pre className="text-sm font-mono bg-gray-100 text-gray-900 p-4 rounded-md overflow-auto whitespace-pre border border-gray-200">
+                        <code>{leftPanelContent}</code>
                       </pre>
+                      {currentQuestion?.precondition_text?.trim() ? (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                            Precondition
+                          </p>
+                          <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-auto">
+                            {currentQuestion.precondition_text}
+                          </pre>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : isTableHtml(leftPanelContent) ? (
+                    <div
+                      className="overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5"
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeTableHtml(leftPanelContent),
+                      }}
+                    />
+                  ) : looksLikeTableText(leftPanelContent) ? (
+                    <div
+                      className="overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5"
+                      dangerouslySetInnerHTML={{
+                        __html: sanitizeTableHtml(plainTextToTableHtml(leftPanelContent)),
+                      }}
+                    />
+                  ) : isSvgContent(leftPanelContent) ? (
+                    <div
+                      className="overflow-auto max-w-full"
+                      dangerouslySetInnerHTML={{
+                        __html: leftPanelContent.trim(),
+                      }}
+                    />
+                  ) : isEconomicsOrPassage && looksLikeQuestionStem(leftPanelContent) ? (
+                    <p className="text-sm text-gray-500">No graph or table for this question.</p>
+                  ) : (
+                    <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
+                      {leftPanelContent}
                     </div>
-                  ) : null}
-                </>
-              ) : isTableHtml(leftPanelContent) ? (
-                <div
-                  className="overflow-auto max-w-full [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeTableHtml(leftPanelContent),
-                  }}
-                />
-              ) : looksLikeTableText(leftPanelContent) ? (
-                <div
-                  className="overflow-auto max-w-full [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-100 [&_th]:px-3 [&_th]:py-2 [&_td]:border [&_td]:border-gray-300 [&_td]:px-3 [&_td]:py-2"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeTableHtml(plainTextToTableHtml(leftPanelContent)),
-                  }}
-                />
-              ) : isSvgContent(leftPanelContent) ? (
-                <div
-                  className="overflow-auto max-w-full"
-                  dangerouslySetInnerHTML={{
-                    __html: leftPanelContent.trim(),
-                  }}
-                />
-              ) : (
-                <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
-                  {leftPanelContent}
-                </div>
-              )
-            ) : (
-              <p className="text-sm text-gray-500">
-                {isCsa ? "No code for this question." : "No passage for this question."}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Resizer */}
-        <div
-          ref={dividerRef}
-          className="w-2 flex-shrink-0 bg-gray-200 hover:bg-[#1B365D]/20 cursor-col-resize flex items-center justify-center group"
-          onMouseDown={() => {
-            isDraggingRef.current = true;
-            window.addEventListener("mousemove", handleResize);
-            window.addEventListener("mouseup", handleResizeEnd);
-          }}
-        >
-          <div className="w-1 h-8 rounded bg-gray-400 group-hover:bg-[#1B365D]" />
-        </div>
-
-        {/* Right panel */}
-        <div
-          className="flex-1 overflow-auto flex flex-col min-w-0"
-          style={{ width: `${100 - leftPanelPercent}%` }}
-        >
-          <div className="p-6 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-900 text-white font-semibold">
-                {currentQuestion?.question_number ?? 0}
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={currentQuestion ? markedForReview.has(currentQuestion.id) : false}
-                  onChange={() => currentQuestion && toggleMarkForReview(currentQuestion.id)}
-                  className="rounded border-gray-300"
-                />
-                <Flag className="h-4 w-4" />
-                Mark for Review
-              </label>
-              <div className="ml-auto flex h-8 w-8 items-center justify-center rounded bg-[#1B365D] text-white text-xs font-medium">
-                <BookOpen className="h-4 w-4" />
+                  )
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    {isCsa ? "No code for this question." : "No passage for this question."}
+                  </p>
+                )}
               </div>
             </div>
 
-            <p className="text-gray-900 font-medium">{rightPanelQuestionText}</p>
+            {/* Resizer */}
+            <div
+              ref={dividerRef}
+              className="w-1 flex-shrink-0 bg-gray-300 hover:bg-gray-400 cursor-col-resize flex items-center justify-center group"
+              onMouseDown={() => {
+                isDraggingRef.current = true;
+                window.addEventListener("mousemove", handleResize);
+                window.addEventListener("mouseup", handleResizeEnd);
+              }}
+            >
+              <ArrowLeftRight className="h-5 w-5 text-gray-500 group-hover:text-[#1B365D]" />
+            </div>
 
-            <div className="space-y-2">
-              {options.map(({ key, text }) => {
-                const isSelected = currentQuestion && answers[currentQuestion.id] === key;
-                const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
-                const optionContent = text ?? "";
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      if (!currentQuestion) return;
-                      setAnswers((prev) => ({ ...prev, [currentQuestion.id]: key }));
-                      saveAnswer(
-                        currentQuestion.id,
-                        key,
-                        markedForReview.has(currentQuestion.id)
-                      );
-                    }}
-                    className={cn(
-                      "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors",
-                      isSelected
-                        ? "border-[#1B365D] bg-[#1B365D]/5 text-gray-900"
-                        : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 text-gray-800"
-                    )}
-                  >
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300 font-medium mt-0.5">
-                      {key}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      {showAsCode ? (
-                        <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-gray-50 rounded p-2 overflow-x-auto">
-                          <code>{optionContent}</code>
-                        </pre>
-                      ) : (
-                        optionContent
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Right panel */}
+            <div
+              className="flex-1 overflow-auto flex flex-col min-w-0"
+              style={{ width: `${100 - leftPanelPercent}%` }}
+            >
+              <div className="p-6 flex flex-col gap-4">{questionBlockContent}</div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 overflow-auto flex flex-col items-center min-h-0">
+            <div className="w-full max-w-2xl p-6 py-8 flex flex-col gap-4">
+              {questionBlockContent}
             </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-200 bg-[#1B365D] text-white px-4 py-3">
+      <footer className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3 text-gray-900">
         <div className="flex items-center justify-between">
-          <p className="text-sm">{userEmail || "User"}</p>
+          <p className="text-sm text-gray-700">{userEmail || "User"}</p>
           <div className="relative">
             <button
               type="button"
               onClick={() => setQuestionListOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium hover:bg-white/20"
+              className="flex items-center gap-2 rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-300"
             >
               Question {currentIndex + 1} of {questions.length}
               <ChevronUp className="h-4 w-4" />
@@ -692,7 +791,7 @@ export default function ExamPage() {
                       className={cn(
                         "h-8 w-8 rounded text-sm font-medium",
                         i === currentIndex
-                          ? "bg-[#1B365D] text-white"
+                          ? "bg-blue-600 text-white"
                           : answers[q.id]
                             ? "bg-gray-200 text-gray-800"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -710,7 +809,7 @@ export default function ExamPage() {
               type="button"
               onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
               disabled={currentIndex === 0}
-              className="rounded-md bg-white/10 px-4 py-2 text-sm font-medium hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md bg-[#36454F] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d3748] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Back
             </button>
@@ -720,7 +819,7 @@ export default function ExamPage() {
                 setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))
               }
               disabled={currentIndex >= questions.length - 1}
-              className="rounded-md bg-white px-4 py-2 text-sm font-medium text-[#1B365D] hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </button>
