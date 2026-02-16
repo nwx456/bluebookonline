@@ -24,10 +24,10 @@ export function HeaderNav() {
   if (!mounted) {
     return (
       <nav className="flex gap-4">
-        <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-[#1B365D]">
+        <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-blue-600">
           Sign in
         </Link>
-        <Link href="/signup" className="rounded-md bg-[#1B365D] px-4 py-2 text-sm font-medium text-white hover:bg-[#152a4a]">
+        <Link href="/signup" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
           Sign up
         </Link>
       </nav>
@@ -37,7 +37,7 @@ export function HeaderNav() {
   if (user) {
     return (
       <nav className="flex gap-4">
-        <Link href="/dashboard" className="rounded-md bg-[#1B365D] px-4 py-2 text-sm font-medium text-white hover:bg-[#152a4a]">
+        <Link href="/dashboard" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
           Dashboard
         </Link>
       </nav>
@@ -46,10 +46,10 @@ export function HeaderNav() {
 
   return (
     <nav className="flex gap-4">
-      <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-[#1B365D]">
+      <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-blue-600">
         Sign in
       </Link>
-      <Link href="/signup" className="rounded-md bg-[#1B365D] px-4 py-2 text-sm font-medium text-white hover:bg-[#152a4a]">
+      <Link href="/signup" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
         Sign up
       </Link>
     </nav>

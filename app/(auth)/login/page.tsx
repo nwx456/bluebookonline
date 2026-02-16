@@ -72,7 +72,7 @@ function LoginFormInner() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D]"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             placeholder="you@example.com"
           />
         </div>
@@ -87,7 +87,7 @@ function LoginFormInner() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D]"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             placeholder="••••••••"
           />
         </div>
@@ -99,7 +99,7 @@ function LoginFormInner() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-[#1B365D] px-4 py-3 text-sm font-medium text-white hover:bg-[#152a4a] disabled:opacity-60"
+          className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
@@ -107,7 +107,7 @@ function LoginFormInner() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-medium text-[#1B365D] hover:underline">
+        <Link href="/signup" className="font-medium text-blue-600 hover:underline">
           Sign up
         </Link>
       </p>

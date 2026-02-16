@@ -27,7 +27,7 @@ export default function Home() {
             </Link>
             <Link
               href="/signup"
-              className="rounded-md bg-[#1B365D] px-5 py-3 text-sm font-medium text-white hover:bg-[#152a4a]"
+              className="rounded-md bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
             >
               Sign up
             </Link>

@@ -12,7 +12,6 @@ import {
   BookOpen,
   LogOut,
   X,
-  Sparkles,
 } from "lucide-react";
 import { cn, generateId } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -37,7 +36,7 @@ interface UploadedExam {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [subject, setSubject] = useState<SubjectValue>("AP_CSA");
+  const [subject, setSubject] = useState<SubjectValue | "">("");
   const [questionCount, setQuestionCount] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -53,7 +52,7 @@ export default function DashboardPage() {
 
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
-  const canAnalyze = selectedFile !== null && isQuestionCountValid;
+  const canAnalyze = selectedFile !== null && isQuestionCountValid && subject !== "";
 
   useEffect(() => {
     const supabase = createClient();
@@ -138,7 +137,7 @@ export default function DashboardPage() {
   }, []);
 
   async function handleAnalyze() {
-    if (!selectedFile || !canAnalyze) return;
+    if (!selectedFile || !canAnalyze || !subject) return;
     setIsUploading(true);
     setUploadProgress(0);
     setUploadError(null);
@@ -173,7 +172,6 @@ export default function DashboardPage() {
       }
 
       setUploads((prev) => [
-        ...prev,
         {
           id: data.examId ?? generateId(),
           name: selectedFile.name,
@@ -181,6 +179,7 @@ export default function DashboardPage() {
           questionCount: questionCountNum,
           uploadedAt: new Date().toISOString(),
         },
+        ...prev,
       ]);
       setSelectedFile(null);
       setQuestionCount("");
@@ -194,7 +193,9 @@ export default function DashboardPage() {
     }
   }
 
-  const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
+  const subjectLabel = subject
+    ? (SUBJECTS.find((s) => s.value === subject)?.label ?? subject)
+    : "Select subject";
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -222,14 +223,14 @@ export default function DashboardPage() {
             <span className="text-sm text-gray-500">Dashboard</span>
             <Link
               href="/"
-              className="text-sm font-medium text-gray-600 hover:text-[#1B365D]"
+              className="text-sm font-medium text-gray-600 hover:text-blue-600"
             >
               Home
             </Link>
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-[#1B365D]"
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600"
             >
               <LogOut className="h-4 w-4" />
               Sign out
@@ -248,9 +249,8 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setShowUploadForm(true)}
-              className="inline-flex items-center gap-3 rounded-xl border-2 border-[#1B365D] bg-[#1B365D] px-6 py-4 text-base font-medium text-white shadow-sm hover:bg-[#152a4a] hover:border-[#152a4a] transition-colors"
+              className="inline-flex items-center gap-3 rounded-xl border-2 border-blue-600 bg-blue-600 px-6 py-4 text-base font-medium text-white shadow-sm hover:bg-blue-700 hover:border-blue-700 transition-colors"
             >
-              <Sparkles className="h-6 w-6" />
               Analyze with AI
             </button>
             <p className="mt-2 text-sm text-gray-500">
@@ -271,6 +271,7 @@ export default function DashboardPage() {
                     setShowUploadForm(false);
                     setUploadError(null);
                     setSelectedFile(null);
+                    setSubject("");
                   }}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
@@ -284,7 +285,7 @@ export default function DashboardPage() {
                 className={cn(
                   "relative rounded-lg border-2 border-dashed p-10 text-center transition-colors",
                   isDragging
-                    ? "border-[#1B365D] bg-[#1B365D]/5"
+                    ? "border-blue-600 bg-blue-600/5"
                     : "border-gray-200 bg-gray-50/50 hover:border-gray-300 hover:bg-gray-50"
                 )}
               >
@@ -304,7 +305,7 @@ export default function DashboardPage() {
                 </p>
                 {selectedFile && (
                   <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-white border border-gray-200 px-4 py-2 max-w-md mx-auto">
-                    <FileText className="h-4 w-4 text-[#1B365D]" />
+                    <FileText className="h-4 w-4 text-blue-600" />
                     <span className="text-sm font-medium text-gray-800 truncate flex-1">
                       {selectedFile.name}
                     </span>
@@ -338,7 +339,7 @@ export default function DashboardPage() {
                       className={cn(
                         "w-full flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm",
                         "border-gray-200 bg-white text-gray-900",
-                        "focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D] focus:outline-none"
+                        "focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                       )}
                     >
                       <span className="flex items-center gap-2">
@@ -362,7 +363,7 @@ export default function DashboardPage() {
                             className={cn(
                               "w-full px-3 py-2 text-left text-sm",
                               subject === s.value
-                                ? "bg-[#1B365D] text-white"
+                                ? "bg-blue-600 text-white"
                                 : "text-gray-700 hover:bg-gray-50"
                             )}
                           >
@@ -384,7 +385,7 @@ export default function DashboardPage() {
                     value={questionCount}
                     onChange={(e) => setQuestionCount(e.target.value)}
                     placeholder="e.g. 50"
-                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D] focus:outline-none"
+                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                   />
                 </div>
               </div>
@@ -401,11 +402,10 @@ export default function DashboardPage() {
                   className={cn(
                     "inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium",
                     canAnalyze && !isUploading
-                      ? "bg-[#1B365D] text-white hover:bg-[#152a4a]"
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
                       : "bg-gray-200 text-gray-500 cursor-not-allowed"
                   )}
                 >
-                  <Sparkles className="h-4 w-4" />
                   {isUploading ? "Analyzing…" : "Analyze with AI"}
                 </button>
                 <p className="mt-1.5 text-xs text-gray-500">
@@ -416,7 +416,7 @@ export default function DashboardPage() {
                 <div className="mt-4 w-full max-w-xs">
                   <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
                     <div
-                      className="h-full bg-[#1B365D] transition-all duration-300"
+                      className="h-full bg-blue-600 transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -497,7 +497,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/exam/${exam.id}`}
-                            className="inline-flex items-center gap-1 rounded-md bg-[#1B365D] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#152a4a]"
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                           >
                             <Play className="h-3.5 w-3.5" />
                             Start exam

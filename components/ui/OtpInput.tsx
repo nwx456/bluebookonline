@@ -96,8 +96,8 @@ export function OtpInput({
           className={`
             w-12 h-12 text-center text-lg font-semibold rounded-md border bg-[var(--card-bg)]
             transition-colors outline-none
-            ${error ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-[var(--border)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"}
-            ${focusedIndex === index ? "ring-1 ring-[var(--primary)] border-[var(--primary)]" : ""}
+            ${error ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-[var(--border)] focus:border-blue-600 focus:ring-1 focus:ring-blue-600"}
+            ${focusedIndex === index ? "ring-1 ring-blue-600 border-blue-600" : ""}
           `}
           aria-label={`${ariaLabel} digit ${index + 1}`}
         />

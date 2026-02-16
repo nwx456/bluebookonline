@@ -77,7 +77,7 @@ export default function SignUpPage() {
         </p>
         <Link
           href={`/verify-otp?email=${encodeURIComponent(sentEmail)}`}
-          className="mt-6 block w-full rounded-md bg-[#1B365D] px-4 py-3 text-center text-sm font-medium text-white hover:bg-[#152a4a]"
+          className="mt-6 block w-full rounded-md bg-blue-600 px-4 py-3 text-center text-sm font-medium text-white hover:bg-blue-700"
         >
           Go to verification
         </Link>
@@ -102,7 +102,7 @@ export default function SignUpPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D]"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             placeholder="you@example.com"
           />
         </div>
@@ -118,7 +118,7 @@ export default function SignUpPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D]"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             placeholder="At least 8 characters"
           />
         </div>
@@ -133,7 +133,7 @@ export default function SignUpPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-[#1B365D] focus:ring-1 focus:ring-[#1B365D]"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             placeholder="Re-enter password"
           />
         </div>
@@ -147,7 +147,7 @@ export default function SignUpPage() {
                 type="button"
                 onClick={handleClearEmail}
                 disabled={cleaning}
-                className="text-sm font-medium text-[#1B365D] hover:underline disabled:opacity-60"
+                className="text-sm font-medium text-blue-600 hover:underline disabled:opacity-60"
               >
                 {cleaning ? "Clearing…" : "Clear this email and try again"}
               </button>
@@ -157,7 +157,7 @@ export default function SignUpPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-[#1B365D] px-4 py-3 text-sm font-medium text-white hover:bg-[#152a4a] disabled:opacity-60"
+          className="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {loading ? "Sending…" : "Send verification code"}
         </button>
@@ -165,7 +165,7 @@ export default function SignUpPage() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-[#1B365D] hover:underline">
+        <Link href="/login" className="font-medium text-blue-600 hover:underline">
           Sign in
         </Link>
       </p>

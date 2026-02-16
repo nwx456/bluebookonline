@@ -379,6 +379,20 @@ export default function ExamPage() {
   const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
   const [calculatorPos, setCalculatorPos] = useState({ x: 32, y: 96 });
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [examCompleted, setExamCompleted] = useState(false);
+  const [examResult, setExamResult] = useState<{
+    total: number;
+    correctCount: number;
+    incorrectCount: number;
+    unansweredCount: number;
+    percentage: number;
+    timeSpentSeconds: number;
+    breakdown: { questionNumber: number; userAnswer: string | null; correctAnswer: string | null; isCorrect: boolean }[];
+  } | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [selectedResultQuestion, setSelectedResultQuestion] = useState<number | null>(null);
+  const [resultExplanation, setResultExplanation] = useState<string | null>(null);
+  const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
@@ -555,6 +569,74 @@ export default function ExamPage() {
     [answers, saveAnswer]
   );
 
+  const completeExam = useCallback(async () => {
+    if (!attemptId || completing) return;
+    setCompleting(true);
+    try {
+      await Promise.all(
+        Object.entries(answers).map(([qId, ans]) =>
+          saveAnswer(qId, ans, markedForReview.has(qId))
+        )
+      );
+      const res = await fetch("/api/exam/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attemptId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to complete exam");
+      setExamResult({
+        total: data.total ?? 0,
+        correctCount: data.correctCount ?? 0,
+        incorrectCount: data.incorrectCount ?? 0,
+        unansweredCount: data.unansweredCount ?? 0,
+        percentage: data.percentage ?? 0,
+        timeSpentSeconds: data.timeSpentSeconds ?? 0,
+        breakdown: data.breakdown ?? [],
+      });
+      setExamCompleted(true);
+    } catch (e) {
+      console.error(e);
+      alert("Sınav tamamlanamadı. Lütfen tekrar deneyin.");
+    } finally {
+      setCompleting(false);
+    }
+  }, [attemptId, completing, answers, saveAnswer, markedForReview]);
+
+  const handleExplainClick = useCallback(
+    async (questionNumber: number) => {
+      const q = questions.find((qq) => qq.question_number === questionNumber);
+      const row = examResult?.breakdown.find((b) => b.questionNumber === questionNumber);
+      if (!q || !upload) return;
+      setSelectedResultQuestion(questionNumber);
+      setResultExplanationLoading(true);
+      setResultExplanation(null);
+      try {
+        const opts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e].filter(
+          (o): o is string => o != null && o.trim() !== ""
+        );
+        const res = await fetch("/api/exam/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questionText: q.question_text,
+            passageText: q.passage_text ?? "",
+            options: opts,
+            correctAnswer: row?.correctAnswer ?? "A",
+            subject: upload.subject,
+          }),
+        });
+        const data = await res.json();
+        setResultExplanation(data.explanation ?? "No explanation available.");
+      } catch {
+        setResultExplanation("Failed to load explanation.");
+      } finally {
+        setResultExplanationLoading(false);
+      }
+    },
+    [questions, upload, examResult]
+  );
+
   const currentQuestion = questions[currentIndex] ?? null;
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
@@ -620,7 +702,7 @@ export default function ExamPage() {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center gap-4">
         <p className="text-gray-600">Exam not found.</p>
-        <Link href="/dashboard" className="text-[#1B365D] font-medium hover:underline">
+        <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">
           Back to Dashboard
         </Link>
       </div>
@@ -630,7 +712,7 @@ export default function ExamPage() {
   if (!attemptId) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-        <header className="bg-[#1B365D] text-white px-6 py-4">
+        <header className="bg-blue-600 text-white px-6 py-4">
           <Link href="/dashboard" className="font-semibold hover:underline">
             Bluebook
           </Link>
@@ -648,17 +730,138 @@ export default function ExamPage() {
               disabled={starting}
               className={cn(
                 "mt-6 w-full rounded-md px-4 py-3 text-sm font-medium text-white",
-                starting ? "bg-gray-400 cursor-not-allowed" : "bg-[#1B365D] hover:bg-[#152a4a]"
+                starting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
               )}
             >
               {starting ? "Starting…" : "Start Exam"}
             </button>
             <Link
               href="/dashboard"
-              className="mt-4 inline-block text-sm text-gray-500 hover:text-[#1B365D]"
+              className="mt-4 inline-block text-sm text-gray-500 hover:text-blue-600"
             >
               Back to Dashboard
             </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (attemptId && examCompleted && examResult) {
+    const r = examResult;
+    const m = Math.floor(r.timeSpentSeconds / 60);
+    const s = r.timeSpentSeconds % 60;
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+        <header className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/dashboard" className="font-semibold text-gray-900 hover:underline">
+              Bluebook
+            </Link>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-6">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-bold text-gray-900 mb-6">Exam Result</h1>
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div>
+                  <p className="text-3xl font-bold text-green-600">{r.correctCount}</p>
+                  <p className="text-sm text-gray-600">Correct</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-red-600">{r.incorrectCount}</p>
+                  <p className="text-sm text-gray-600">Incorrect</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-gray-500">{r.unansweredCount}</p>
+                  <p className="text-sm text-gray-600">Unanswered</p>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-blue-600">{r.percentage}%</p>
+                  <p className="text-sm text-gray-600">Score</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-gray-500 text-center">
+                Time: {m}:{s.toString().padStart(2, "0")}
+              </p>
+            </div>
+            <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              <strong>Note:</strong> Results may not be 100% accurate. AI-generated answers and explanations are for reference only.
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h2 className="font-medium text-gray-900">Question Details</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Click to view solution explanation</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-4 py-2 font-medium text-gray-700">Question</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-700">Your Answer</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-700">Correct Answer</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.breakdown.map((row) => (
+                      <tr
+                        key={row.questionNumber}
+                        onClick={() => handleExplainClick(row.questionNumber)}
+                        className={cn(
+                          "border-b border-gray-100 cursor-pointer hover:bg-gray-50",
+                          selectedResultQuestion === row.questionNumber && "bg-blue-50"
+                        )}
+                      >
+                        <td className="px-4 py-2">{row.questionNumber}</td>
+                        <td className="px-4 py-2">{row.userAnswer ?? "—"}</td>
+                        <td className="px-4 py-2">{row.correctAnswer ?? "—"}</td>
+                        <td className="px-4 py-2">
+                          {row.userAnswer == null || row.userAnswer === ""
+                            ? "Unanswered"
+                            : row.isCorrect
+                              ? "Correct"
+                              : "Incorrect"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {selectedResultQuestion != null && (
+              <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-medium text-gray-900">
+                    Question {selectedResultQuestion} – Solution Explanation
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedResultQuestion(null);
+                      setResultExplanation(null);
+                    }}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Close
+                  </button>
+                </div>
+                {resultExplanationLoading ? (
+                  <p className="text-sm text-gray-500">Loading explanation…</p>
+                ) : resultExplanation ? (
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{resultExplanation}</div>
+                ) : null}
+              </div>
+            )}
+            <div className="mt-6 text-center">
+              <Link
+                href="/dashboard"
+                className="inline-block rounded-md bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
         </main>
       </div>
@@ -715,7 +918,7 @@ export default function ExamPage() {
               className={cn(
                 "w-full flex items-start gap-3 rounded-lg border border-gray-300 px-4 py-3 text-left text-sm transition-colors",
                 isSelected
-                  ? "border-[#1B365D] bg-[#1B365D]/5 text-gray-900"
+                  ? "border-blue-600 bg-blue-600/5 text-gray-900"
                   : "bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
               )}
             >
@@ -1245,7 +1448,7 @@ export default function ExamPage() {
                 window.addEventListener("mouseup", handleResizeEnd);
               }}
             >
-              <ArrowLeftRight className="h-5 w-5 text-gray-500 group-hover:text-[#1B365D]" />
+              <ArrowLeftRight className="h-5 w-5 text-gray-500 group-hover:text-blue-600" />
             </div>
 
             {/* Right panel */}
@@ -1324,6 +1527,25 @@ export default function ExamPage() {
             >
               Next
             </button>
+            {currentIndex === questions.length - 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Bitirmek istediğinize emin misiniz?")) {
+                    completeExam();
+                  }
+                }}
+                disabled={completing}
+                className={cn(
+                  "rounded-md px-4 py-2 text-sm font-medium",
+                  completing
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-green-600 text-white hover:bg-green-700"
+                )}
+              >
+                {completing ? "Sonuçlar hesaplanıyor…" : "Sınavı Bitir"}
+              </button>
+            )}
           </div>
         </div>
       </footer>
