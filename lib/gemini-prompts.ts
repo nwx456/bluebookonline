@@ -48,7 +48,7 @@ Kod içeren her MSQ için şu JSON nesnesini üret:
   "question": "sadece çoktan seçmeli soru cümlesi (soru numarası + soru metni + 'Which replacement...' gibi)",
   "precondition": "optional; Precondition: ... ve Javadoc (/** ... @param ... @return ... */) metni. PDF'te kod bloğunun üstünde veya altında görünen, çoktan seçmeli soru kökü olmayan metin. Soru kökünü buraya koyma.",
   "content": "optional; use only if duplicating question for compatibility; otherwise omit or leave empty",
-  "image_description": null,
+  "image_description": "optional; şıklar I, II, III'e referans veriyorsa (ör. (A) I only, (B) II only) öncül listesini buraya: I. İlk ifade. II. İkinci ifade. III. Üçüncü ifade. Kod yoksa null.",
   "options": ["(A) seçenek metni", "(B) ..."],
   "correct": "A"
 }
@@ -80,6 +80,11 @@ const CSA_CODE_QUESTION_RULES = `
 - Her eleman sadece o şıkkın metni (ör. "(A) return s.getYtdSales() * percentage;").
 - Şık kod içeriyorsa satır sonlarını ve girintileri koru (string içinde \\n kullan).
 - Referans sınıf kodunu veya soru metnini options içine koyma; sadece seçenek metni.
+
+**image_description** alanı (I, II, III referanslı sorularda ZORUNLU):
+- Şıklar "(A) I only", "(B) II only", "(C) I and II only" gibi I, II, III'e referans veriyorsa, **image_description** alanına öncül listesini mutlaka yaz: "I. Birinci ifade veya açıklama. II. İkinci ifade. III. Üçüncü ifade."
+- Bu listeyi question veya code alanına koyma; sadece image_description'a yaz.
+- Kod varsa image_description öncül listesi, code Java kodu ile birlikte sol panelde gösterilir.
 `;
 
 const CSA_ONE_SHOT_EXAMPLE = `
@@ -129,7 +134,7 @@ ${CSA_ONE_SHOT_EXAMPLE}
 
 ÇIKTI: ${OUTPUT_SCHEMA_CSA}
 
-KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kodu (sol panel). **question** = sadece soru cümlesi (sağ panel). **options** = sadece şık metinleri; kod şıksa satır sonu (\\n) koru. Layout: Sol panelde sadece kod, sağda sadece soru metni ve şıklar.`;
+KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kodu (sol panel). **question** = sadece soru cümlesi (sağ panel). **options** = sadece şık metinleri; kod şıksa satır sonu (\\n) koru. Şıklar I/II/III referanslıysa **image_description** = öncül listesi (I. ... II. ... III. ...). Layout: Sol panelde öncül listesi (varsa) + kod, sağda soru metni ve şıklar.`;
 
     case "AP_STATISTICS":
     case "AP_PSYCHOLOGY":

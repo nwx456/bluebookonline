@@ -7,19 +7,110 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeftRight,
   ChevronDown,
+  ChevronUp,
+  Delete,
   Flag,
   Highlighter,
   Calculator,
-  ChevronUp,
+  Maximize2,
+  Minus,
   MoreHorizontal,
   Plus,
+  RotateCcw,
+  RotateCw,
   Star,
   Superscript,
+  Wrench,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
+
+/** AP CSA Java Quick Reference - Class Constructors and Methods */
+const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; explanation: string }[] }[] = [
+  {
+    className: "String",
+    methods: [
+      { signature: "String(String str)", explanation: "Constructs a new String object that represents the same sequence of characters as str." },
+      { signature: "int length()", explanation: "Returns the number of characters in a String object." },
+      { signature: "String substring(int from, int to)", explanation: "Returns a new String containing the characters from index from to index to - 1." },
+      { signature: "String substring(int from)", explanation: "Returns a new String from index from to the end." },
+      { signature: "int indexOf(String str)", explanation: "Returns the index of the first occurrence of str, or -1 if not found." },
+      { signature: "boolean equals(String other)", explanation: "Returns true if this string is equal to other; false otherwise." },
+      { signature: "int compareTo(String other)", explanation: "Returns a negative value if this string comes before other, 0 if equal, positive if after." },
+    ],
+  },
+  {
+    className: "Integer",
+    methods: [
+      { signature: "Integer(int value)", explanation: "Constructs an Integer object representing value." },
+      { signature: "Integer.MIN_VALUE", explanation: "The minimum value represented by an int or Integer." },
+      { signature: "Integer.MAX_VALUE", explanation: "The maximum value represented by an int or Integer." },
+      { signature: "static int parseInt(String s)", explanation: "Returns the String argument as an int." },
+      { signature: "int intValue()", explanation: "Returns the int value of this Integer." },
+    ],
+  },
+  {
+    className: "Double",
+    methods: [
+      { signature: "Double(double value)", explanation: "Constructs a Double object representing value." },
+      { signature: "double doubleValue()", explanation: "Returns the double value of this Double." },
+    ],
+  },
+  {
+    className: "Math",
+    methods: [
+      { signature: "static int abs(int x)", explanation: "Returns the absolute value of x." },
+      { signature: "static double abs(double x)", explanation: "Returns the absolute value of x." },
+      { signature: "static double pow(double base, double exponent)", explanation: "Returns base raised to the power of exponent." },
+      { signature: "static double sqrt(double x)", explanation: "Returns the square root of x." },
+      { signature: "static double random()", explanation: "Returns a value in the range [0.0, 1.0)." },
+    ],
+  },
+  {
+    className: "ArrayList",
+    methods: [
+      { signature: "int size()", explanation: "Returns the number of elements in the list." },
+      { signature: "boolean add(E obj)", explanation: "Adds obj to the end of the list; returns true." },
+      { signature: "void add(int index, E obj)", explanation: "Inserts obj at index; shifts subsequent elements right." },
+      { signature: "E get(int index)", explanation: "Returns the element at index." },
+      { signature: "E set(int index, E obj)", explanation: "Replaces element at index with obj; returns the previous element." },
+      { signature: "E remove(int index)", explanation: "Removes and returns the element at index; shifts subsequent elements left." },
+    ],
+  },
+  {
+    className: "File",
+    methods: [
+      { signature: "File(String pathname)", explanation: "Constructs a File object from the given pathname." },
+      { signature: "boolean exists()", explanation: "Returns true if the file or directory exists; false otherwise." },
+      { signature: "String getName()", explanation: "Returns the name of the file or directory." },
+      { signature: "boolean isFile()", explanation: "Returns true if this pathname refers to a file." },
+      { signature: "boolean isDirectory()", explanation: "Returns true if this pathname refers to a directory." },
+      { signature: "long length()", explanation: "Returns the length of the file in bytes, or 0 if not a file." },
+    ],
+  },
+  {
+    className: "Scanner",
+    methods: [
+      { signature: "Scanner(InputStream source)", explanation: "Constructs a Scanner that reads from the given InputStream." },
+      { signature: "Scanner(File source)", explanation: "Constructs a Scanner that reads from the given File." },
+      { signature: "boolean hasNext()", explanation: "Returns true if there is another token in the input." },
+      { signature: "String next()", explanation: "Returns the next token as a String." },
+      { signature: "int nextInt()", explanation: "Returns the next token as an int." },
+      { signature: "double nextDouble()", explanation: "Returns the next token as a double." },
+      { signature: "void close()", explanation: "Closes this Scanner." },
+    ],
+  },
+  {
+    className: "Object",
+    methods: [
+      { signature: "boolean equals(Object other)", explanation: "Returns true if this object is equal to other; false otherwise." },
+      { signature: "String toString()", explanation: "Returns a string representation of this object." },
+    ],
+  },
+];
 
 const SUBJECTS = [
   { value: "AP_CSA", label: "AP CSA (Computer Science)" },
@@ -176,6 +267,26 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** CSA: passage_text içinde "I. ... II. ... III." listesi + kod olabilir. */
+function splitCsaPassage(text: string | null): {
+  referenceList: string | null;
+  codePart: string | null;
+} {
+  if (!text?.trim()) return { referenceList: null, codePart: null };
+  const t = text.trim();
+  const codeStart = t.search(/\n\n\s*(?:public|private|class|\/\*)/);
+  if (codeStart > 0) {
+    const listPart = t.slice(0, codeStart).trim();
+    const codePart = t.slice(codeStart).trim();
+    if (/^\s*[IVX]+\.\s/m.test(listPart) && codePart.length > 20) {
+      return { referenceList: listPart, codePart };
+    }
+  }
+  if (looksLikeCode(t)) return { referenceList: null, codePart: t };
+  if (/^\s*[IVX]+\.\s/m.test(t)) return { referenceList: t, codePart: null };
+  return { referenceList: null, codePart: t };
+}
+
 /** CSA legacy fallback: question_text contains code when passage_text is empty (old uploads). */
 function looksLikeCode(text: string | null): boolean {
   if (!text?.trim()) return false;
@@ -227,6 +338,22 @@ function splitCsaQuestionStem(fullText: string | null): { codePart: string; ques
   return { codePart: t, questionStem: null };
 }
 
+/** Safe calculator eval: only digits, +, -, *, /, ., (, ), sqrt, ans */
+function safeCalculatorEval(expr: string, lastResult: number | null): number | null {
+  try {
+    let s = expr.trim().replace(/×/g, "*").replace(/÷/g, "/");
+    if (lastResult != null) s = s.replace(/\bans\b/gi, String(lastResult));
+    s = s.replace(/√(\d+\.?\d*)/g, "Math.sqrt($1)");
+    s = s.replace(/√\(([^)]+)\)/g, (_, inner) => `Math.sqrt(${inner})`);
+    if (!/^[\d+\-*/().\s]+$/.test(s.replace(/Math\.sqrt/g, ""))) return null;
+    const fn = new Function("return " + s);
+    const result = fn();
+    return typeof result === "number" && Number.isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
@@ -245,9 +372,16 @@ export default function ExamPage() {
   const [leftPanelPercent, setLeftPanelPercent] = useState(45);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [questionListOpen, setQuestionListOpen] = useState(false);
+  const [referenceOpen, setReferenceOpen] = useState(false);
+  const [referenceExpandedSections, setReferenceExpandedSections] = useState<Set<string>>(new Set());
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [calculatorDisplay, setCalculatorDisplay] = useState("");
+  const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
+  const [calculatorPos, setCalculatorPos] = useState({ x: 32, y: 96 });
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+  const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -370,6 +504,43 @@ export default function ExamPage() {
     };
   }, [handleResize, handleResizeEnd]);
 
+  const handleCalculatorDragMove = useCallback((e: MouseEvent) => {
+    const r = calculatorDragRef.current;
+    if (!r) return;
+    const CALC_W = 288;
+    const padding = 20;
+    const dx = e.clientX - r.startX;
+    const dy = e.clientY - r.startY;
+    const nx = Math.max(padding - CALC_W, Math.min(window.innerWidth - padding, r.posX + dx));
+    const ny = Math.max(0, Math.min(window.innerHeight - padding, r.posY + dy));
+    setCalculatorPos({ x: nx, y: ny });
+  }, []);
+
+  const handleCalculatorDragEnd = useCallback(() => {
+    calculatorDragRef.current = null;
+    window.removeEventListener("mousemove", handleCalculatorDragMove);
+    window.removeEventListener("mouseup", handleCalculatorDragEnd);
+  }, [handleCalculatorDragMove]);
+
+  const handleCalculatorDragStart = useCallback((e: React.MouseEvent) => {
+    calculatorDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      posX: calculatorPos.x,
+      posY: calculatorPos.y,
+    };
+    window.addEventListener("mousemove", handleCalculatorDragMove);
+    window.addEventListener("mouseup", handleCalculatorDragEnd);
+  }, [calculatorPos, handleCalculatorDragMove, handleCalculatorDragEnd]);
+
+  useEffect(() => {
+    return () => {
+      calculatorDragRef.current = null;
+      window.removeEventListener("mousemove", handleCalculatorDragMove);
+      window.removeEventListener("mouseup", handleCalculatorDragEnd);
+    };
+  }, [handleCalculatorDragMove, handleCalculatorDragEnd]);
+
   const toggleMarkForReview = useCallback(
     (questionId: string) => {
       setMarkedForReview((prev) => {
@@ -389,6 +560,7 @@ export default function ExamPage() {
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
   const isCsa = subject === "AP_CSA";
   const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
+  const isMicro = subject === "AP_MICROECONOMICS";
   const isCsaLegacyFallback =
     isCsa &&
     !currentQuestion?.passage_text?.trim() &&
@@ -571,6 +743,302 @@ export default function ExamPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      {/* Java Quick Reference Drawer - CSA only */}
+      {isCsa && (
+        <>
+          <div
+            className={cn(
+              "fixed inset-0 bg-black/20 z-40 transition-opacity duration-300",
+              referenceOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            onClick={() => setReferenceOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className={cn(
+              "fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-xl z-50 overflow-hidden flex flex-col transition-transform duration-300 ease-out",
+              referenceOpen ? "translate-x-0" : "translate-x-full"
+            )}
+          >
+            <div className="flex-shrink-0 bg-gray-700 text-white px-4 py-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Reference Sheet</h2>
+              <div className="flex items-center gap-1">
+                <button type="button" className="p-1.5 rounded hover:bg-gray-600">
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+                <button type="button" className="p-1.5 rounded hover:bg-gray-600">
+                  <Maximize2 className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReferenceOpen(false)}
+                  className="p-1.5 rounded hover:bg-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-shrink-0 border-b border-gray-200 px-4 py-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setReferenceExpandedSections(
+                    new Set(JAVA_QUICK_REFERENCE.map((c) => c.className))
+                  )
+                }
+                className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
+              >
+                Expand All
+              </button>
+              <button
+                type="button"
+                onClick={() => setReferenceExpandedSections(new Set())}
+                className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-2 py-1 hover:bg-gray-50"
+              >
+                Collapse All
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <p className="text-sm text-gray-500 mb-4">
+                Accessible methods from the Java library that may be included in the exam.
+              </p>
+              <div className="space-y-1">
+                {JAVA_QUICK_REFERENCE.map((cls) => {
+                  const isExpanded = referenceExpandedSections.has(cls.className);
+                  return (
+                    <div key={cls.className}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReferenceExpandedSections((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(cls.className)) next.delete(cls.className);
+                            else next.add(cls.className);
+                            return next;
+                          });
+                        }}
+                        className="w-full flex items-center justify-between bg-blue-600 text-white font-medium py-2 px-3 text-left hover:bg-blue-700 transition-colors"
+                      >
+                        <span>{cls.className} Class</span>
+                        <span className="flex-shrink-0">
+                          {isExpanded ? (
+                            <Minus className="h-4 w-4" />
+                          ) : (
+                            <Plus className="h-4 w-4" />
+                          )}
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <table className="w-full border-collapse border border-gray-300 border-t-0 text-sm">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="border border-gray-300 px-3 py-2 text-left font-medium text-gray-700">
+                                Class Method and Constants
+                              </th>
+                              <th className="border border-gray-300 px-3 py-2 text-left font-medium text-gray-700">
+                                Explanation
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cls.methods.map((m, i) => (
+                              <tr key={i}>
+                                <td className="border border-gray-300 px-3 py-2 font-mono text-gray-800 whitespace-nowrap bg-gray-50">
+                                  {m.signature}
+                                </td>
+                                <td className="border border-gray-300 px-3 py-2 text-gray-700">
+                                  {m.explanation}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Calculator - Micro only */}
+      {isMicro && (
+        <>
+          <div
+            className={cn(
+              "fixed inset-0 bg-black/20 z-40 transition-opacity duration-300",
+              calculatorOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            onClick={() => setCalculatorOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className={cn(
+              "fixed z-50 w-72 rounded-lg bg-white shadow-2xl overflow-hidden transition-opacity duration-300",
+              calculatorOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+            )}
+            style={{ left: calculatorPos.x, top: calculatorPos.y }}
+          >
+            <div className="flex-shrink-0 bg-gray-900 text-white px-3 py-2 flex items-center justify-between">
+              <span
+                className="font-medium flex-1 cursor-grab active:cursor-grabbing select-none"
+                onMouseDown={handleCalculatorDragStart}
+              >
+                Calculator
+              </span>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button type="button" className="p-1 rounded hover:bg-gray-700" onMouseDown={(e) => e.stopPropagation()}>
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+                <button type="button" className="p-1 rounded hover:bg-gray-700" onMouseDown={(e) => e.stopPropagation()}>
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorOpen(false)}
+                  className="p-1 rounded hover:bg-gray-700"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-3 bg-gray-100">
+              <div className="bg-white border border-gray-300 rounded px-3 py-2 mb-3 font-mono text-xl text-right min-h-[2.5rem]">
+                {calculatorDisplay || "0"}
+              </div>
+              {/* Top row: 5 columns */}
+              <div className="grid grid-cols-5 gap-1 mb-1">
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay("")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                >
+                  <RotateCcw className="h-4 w-4 mx-auto" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay("")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                >
+                  <RotateCw className="h-4 w-4 mx-auto" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay("")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-xs"
+                >
+                  clear all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d.slice(0, -1))}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                >
+                  <Delete className="h-4 w-4 mx-auto" />
+                </button>
+                <button
+                  type="button"
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300"
+                >
+                  <Wrench className="h-4 w-4 mx-auto" />
+                </button>
+              </div>
+              {/* Main grid: 4 columns, 6 rows; = spans 2 rows */}
+              <div className="grid grid-cols-4 gap-1 grid-rows-[repeat(6,auto)]">
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + "(")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  (
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + ")")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + "√")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  √
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + "÷")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  ÷
+                </button>
+                {[
+                  ["7", "8", "9", "×"],
+                  ["4", "5", "6", "-"],
+                  ["1", "2", "3", "+"],
+                ].map((row) =>
+                  row.map((sym) => (
+                    <button
+                      key={sym}
+                      type="button"
+                      onClick={() => setCalculatorDisplay((d) => d + sym)}
+                      className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                    >
+                      {sym}
+                    </button>
+                  ))
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + "0")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculatorDisplay((d) => d + ".")}
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                >
+                  .
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCalculatorDisplay(
+                      (d) => d + (d && /\d$/.test(d) ? "*" : "") + "ans"
+                    )
+                  }
+                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                >
+                  ans
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const result = safeCalculatorEval(
+                      calculatorDisplay || "0",
+                      calculatorLastResult
+                    );
+                    if (result != null) {
+                      setCalculatorLastResult(result);
+                      setCalculatorDisplay(String(result));
+                    }
+                  }}
+                  className="p-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-lg font-medium row-span-2 flex items-center justify-center"
+                >
+                  =
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Header */}
       <header className="flex-shrink-0 border-b border-gray-200 bg-white text-gray-900">
         <div className="relative flex items-center justify-between px-4 py-3">
@@ -627,14 +1095,28 @@ export default function ExamPage() {
             <span className="flex items-center gap-1 text-sm text-gray-600">
               <Highlighter className="h-4 w-4" /> Highlights & Notes
             </span>
-            <span className="flex items-center gap-1 text-sm text-gray-600">
-              <Superscript className="h-4 w-4" /> Reference
-            </span>
-            {!isCsa && (
+            {isCsa ? (
+              <button
+                type="button"
+                onClick={() => setReferenceOpen(true)}
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <Superscript className="h-4 w-4" /> Reference
+              </button>
+            ) : (
               <span className="flex items-center gap-1 text-sm text-gray-600">
-                <Calculator className="h-4 w-4" /> Calculator
+                <Superscript className="h-4 w-4" /> Reference
               </span>
             )}
+            {isMicro ? (
+              <button
+                type="button"
+                onClick={() => setCalculatorOpen(true)}
+                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <Calculator className="h-4 w-4" /> Calculator
+              </button>
+            ) : null}
             <button type="button" className="p-1 rounded hover:bg-gray-100">
               <MoreHorizontal className="h-5 w-5" />
             </button>
@@ -683,10 +1165,29 @@ export default function ExamPage() {
                 ) : leftPanelContent ? (
                   subject === "AP_CSA" ? (
                     <>
-                      <p className="text-sm font-medium text-gray-900 mb-2">Consider the following code segment.</p>
-                      <pre className="text-sm font-mono bg-gray-100 text-gray-900 p-4 rounded-md overflow-auto whitespace-pre border border-gray-200">
-                        <code>{leftPanelContent}</code>
-                      </pre>
+                      {(() => {
+                        const { referenceList, codePart } = splitCsaPassage(leftPanelContent);
+                        return (
+                          <>
+                            {referenceList && (
+                              <>
+                                <p className="text-sm font-medium text-gray-900 mb-2">Consider the following.</p>
+                                <div className="text-sm text-gray-900 whitespace-pre-wrap mb-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+                                  {referenceList}
+                                </div>
+                              </>
+                            )}
+                            {codePart && (
+                              <>
+                                <p className="text-sm font-medium text-gray-900 mb-2">Consider the following code segment.</p>
+                                <pre className="text-sm font-mono bg-gray-100 text-gray-900 p-4 rounded-md overflow-auto whitespace-pre border border-gray-200">
+                                  <code>{codePart}</code>
+                                </pre>
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
                       {currentQuestion?.precondition_text?.trim() ? (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">

@@ -294,7 +294,11 @@ export async function POST(request: NextRequest) {
       if (isCodeType) {
         const rawCode = (q.code ?? q.content)?.trim() ?? "";
         const { codeOnly, strippedQuestion } = stripQuestionFromCode(rawCode || null);
-        passageText = codeOnly;
+        const refList = (q.image_description ?? "").trim() || null;
+        passageText =
+          refList && codeOnly
+            ? `${refList}\n\n${codeOnly}`
+            : refList || codeOnly || null;
         if (strippedQuestion && (!questionText || questionText === "No question text.")) {
           questionText = strippedQuestion;
         }
