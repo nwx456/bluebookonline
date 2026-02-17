@@ -186,6 +186,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = createServerSupabaseAdmin();
+    const { data: userRow, error: userCheckError } = await supabase
+      .from("usertable")
+      .select("email")
+      .eq("email", userEmail)
+      .maybeSingle();
+
+    if (userCheckError || !userRow) {
+      return NextResponse.json(
+        {
+          error:
+            "Account not fully set up. Please sign out and complete registration again, or contact support.",
+        },
+        { status: 403 }
+      );
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64 = buffer.toString("base64");
 
@@ -242,8 +259,6 @@ export async function POST(request: NextRequest) {
       return hasAnyOption;
     });
 
-    const supabase = createServerSupabaseAdmin();
-
     const { data: uploadRow, error: uploadError } = await supabase
       .from("pdf_uploads")
       .insert({
@@ -258,8 +273,12 @@ export async function POST(request: NextRequest) {
 
     if (uploadError || !uploadRow?.id) {
       console.error("pdf_uploads insert error:", uploadError);
+      const isDev = process.env.NODE_ENV === "development";
+      const detail = isDev && uploadError
+        ? ` ${uploadError.code ?? ""} ${uploadError.message ?? ""}`.trim()
+        : "";
       return NextResponse.json(
-        { error: "Failed to save upload record." },
+        { error: `Failed to save upload record.${detail}` },
         { status: 500 }
       );
     }

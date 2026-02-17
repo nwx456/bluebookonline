@@ -120,6 +120,10 @@ export async function POST(request: NextRequest) {
 
     if (tableError) {
       console.error("Verify OTP usertable insert error:", tableError);
+      const authUserId = authData?.user?.id;
+      if (authUserId) {
+        await supabase.auth.admin.deleteUser(authUserId);
+      }
       const isUsernameTaken =
         tableError.code === "23505" && String(tableError.message).includes("username");
       return NextResponse.json(
