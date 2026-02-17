@@ -365,6 +365,7 @@ export default function ExamPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(new Set());
   const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [timerVisible, setTimerVisible] = useState(true);
@@ -405,6 +406,7 @@ export default function ExamPage() {
         return;
       }
       setUserEmail(session.user?.email ?? "");
+      setUserName((session.user?.user_metadata?.username as string) ?? "");
     });
   }, [router]);
 
@@ -1471,7 +1473,7 @@ export default function ExamPage() {
       {/* Footer */}
       <footer className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3 text-gray-900">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-700">{userEmail || "User"}</p>
+          <p className="text-sm text-gray-700">{userName || userEmail || "User"}</p>
           <div className="relative">
             <button
               type="button"

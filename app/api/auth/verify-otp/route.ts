@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseAdmin();
     const { data: row, error: fetchError } = await supabase
       .from("pending_registrations")
-      .select("email, password_hash, code, expires_at")
+      .select("email, password_hash, code, expires_at, username")
       .eq("email", normalizedEmail)
       .maybeSingle();
 
@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
     }
 
     const password = row.password_hash;
+    const username = row.username ?? null;
     await supabase.from("pending_registrations").delete().eq("email", normalizedEmail);
-    const pending = { email: normalizedEmail, password };
+    const pending = { email: normalizedEmail, password, username };
 
 
     let authData: { user?: { id: string; email?: string } } | null = null;
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       email: pending.email,
       password: pending.password,
       email_confirm: true,
+      user_metadata: pending.username ? { username: pending.username } : undefined,
     });
 
     if (createError) {
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
           email: pending.email,
           password: pending.password,
           email_confirm: true,
+          user_metadata: pending.username ? { username: pending.username } : undefined,
         });
         if (retryError) {
           console.error("Verify OTP retry createUser error:", retryError);
@@ -112,13 +115,16 @@ export async function POST(request: NextRequest) {
     const { error: tableError } = await supabase.from("usertable").insert({
       email: pending.email,
       password: passwordHash,
+      ...(pending.username && { username: pending.username }),
     });
 
     if (tableError) {
       console.error("Verify OTP usertable insert error:", tableError);
+      const isUsernameTaken =
+        tableError.code === "23505" && String(tableError.message).includes("username");
       return NextResponse.json(
-        { error: "Profile could not be saved. Please try again." },
-        { status: 500 }
+        { error: isUsernameTaken ? "This username was taken by another user. Please sign up again with a different username." : "Profile could not be saved. Please try again." },
+        { status: isUsernameTaken ? 409 : 500 }
       );
     }
 

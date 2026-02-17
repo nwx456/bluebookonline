@@ -4,12 +4,13 @@ import { sendOtpEmail } from "@/lib/nodemailer";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_REGEX = /^[a-z0-9]{4,20}$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, username } = body;
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       return NextResponse.json(
@@ -18,10 +19,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!username || typeof username !== "string") {
+      return NextResponse.json(
+        { error: "Username is required." },
+        { status: 400 }
+      );
+    }
+
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim().toLowerCase();
+
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       return NextResponse.json(
         { error: "Please enter a valid email address." },
+        { status: 400 }
+      );
+    }
+
+    if (!USERNAME_REGEX.test(normalizedUsername)) {
+      return NextResponse.json(
+        { error: "Username must be 4-20 characters, lowercase letters and numbers only." },
         { status: 400 }
       );
     }
@@ -81,10 +98,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { data: existingUsernameRow, error: usernameSelectError } = await supabase
+      .from("usertable")
+      .select("email")
+      .ilike("username", normalizedUsername)
+      .maybeSingle();
+
+    if (usernameSelectError) {
+      console.error("Signup usertable username check error:", usernameSelectError);
+      return NextResponse.json(
+        { error: "Could not check username. Please try again later." },
+        { status: 500 }
+      );
+    }
+
+    if (existingUsernameRow) {
+      return NextResponse.json(
+        { error: "This username is already taken." },
+        { status: 409 }
+      );
+    }
+
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { error: insertPendingError } = await supabase.from("pending_registrations").upsert(
-      { email: normalizedEmail, password_hash: password, code: otp, expires_at: expiresAt },
+      { email: normalizedEmail, password_hash: password, code: otp, expires_at: expiresAt, username: normalizedUsername },
       { onConflict: "email" }
     );
     if (insertPendingError) {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 export default function SignUpPage() {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -16,6 +17,11 @@ export default function SignUpPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const normalizedUsername = username.trim().toLowerCase();
+    if (normalizedUsername.length < 4 || normalizedUsername.length > 20 || !/^[a-z0-9]+$/.test(normalizedUsername)) {
+      setError("Username must be 4-20 characters, lowercase letters and numbers only.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -29,7 +35,7 @@ export default function SignUpPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: email.trim(), password, username: normalizedUsername }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -88,9 +94,28 @@ export default function SignUpPage() {
   return (
     <div className="w-full max-w-md rounded-md border border-gray-200 bg-white p-8 shadow-sm">
       <h1 className="text-xl font-semibold text-gray-900">Sign up</h1>
-      <p className="mt-1 text-sm text-gray-500">Create an account with your email and password.</p>
+      <p className="mt-1 text-sm text-gray-500">Create an account with username, email and password.</p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div>
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+            Username
+          </label>
+          <input
+            id="username"
+            type="text"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))}
+            required
+            minLength={4}
+            maxLength={20}
+            pattern="[a-z0-9]{4,20}"
+            title="4-20 characters, lowercase letters and numbers only"
+            className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+            placeholder="4-20 characters, lowercase & numbers"
+          />
+        </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">
             Email
