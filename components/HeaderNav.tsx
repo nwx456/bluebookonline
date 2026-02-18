@@ -8,20 +8,25 @@ import type { User } from "@supabase/supabase-js";
 export function HeaderNav() {
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+      });
+      return () => subscription.unsubscribe();
+    } catch {
+      setConfigError(true);
+    }
   }, []);
 
-  if (!mounted) {
+  if (!mounted || configError) {
     return (
       <nav className="flex gap-4">
         <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-blue-600">

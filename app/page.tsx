@@ -35,17 +35,22 @@ export default function Home() {
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+      });
+      return () => subscription.unsubscribe();
+    } catch {
+      setConfigError(true);
+    }
   }, []);
 
   const fetchExams = useCallback(async () => {
@@ -101,7 +106,13 @@ export default function Home() {
           <p className="mt-2 text-gray-600">
             Browse and solve published exams. Sign in to upload and share your own.
           </p>
-          {!mounted ? null : !user ? (
+          {configError ? (
+            <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 max-w-lg mx-auto">
+              Configuration error: Supabase environment variables are missing. If you&apos;re the site owner, add{" "}
+              <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+              <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in Vercel → Project Settings → Environment Variables, then redeploy.
+            </div>
+          ) : !mounted ? null : !user ? (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Link
                 href="/login"
