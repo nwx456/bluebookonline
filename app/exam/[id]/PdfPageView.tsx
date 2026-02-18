@@ -43,6 +43,7 @@ export default function PdfPageView({
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         await page.render({
+          canvas,
           canvasContext: ctx,
           viewport,
         }).promise;
