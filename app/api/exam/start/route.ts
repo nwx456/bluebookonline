@@ -16,6 +16,31 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseAdmin();
 
+    const { data: upload, error: uploadError } = await supabase
+      .from("pdf_uploads")
+      .select("user_email, is_published")
+      .eq("id", uploadId)
+      .single();
+
+    if (uploadError || !upload) {
+      return NextResponse.json(
+        { error: "Exam not found." },
+        { status: 404 }
+      );
+    }
+
+    const ownerEmail = (upload.user_email as string)?.trim().toLowerCase();
+    const isPublished = upload.is_published === true;
+    const requestingEmail = userEmail.trim().toLowerCase();
+    const isOwner = ownerEmail === requestingEmail;
+
+    if (!isOwner && !isPublished) {
+      return NextResponse.json(
+        { error: "This exam is not published. Only the owner can start it." },
+        { status: 403 }
+      );
+    }
+
     const { data: questions } = await supabase
       .from("questions")
       .select("id")

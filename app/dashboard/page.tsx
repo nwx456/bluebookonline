@@ -32,6 +32,7 @@ interface UploadedExam {
   subject: SubjectValue;
   questionCount: number;
   uploadedAt: string;
+  isPublished: boolean;
 }
 
 export default function DashboardPage() {
@@ -49,6 +50,9 @@ export default function DashboardPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [togglingPublishId, setTogglingPublishId] = useState<string | null>(null);
+  const [userDisplayName, setUserDisplayName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
 
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
@@ -63,9 +67,12 @@ export default function DashboardPage() {
         return;
       }
       const email = session.user.email ?? "";
+      setUserEmail(email);
+      const uname = (session.user?.user_metadata?.username as string)?.trim();
+      setUserDisplayName(uname || email?.split("@")[0] || "Account");
       supabase
         .from("pdf_uploads")
-        .select("id, filename, subject, created_at")
+        .select("id, filename, subject, created_at, is_published")
         .eq("user_email", email)
         .order("created_at", { ascending: false })
         .then(async ({ data: rows, error }) => {
@@ -91,6 +98,7 @@ export default function DashboardPage() {
               subject: (row.subject ?? "AP_CSA") as SubjectValue,
               questionCount: countByUpload[row.id] ?? 0,
               uploadedAt: row.created_at ?? new Date().toISOString(),
+              isPublished: row.is_published === true,
             }))
           );
         });
@@ -178,6 +186,7 @@ export default function DashboardPage() {
           subject,
           questionCount: questionCountNum,
           uploadedAt: new Date().toISOString(),
+          isPublished: false,
         },
         ...prev,
       ]);
@@ -220,6 +229,9 @@ export default function DashboardPage() {
             Bluebook Online
           </Link>
           <nav className="flex items-center gap-4">
+            <span className="text-sm text-gray-600" title={userEmail || undefined}>
+              {userDisplayName}
+            </span>
             <span className="text-sm text-gray-500">Dashboard</span>
             <Link
               href="/"
@@ -465,6 +477,9 @@ export default function DashboardPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Uploaded
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Publish
+                    </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -492,6 +507,59 @@ export default function DashboardPage() {
                           day: "numeric",
                           timeZone: "UTC",
                         })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={exam.isPublished}
+                          disabled={togglingPublishId === exam.id}
+                          onClick={async () => {
+                            setTogglingPublishId(exam.id);
+                            try {
+                              const supabase = createClient();
+                              const {
+                                data: { session },
+                              } = await supabase.auth.getSession();
+                              const token = session?.access_token;
+                              if (!token) return;
+                              const newVal = !exam.isPublished;
+                              const res = await fetch(`/api/upload/${exam.id}/publish`, {
+                                method: "PATCH",
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                  "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({ isPublished: newVal }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) {
+                                setDeleteError((data.error as string) || "Failed to update publish status.");
+                                return;
+                              }
+                              setUploads((prev) =>
+                                prev.map((u) =>
+                                  u.id === exam.id ? { ...u, isPublished: newVal } : u
+                                )
+                              );
+                            } finally {
+                              setTogglingPublishId(null);
+                            }
+                          }}
+                          className={cn(
+                            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                            exam.isPublished
+                              ? "bg-green-600 focus:ring-green-500"
+                              : "bg-gray-200 focus:ring-blue-500"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition",
+                              exam.isPublished ? "translate-x-5" : "translate-x-1"
+                            )}
+                          />
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">

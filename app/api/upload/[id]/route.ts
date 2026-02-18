@@ -33,7 +33,7 @@ export async function GET(
     }
 
     const { user, error: authError } = await getAuthUser(request);
-    if (authError || !user) {
+    if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
     const userEmail = user.email.trim().toLowerCase();
@@ -41,7 +41,7 @@ export async function GET(
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase
       .from("pdf_uploads")
-      .select("id, user_email, storage_path")
+      .select("id, user_email, storage_path, is_published")
       .eq("id", uploadId)
       .single();
 
@@ -50,9 +50,11 @@ export async function GET(
     }
 
     const uploadOwner = (upload.user_email as string)?.trim().toLowerCase();
-    if (uploadOwner !== userEmail) {
+    const isPublished = upload.is_published === true;
+    const isOwner = uploadOwner === userEmail;
+    if (!isOwner && !isPublished) {
       return NextResponse.json(
-        { error: "You can only access your own exams." },
+        { error: "You can only access your own exams or published exams." },
         { status: 403 }
       );
     }
@@ -65,14 +67,11 @@ export async function GET(
       );
     }
 
-    const {
-      data: { signedUrl },
-      error: signError,
-    } = await supabase.storage
+    const { data: signData, error: signError } = await supabase.storage
       .from(PDF_BUCKET)
       .createSignedUrl(storagePath, SIGNED_URL_EXPIRY_SEC);
 
-    if (signError || !signedUrl) {
+    if (signError || !signData?.signedUrl) {
       console.error("Signed URL error:", signError);
       return NextResponse.json(
         { error: "Could not generate PDF link. Please try again." },
@@ -80,7 +79,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ url: signedUrl });
+    return NextResponse.json({ url: signData.signedUrl });
   } catch (err) {
     console.error("Upload PDF URL error:", err);
     return NextResponse.json(
@@ -106,7 +105,7 @@ export async function DELETE(
     }
 
     const { user, error: authError } = await getAuthUser(request);
-    if (authError || !user) {
+    if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
     const userEmail = user.email.trim().toLowerCase();
