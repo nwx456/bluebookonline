@@ -36,7 +36,7 @@ export async function GET(
     if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
-    const userEmail = user.email.trim().toLowerCase();
+    const userEmail = user!.email!.trim().toLowerCase();
 
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase
@@ -108,7 +108,7 @@ export async function DELETE(
     if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
-    const userEmail = user.email.trim().toLowerCase();
+    const userEmail = user!.email!.trim().toLowerCase();
 
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase

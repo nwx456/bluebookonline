@@ -33,7 +33,7 @@ export async function PATCH(
     if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
-    const userEmail = user.email.trim().toLowerCase();
+    const userEmail = user!.email!.trim().toLowerCase();
 
     const body = await request.json().catch(() => ({}));
     const isPublished = body.isPublished === true;
