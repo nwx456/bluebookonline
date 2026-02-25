@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
+const ZoomableImagePanel = dynamic(() => import("./ZoomableImagePanel"), { ssr: false });
 
 const TABLE_FALLBACK_CLASS =
   "overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5";
@@ -538,9 +539,12 @@ export default function ExamPage() {
   }, [id]);
 
   useEffect(() => {
-    const isEconomics =
-      upload?.subject === "AP_MICROECONOMICS" || upload?.subject === "AP_MACROECONOMICS";
-    if (!id || !upload?.storage_path || !isEconomics) {
+    const isEconomicsOrPassageForPdf =
+      upload?.subject === "AP_MICROECONOMICS" ||
+      upload?.subject === "AP_MACROECONOMICS" ||
+      upload?.subject === "AP_PSYCHOLOGY" ||
+      upload?.subject === "AP_STATISTICS";
+    if (!id || !upload?.storage_path || !isEconomicsOrPassageForPdf) {
       setPdfUrl(null);
       return;
     }
@@ -852,9 +856,9 @@ export default function ExamPage() {
     isTableWithOptionLettersFormat(leftPanelContent) ||
     looksLikeTableText(leftPanelContent);
   const showTablePanel =
-    isEconomics && !!leftPanelContent?.trim() && isTableContent;
+    isEconomicsOrPassage && !!leftPanelContent?.trim() && isTableContent;
   const showGraphPanel =
-    isEconomics &&
+    isEconomicsOrPassage &&
     !!pdfUrl &&
     currentQuestion?.page_number != null &&
     currentQuestion?.has_graph !== false &&
@@ -1538,7 +1542,7 @@ export default function ExamPage() {
                   </div>
                 )}
                 {showTablePanel ? (
-                  <div className="overflow-auto max-w-full">
+                  <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                     {(currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
                       <img
                         src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
@@ -1572,9 +1576,9 @@ export default function ExamPage() {
                         />
                       );
                     })()}
-                  </div>
+                  </ZoomableImagePanel>
                 ) : showGraphPanel ? (
-                  <div className="overflow-auto max-w-full">
+                  <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                     {(currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]) ? (
                       <img
                         src={currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id] ?? ""}
@@ -1591,7 +1595,7 @@ export default function ExamPage() {
                         className="max-w-full h-auto"
                       />
                     )}
-                  </div>
+                  </ZoomableImagePanel>
                 ) : leftPanelContent ? (
                   subject === "AP_CSA" ? (
                     <>
@@ -1633,30 +1637,36 @@ export default function ExamPage() {
                       isTableWithOptionLettersFormat(leftPanelContent) ||
                       looksLikeTableText(leftPanelContent)) ? (
                     (currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
-                      <img
-                        src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
-                        alt="Table"
-                        className="max-w-full h-auto block object-contain"
-                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
-                      />
+                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                        <img
+                          src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
+                          alt="Table"
+                          className="max-w-full h-auto block object-contain"
+                          style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
+                        />
+                      </ZoomableImagePanel>
                     ) : pdfUrl &&
                       currentQuestion?.page_number != null &&
                       currentQuestion?.bbox != null ? (
-                      <PdfPageView
-                        pdfUrl={pdfUrl}
-                        pageNumber={currentQuestion.page_number}
-                        bbox={currentQuestion.bbox}
-                        onRendered={handleGraphRendered}
-                        className="max-w-full h-auto"
-                      />
+                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                        <PdfPageView
+                          pdfUrl={pdfUrl}
+                          pageNumber={currentQuestion.page_number}
+                          bbox={currentQuestion.bbox}
+                          onRendered={handleGraphRendered}
+                          className="max-w-full h-auto"
+                        />
+                      </ZoomableImagePanel>
                     ) : (() => {
                       const tableHtml = getTableHtmlForPanel(leftPanelContent);
                       return tableHtml.trim() ? (
-                        <TableImageView
-                          tableHtml={tableHtml}
-                          onRendered={handleTableRendered}
-                          className="overflow-auto max-w-full"
-                        />
+                        <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                          <TableImageView
+                            tableHtml={tableHtml}
+                            onRendered={handleTableRendered}
+                            className="overflow-auto max-w-full"
+                          />
+                        </ZoomableImagePanel>
                       ) : (
                         <div
                           className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
@@ -1667,13 +1677,15 @@ export default function ExamPage() {
                     })()
                   ) : isSvgContent(leftPanelContent) ? (
                     pdfUrl && currentQuestion?.page_number != null ? (
-                      <PdfPageView
-                        pdfUrl={pdfUrl}
-                        pageNumber={currentQuestion.page_number}
-                        bbox={currentQuestion.bbox ?? undefined}
-                        onRendered={handleGraphRendered}
-                        className="max-w-full h-auto"
-                      />
+                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                        <PdfPageView
+                          pdfUrl={pdfUrl}
+                          pageNumber={currentQuestion.page_number}
+                          bbox={currentQuestion.bbox ?? undefined}
+                          onRendered={handleGraphRendered}
+                          className="max-w-full h-auto"
+                        />
+                      </ZoomableImagePanel>
                     ) : (
                       <p className="text-sm text-gray-500">No graph or table for this question.</p>
                     )

@@ -146,13 +146,15 @@ KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kod
 ${MSQ_ONLY_RULE}
 
 GÖREV:
-- İstatistik tablolarını veya psikoloji metinlerini **yapılandırılmış veri** olarak çıkar.
-- **content** = SADECE soru kökü (stem). Uzun passage, liste veya tablo **image_description**'a koy; sol panelde gösterilecek.
-- Çoktan seçmeli soruları ayıkla. Passage/liste/tablo image_description'da; soru cümlesi content'te.
+- İstatistik tablolarını (veri tabloları, frekans dağılımları vb.), psikoloji grafiklerini, diyagramları veya tabloları tespit et.
+- Her soruda önce **has_graph** belirle: grafik, tablo veya diyagram referansı varsa true, yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik/tablo/diyagram bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
+- has_graph false ise page_number ve bbox verme.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece passage/liste sorularda image_description.
 
-ÇIKTI: ${OUTPUT_SCHEMA}
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: content = sadece soru kökü. image_description = passage, tablo veya liste (sol sütun). Layout: sol = image_description, sağ = content + şıklar.`;
+KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece passage/liste sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
 
     default:
       return `Sen bir çoktan seçmeli sınav PDF analiz asistanısın.
