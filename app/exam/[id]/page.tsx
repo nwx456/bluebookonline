@@ -27,6 +27,10 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
+const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
+
+const TABLE_FALLBACK_CLASS =
+  "overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5";
 
 /** AP CSA Java Quick Reference - Class Constructors and Methods */
 const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; explanation: string }[] }[] = [
@@ -184,7 +188,10 @@ type TableSplitMode = "tab" | "spaces2" | "space1" | "pipe";
 
 /** Split a line into columns: by tab, 2+ spaces, single space, or pipe. */
 function splitTableRow(line: string, mode: TableSplitMode): string[] {
-  if (mode === "pipe") return line.split("|").map((p) => p.trim()).filter(Boolean);
+  if (mode === "pipe") {
+    const parts = line.split("|").map((p) => p.trim());
+    return parts.length > 2 ? parts.slice(1, -1) : parts;
+  }
   if (mode === "tab") return line.split(/\t+/).map((p) => p.trim()).filter(Boolean);
   if (mode === "spaces2") return line.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
   return line.split(/\s+/).map((p) => p.trim()).filter(Boolean);
@@ -200,7 +207,7 @@ function getTableSplitMode(lines: string[]): TableSplitMode {
   const dataRows = pipeRows.filter((r) => r.length >= 2 && !isPipeSeparatorRow(r));
   if (dataRows.length >= 2) {
     const colCount = dataRows[0].length;
-    if (dataRows.every((r) => r.length === colCount) && lines.some((l) => (l.match(/\|/g)?.length ?? 0) >= 2))
+    if (dataRows.every((r) => r.length === colCount) && lines.some((l) => (l.match(/\|/g)?.length ?? 0) >= 1))
       return "pipe";
   }
   if (lines.some((l) => l.includes("\t"))) return "tab";
@@ -226,7 +233,7 @@ function looksLikeTableText(text: string | null): boolean {
 function looksLikeQuestionStem(text: string | null): boolean {
   if (!text?.trim()) return false;
   const t = text.trim();
-  if (isTableHtml(t) || looksLikeTableText(t) || isSvgContent(t)) return false;
+  if (isTableHtml(t) || isTableWithOptionLettersFormat(t) || looksLikeTableText(t) || isSvgContent(t)) return false;
   const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const listLikeLines = lines.filter(
     (l) => /^\s*[IVX]+\.\s/.test(l) || /^\s*\d+\.\s/.test(l)
@@ -268,6 +275,98 @@ function escapeHtml(s: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Extract markdown table block from text (handles SVG+table mixed content). */
+function extractTableBlock(text: string): string | null {
+  const t = text.trim();
+  const tableStart = t.search(/\|[\s|]/);
+  if (tableStart < 0) return null;
+  return t.slice(tableStart).trim();
+}
+
+/** Compute table HTML for panel. Returns empty string if parsing yields no valid table. */
+function getTableHtmlForPanel(content: string): string {
+  if (isTableHtml(content)) return sanitizeTableHtml(content);
+  if (isTableWithOptionLettersFormat(content)) return sanitizeTableHtml(parseTableWithOptionLettersToHtml(content));
+  const text = isSvgContent(content) ? (extractTableBlock(content) ?? content) : content;
+  const raw = plainTextToTableHtml(text);
+  return raw ? sanitizeTableHtml(raw) : "";
+}
+
+/** True if text is "Table: Col1 | Col2\n(A) v1 | v2" or compact "Table:Col1|Col2(A)v1|v2(B)..." format. */
+function isTableWithOptionLettersFormat(text: string | null): boolean {
+  if (!text?.trim() || isTableHtml(text) || isSvgContent(text)) return false;
+  const t = text.trim();
+  if (!t.toLowerCase().includes("table:") && !t.startsWith("Table:")) return false;
+  if (!/\([A-E]\)/.test(t)) return false;
+  if (!t.includes("|")) return false;
+  return true;
+}
+
+/** Parse "Table: Col1 | Col2\n(A) v1 | v2" or compact format to HTML table. */
+function parseTableWithOptionLettersToHtml(text: string): string {
+  const t = text.trim();
+  const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  if (lines.length >= 2) {
+    const rows: string[][] = lines.map((line) =>
+      line.split("|").map((c) => c.trim()).filter(Boolean)
+    );
+    if (rows.every((r) => r.length >= 2)) {
+      let headerRow = rows[0];
+      if (headerRow[0]?.toLowerCase().startsWith("table:")) {
+        headerRow = [
+          headerRow[0].replace(/^Table:\s*/i, "").trim(),
+          ...headerRow.slice(1),
+        ];
+      }
+      const thead =
+        headerRow.length > 0
+          ? `<thead><tr>${headerRow.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`
+          : "";
+      const tbody =
+        rows.length > 1
+          ? `<tbody>${rows
+              .slice(1)
+              .map(
+                (row) =>
+                  `<tr>${row.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`
+              )
+              .join("")}</tbody>`
+          : "";
+      return `<table>${thead}${tbody}</table>`;
+    }
+  }
+
+  const compactParts = t.split(/\s*\((A|B|C|D|E)\)\s*/);
+  if (compactParts.length >= 3) {
+    const headerPart = compactParts[0].trim();
+    const headerCells = headerPart
+      .replace(/^Table:\s*/i, "")
+      .split("|")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (headerCells.length >= 2) {
+      const thead = `<thead><tr><th></th>${headerCells.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`;
+      const tbodyParts: string[] = [];
+      for (let i = 1; i < compactParts.length; i += 2) {
+        const letter = compactParts[i];
+        const cellPart = compactParts[i + 1]?.trim() ?? "";
+        const cells = cellPart.split("|").map((c) => c.trim()).filter(Boolean);
+        if (cells.length >= 1) {
+          tbodyParts.push(
+            `<tr><td>${escapeHtml(`(${letter})`)}</td>${cells.map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`
+          );
+        }
+      }
+      if (tbodyParts.length > 0) {
+        return `<table>${thead}<tbody>${tbodyParts.join("")}</tbody></table>`;
+      }
+    }
+  }
+
+  return "";
 }
 
 /** CSA: passage_text içinde "I. ... II. ... III." listesi + kod olabilir. */
@@ -678,6 +777,33 @@ export default function ExamPage() {
     },
     [id, currentQuestion?.id]
   );
+
+  const handleTableRendered = useCallback(
+    async (dataUrl: string) => {
+      const qId = currentQuestion?.id;
+      if (!qId || !id) return;
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      try {
+        const res = await fetch(`/api/upload/${id}/save-table`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ questionId: qId, imageBase64: dataUrl }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.imageUrl) {
+          setQuestionIdToImageUrl((prev) => ({ ...prev, [qId]: data.imageUrl }));
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [id, currentQuestion?.id]
+  );
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
   const isCsa = subject === "AP_CSA";
@@ -721,16 +847,25 @@ export default function ExamPage() {
       ? "Which of the following is correct?"
       : rawStem;
 
+  const isTableContent =
+    isTableHtml(leftPanelContent) ||
+    isTableWithOptionLettersFormat(leftPanelContent) ||
+    looksLikeTableText(leftPanelContent);
+  const showTablePanel =
+    isEconomics && !!leftPanelContent?.trim() && isTableContent;
   const showGraphPanel =
     isEconomics &&
     !!pdfUrl &&
     currentQuestion?.page_number != null &&
-    currentQuestion?.has_graph !== false;
+    currentQuestion?.has_graph !== false &&
+    !showTablePanel;
   const hasMeaningfulLeftContent =
+    showTablePanel ||
     showGraphPanel ||
     (!!leftPanelContent?.trim() &&
       (subject === "AP_CSA" ||
         isTableHtml(leftPanelContent) ||
+        isTableWithOptionLettersFormat(leftPanelContent) ||
         looksLikeTableText(leftPanelContent) ||
         isSvgContent(leftPanelContent) ||
         (isEconomicsOrPassage && !looksLikeQuestionStem(leftPanelContent))));
@@ -1402,7 +1537,43 @@ export default function ExamPage() {
                     NO CALCULATOR ALLOWED
                   </div>
                 )}
-                {showGraphPanel ? (
+                {showTablePanel ? (
+                  <div className="overflow-auto max-w-full">
+                    {(currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
+                      <img
+                        src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
+                        alt="Table"
+                        className="max-w-full h-auto block object-contain"
+                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
+                      />
+                    ) : pdfUrl &&
+                      currentQuestion?.page_number != null &&
+                      currentQuestion?.bbox != null ? (
+                      <PdfPageView
+                        pdfUrl={pdfUrl}
+                        pageNumber={currentQuestion.page_number}
+                        bbox={currentQuestion.bbox}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full h-auto"
+                      />
+                    ) : (() => {
+                      const tableHtml = getTableHtmlForPanel(leftPanelContent!);
+                      return tableHtml.trim() ? (
+                        <TableImageView
+                          tableHtml={tableHtml}
+                          onRendered={handleTableRendered}
+                          className="overflow-auto max-w-full"
+                        />
+                      ) : (
+                        <div
+                          className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
+                          style={{ minWidth: 200 }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeTableHtml(leftPanelContent!) }}
+                        />
+                      );
+                    })()}
+                  </div>
+                ) : showGraphPanel ? (
                   <div className="overflow-auto max-w-full">
                     {(currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]) ? (
                       <img
@@ -1458,27 +1629,54 @@ export default function ExamPage() {
                         </div>
                       ) : null}
                     </>
-                  ) : isTableHtml(leftPanelContent) ? (
-                    <div
-                      className="overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5"
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizeTableHtml(leftPanelContent),
-                      }}
-                    />
-                  ) : looksLikeTableText(leftPanelContent) ? (
-                    <div
-                      className="overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5"
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizeTableHtml(plainTextToTableHtml(leftPanelContent)),
-                      }}
-                    />
+                  ) : (isTableHtml(leftPanelContent) ||
+                      isTableWithOptionLettersFormat(leftPanelContent) ||
+                      looksLikeTableText(leftPanelContent)) ? (
+                    (currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
+                      <img
+                        src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
+                        alt="Table"
+                        className="max-w-full h-auto block object-contain"
+                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
+                      />
+                    ) : pdfUrl &&
+                      currentQuestion?.page_number != null &&
+                      currentQuestion?.bbox != null ? (
+                      <PdfPageView
+                        pdfUrl={pdfUrl}
+                        pageNumber={currentQuestion.page_number}
+                        bbox={currentQuestion.bbox}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full h-auto"
+                      />
+                    ) : (() => {
+                      const tableHtml = getTableHtmlForPanel(leftPanelContent);
+                      return tableHtml.trim() ? (
+                        <TableImageView
+                          tableHtml={tableHtml}
+                          onRendered={handleTableRendered}
+                          className="overflow-auto max-w-full"
+                        />
+                      ) : (
+                        <div
+                          className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
+                          style={{ minWidth: 200 }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeTableHtml(leftPanelContent) }}
+                        />
+                      );
+                    })()
                   ) : isSvgContent(leftPanelContent) ? (
-                    <div
-                      className="overflow-auto max-w-full"
-                      dangerouslySetInnerHTML={{
-                        __html: leftPanelContent.trim(),
-                      }}
-                    />
+                    pdfUrl && currentQuestion?.page_number != null ? (
+                      <PdfPageView
+                        pdfUrl={pdfUrl}
+                        pageNumber={currentQuestion.page_number}
+                        bbox={currentQuestion.bbox ?? undefined}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full h-auto"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-500">No graph or table for this question.</p>
+                    )
                   ) : isEconomicsOrPassage && looksLikeQuestionStem(leftPanelContent) ? (
                     <p className="text-sm text-gray-500">No graph or table for this question.</p>
                   ) : (

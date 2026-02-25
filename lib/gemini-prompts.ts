@@ -37,9 +37,9 @@ Her soru için şu JSON nesnesini üret:
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-has_graph: Soruda grafik (arz-talep, maliyet eğrisi vb.) VAR MI? true = grafik var, false = yok. Grafik yoksa page_number ve bbox null veya atlayın.
-page_number: has_graph true ise ZORUNLU. 1-based PDF sayfa numarası: grafiğin bulunduğu sayfa.
-bbox: has_graph true ise ZORUNLU. 0-1 normalleştirilmiş: x,y = sol üst (0=sol, 1=sağ; 0=üst, 1=alt), width, height = oran. Örn: sol yarı + üst %40 için x:0, y:0, width:0.5, height:0.4.
+has_graph: Soruda grafik (arz-talep, maliyet eğrisi vb.) VEYA tablo (örn. Demand Curve | Supply Curve) referansı VAR MI? true = grafik veya tablo var, false = ikisi de yok. Grafik/tablo yoksa page_number ve bbox null veya atlayın.
+page_number: has_graph true ise ZORUNLU. 1-based PDF sayfa numarası: grafik veya tablonun bulunduğu sayfa.
+bbox: has_graph true ise ZORUNLU. 0-1 normalleştirilmiş: x,y = sol üst (0=sol, 1=sağ; 0=üst, 1=alt), width, height = oran. Grafik veya tablo bölgesini PDF'teki konumuyla belirt. Örn: sol yarı + üst %40 için x:0, y:0, width:0.5, height:0.4.
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
@@ -109,15 +109,15 @@ export function getSystemPrompt(subject: SubjectKey): string {
 ${MSQ_ONLY_RULE}
 
 GÖREV:
-- Sayfadaki grafikleri (arz-talep, maliyet eğrileri, vb.) tespit et.
-- Her soruda önce **has_graph** belirle: grafik (arz-talep eğrisi, maliyet eğrisi vb.) varsa true, yoksa false.
-- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: x,y sol üst köşe oranı, width,height dikdörtgen oranı.
+- Sayfadaki grafikleri (arz-talep, maliyet eğrileri) ve tabloları (örn. Demand Curve | Supply Curve) tespit et.
+- Her soruda önce **has_graph** belirle: grafik (arz-talep eğrisi, maliyet eğrisi vb.) VEYA tablo referansı varsa true, ikisi de yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik veya tablo bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
 - has_graph false ise page_number ve bbox verme.
-- Grafik sorularda sol panel PDF'ten crop; tablo/liste sorularda image_description.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece liste/passage sorularda image_description.
 
 ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: content = sadece soru kökü (stem). Grafik sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Tablo sorularda image_description. page_number + bbox her grafikli soruda zorunlu.`;
+KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece liste/passage sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
 
     case "AP_CSA":
       return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
