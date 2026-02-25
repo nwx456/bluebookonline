@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "node scripts/copy-pdf-worker.js"
+    "postinstall": "node scripts/copy-pdf-worker.js",
+    "clear-graphs": "node --env-file=.env.local scripts/clear-exam-graphs.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

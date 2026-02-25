@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
-const PDF_BUCKET = "exam-pdfs";
+const PDF_BUCKET = "pdf_uploads";
+const GRAPHS_BUCKET = "exam-graphs";
 const SIGNED_URL_EXPIRY_SEC = 3600; // 1 hour
 
 async function getAuthUser(request: NextRequest) {
@@ -67,9 +68,27 @@ export async function GET(
       );
     }
 
-    const { data: signData, error: signError } = await supabase.storage
+    let signData: { signedUrl: string } | null = null;
+    let signError: { message?: string } | null = null;
+
+    const { data: d1, error: e1 } = await supabase.storage
       .from(PDF_BUCKET)
       .createSignedUrl(storagePath, SIGNED_URL_EXPIRY_SEC);
+
+    signData = d1;
+    signError = e1;
+
+    // Fallback for legacy records: pending/... path may not exist; try uploadId.pdf
+    if ((signError || !signData?.signedUrl) && storagePath.startsWith("pending/")) {
+      const fallbackPath = `${uploadId}.pdf`;
+      const { data: d2, error: e2 } = await supabase.storage
+        .from(PDF_BUCKET)
+        .createSignedUrl(fallbackPath, SIGNED_URL_EXPIRY_SEC);
+      if (!e2 && d2?.signedUrl) {
+        signData = d2;
+        signError = null;
+      }
+    }
 
     if (signError || !signData?.signedUrl) {
       console.error("Signed URL error:", signError);
@@ -154,10 +173,23 @@ export async function DELETE(
     const storagePath = upload.storage_path as string | null;
     if (storagePath && storagePath.endsWith(".pdf")) {
       try {
-        await supabase.storage.from("exam-pdfs").remove([storagePath]);
+        await supabase.storage.from(PDF_BUCKET).remove([storagePath]);
       } catch {
         // ignore storage errors; record is still deleted
       }
+    }
+
+    // 5b. Remove graph images for this upload (exam-graphs/{uploadId}/*)
+    try {
+      const { data: files } = await supabase.storage
+        .from(GRAPHS_BUCKET)
+        .list(uploadId);
+      if (files?.length) {
+        const paths = files.map((f) => `${uploadId}/${f.name}`);
+        await supabase.storage.from(GRAPHS_BUCKET).remove(paths);
+      }
+    } catch {
+      // ignore
     }
 
     // 6. Delete pdf_uploads row

@@ -142,7 +142,10 @@ interface Question {
   option_d: string | null;
   option_e: string | null;
   correct_answer: string | null;
+  has_graph?: boolean | null;
   page_number?: number | null;
+  bbox?: { x: number; y: number; width: number; height: number } | null;
+  image_url?: string | null;
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
@@ -380,6 +383,7 @@ export default function ExamPage() {
   const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
   const [calculatorPos, setCalculatorPos] = useState({ x: 32, y: 96 });
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [questionIdToImageUrl, setQuestionIdToImageUrl] = useState<Record<string, string>>({});
   const [examCompleted, setExamCompleted] = useState(false);
   const [examResult, setExamResult] = useState<{
     total: number;
@@ -450,9 +454,17 @@ export default function ExamPage() {
       })
         .then((r) => r.json())
         .then((data) => {
-          if (!cancelled && data?.url) setPdfUrl(data.url);
+          if (!cancelled) {
+            if (data?.url) setPdfUrl(data.url);
+            else if (data?.error) console.error("PDF URL fetch:", data.error);
+          }
         })
-        .catch(() => setPdfUrl(null));
+        .catch((e) => {
+          if (!cancelled) {
+            setPdfUrl(null);
+            console.error("PDF URL fetch failed:", e);
+          }
+        });
     });
     return () => {
       cancelled = true;
@@ -640,6 +652,32 @@ export default function ExamPage() {
   );
 
   const currentQuestion = questions[currentIndex] ?? null;
+  const handleGraphRendered = useCallback(
+    async (dataUrl: string) => {
+      const qId = currentQuestion?.id;
+      if (!qId || !id) return;
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      try {
+        const res = await fetch(`/api/upload/${id}/save-graph`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ questionId: qId, imageBase64: dataUrl }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.imageUrl) {
+          setQuestionIdToImageUrl((prev) => ({ ...prev, [qId]: data.imageUrl }));
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [id, currentQuestion?.id]
+  );
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
   const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
   const isCsa = subject === "AP_CSA";
@@ -683,8 +721,13 @@ export default function ExamPage() {
       ? "Which of the following is correct?"
       : rawStem;
 
+  const showGraphPanel =
+    isEconomics &&
+    !!pdfUrl &&
+    currentQuestion?.page_number != null &&
+    currentQuestion?.has_graph !== false;
   const hasMeaningfulLeftContent =
-    (isEconomics && !!pdfUrl && currentQuestion?.page_number != null) ||
+    showGraphPanel ||
     (!!leftPanelContent?.trim() &&
       (subject === "AP_CSA" ||
         isTableHtml(leftPanelContent) ||
@@ -1359,13 +1402,24 @@ export default function ExamPage() {
                     NO CALCULATOR ALLOWED
                   </div>
                 )}
-                {isEconomics && pdfUrl && currentQuestion?.page_number != null ? (
+                {showGraphPanel ? (
                   <div className="overflow-auto max-w-full">
-                    <PdfPageView
-                      pdfUrl={pdfUrl}
-                      pageNumber={currentQuestion.page_number}
-                      className="max-w-full h-auto"
-                    />
+                    {(currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]) ? (
+                      <img
+                        src={currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id] ?? ""}
+                        alt="Graph"
+                        className="max-w-full h-auto block object-contain"
+                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
+                      />
+                    ) : (
+                      <PdfPageView
+                        pdfUrl={pdfUrl}
+                        pageNumber={currentQuestion.page_number ?? 1}
+                        bbox={currentQuestion.bbox ?? undefined}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full h-auto"
+                      />
+                    )}
                   </div>
                 ) : leftPanelContent ? (
                   subject === "AP_CSA" ? (

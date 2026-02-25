@@ -14,9 +14,31 @@ interface GeminiQuestion {
   question?: string;
   precondition?: string;
   image_description?: string | null;
+  has_graph?: boolean;
   page_number?: number | null;
+  bbox?: { x: number; y: number; width: number; height: number } | null;
   options?: string[];
   correct?: string;
+}
+
+/** Parse and validate bbox (0-1 normalized). Returns null if invalid. */
+function parseBbox(bbox: unknown): { x: number; y: number; width: number; height: number } | null {
+  if (!bbox || typeof bbox !== "object") return null;
+  const o = bbox as Record<string, unknown>;
+  const x = Number(o.x);
+  const y = Number(o.y);
+  const width = Number(o.width);
+  const height = Number(o.height);
+  if (
+    !Number.isFinite(x) || !Number.isFinite(y) ||
+    !Number.isFinite(width) || !Number.isFinite(height) ||
+    x < 0 || x > 1 || y < 0 || y > 1 ||
+    width <= 0 || width > 1 || height <= 0 || height > 1 ||
+    x + width > 1 || y + height > 1
+  ) {
+    return null;
+  }
+  return { x, y, width, height };
 }
 
 function parseJsonFromResponse(raw: string): GeminiQuestion[] {
@@ -215,7 +237,7 @@ export async function POST(request: NextRequest) {
     const isCsa = subject === "AP_CSA";
     const userPrompt = isCsa
       ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
-      : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For Micro/Macro economics: include "page_number" (1-based) for each question—the PDF page where the question or its graph appears. Do not include any markdown or explanation, only the JSON array.`;
+      : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For Micro/Macro economics: include "has_graph" (true/false) for each question—true only when the question references a graph (supply-demand, cost curve, etc.). When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height). Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -286,20 +308,20 @@ export async function POST(request: NextRequest) {
     const uploadId = uploadRow.id;
 
     // Store PDF in Storage for exam page rendering (Macro/Micro graph = exact page image)
-    const bucket = "exam-pdfs";
+    const bucket = "pdf_uploads";
     const storageKey = `${uploadId}.pdf`;
     try {
       const { error: storageError } = await supabase.storage
         .from(bucket)
         .upload(storageKey, buffer, { contentType: "application/pdf", upsert: true });
-      if (!storageError) {
-        await supabase
-          .from("pdf_uploads")
-          .update({ storage_path: storageKey })
-          .eq("id", uploadId);
+      if (storageError) {
+        console.error("PDF storage upload error:", storageError);
       }
-    } catch {
-      // non-fatal; exam still works with passage_text/SVG
+      // Always set storage_path to uploadId.pdf (canonical path)
+      await supabase.from("pdf_uploads").update({ storage_path: storageKey }).eq("id", uploadId);
+    } catch (e) {
+      console.error("PDF storage error:", e);
+      await supabase.from("pdf_uploads").update({ storage_path: storageKey }).eq("id", uploadId);
     }
 
     const rows = questions.slice(0, questionCount).map((q, i) => {
@@ -348,13 +370,24 @@ export async function POST(request: NextRequest) {
         questionText = "Which of the following is correct?";
       }
 
+      const hasGraphExplicit = q.has_graph === true;
+      const hasGraphDenied = q.has_graph === false;
       const pageNum =
         q.page_number != null && Number.isInteger(Number(q.page_number))
           ? Number(q.page_number)
           : null;
+      const parsedBbox = parseBbox(q.bbox);
 
       const preconditionText =
         (q.precondition ?? "").trim() || null;
+
+      const hasGraph =
+        isEconomicsOrPassage &&
+        (hasGraphExplicit || (!hasGraphDenied && pageNum != null));
+      const pageNumFinal =
+        isEconomicsOrPassage && hasGraph && pageNum != null ? pageNum : null;
+      const bboxVal =
+        isEconomicsOrPassage && hasGraph && pageNumFinal != null ? parsedBbox : null;
 
       return {
         upload_id: uploadId,
@@ -369,7 +402,9 @@ export async function POST(request: NextRequest) {
         option_e: opts.option_e,
         correct_answer: correct,
         image_url: null,
-        page_number: pageNum,
+        has_graph: isEconomicsOrPassage ? hasGraph : null,
+        page_number: pageNumFinal,
+        bbox: bboxVal,
       };
     });
 

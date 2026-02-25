@@ -26,17 +26,20 @@ content = SADECE soru kökü; passage/liste/tablo image_description'da. Boş bı
 `;
 
 const OUTPUT_SCHEMA_ECONOMICS = `
-Her soru için şu JSON nesnesini üret (grafikli sorularda sayfa numarası zorunlu):
+Her soru için şu JSON nesnesini üret:
 {
   "type": "code" | "image" | "text",
-  "content": "SADECE soru kökü (stem): soruyu soran cümle, örn. 'Which of the following constitute the fundamental questions every economic system must answer?' Liste (I. II. III. IV. V.) veya tablo verisi content'e YAZMA.",
-  "image_description": "grafik (SVG), tablo (HTML veya pipe | col | formatında) veya referans listesi (I. What goods... II. How... vb.). Soruya referans veren tüm malzeme burada.",
+  "content": "SADECE soru kökü (stem): soruyu soran cümle. Liste veya tablo content'e YAZMA.",
+  "image_description": "grafik (SVG), tablo veya referans listesi (I. What goods... II. How... vb.). Soruya referans veren malzeme burada.",
+  "has_graph": true,
   "page_number": 1,
+  "bbox": { "x": 0.1, "y": 0.2, "width": 0.6, "height": 0.4 },
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-content = SADECE soru kökü cümlesi (stem); maddeler/liste/tablo image_description'da olmalı. Boş bırakma.
-page_number: Grafik veya tablo içeren her soruda zorunlu. 1-based PDF sayfa numarası: ilgili grafik veya tablo görselinin bulunduğu sayfa.
+has_graph: Soruda grafik (arz-talep, maliyet eğrisi vb.) VAR MI? true = grafik var, false = yok. Grafik yoksa page_number ve bbox null veya atlayın.
+page_number: has_graph true ise ZORUNLU. 1-based PDF sayfa numarası: grafiğin bulunduğu sayfa.
+bbox: has_graph true ise ZORUNLU. 0-1 normalleştirilmiş: x,y = sol üst (0=sol, 1=sağ; 0=üst, 1=alt), width, height = oran. Örn: sol yarı + üst %40 için x:0, y:0, width:0.5, height:0.4.
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
@@ -107,13 +110,14 @@ ${MSQ_ONLY_RULE}
 
 GÖREV:
 - Sayfadaki grafikleri (arz-talep, maliyet eğrileri, vb.) tespit et.
-- Grafiği sadece metinle betimlemek yerine, Bluebook stiline uygun temiz bir **tablo** veya **SVG kodu** olarak üret. Mümkünse SVG ile eksenleri, eğrileri ve etiketleri çiz.
-- Çoktan seçmeli soruları ayıkla. **content** = SADECE soru kökü (örn. "Which of the following constitute the fundamental questions...?"). Liste (I. What goods... II. How...), tablo verisi veya grafik **image_description**'a: tablo (HTML veya | col | formatında), SVG veya madde listesi. Aynı metni hem content hem image_description'a yazma.
-- Grafik **veya** tablo içeren her soruda **page_number** zorunlu: ilgili grafik/tablo görselinin bulunduğu PDF sayfası (1 tabanlı). Grafik sorularda mutlaka page_number verin; vermezseniz grafik ekranda görünmez.
+- Her soruda önce **has_graph** belirle: grafik (arz-talep eğrisi, maliyet eğrisi vb.) varsa true, yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: x,y sol üst köşe oranı, width,height dikdörtgen oranı.
+- has_graph false ise page_number ve bbox verme.
+- Grafik sorularda sol panel PDF'ten crop; tablo/liste sorularda image_description.
 
 ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
-KURAL: content = sadece soru kökü (stem). image_description = grafik/tablo/liste (sol panel). page_number her grafik/tablolu soruda. Layout: sol panel = image_description, sağ panel = content.`;
+KURAL: content = sadece soru kökü (stem). Grafik sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Tablo sorularda image_description. page_number + bbox her grafikli soruda zorunlu.`;
 
     case "AP_CSA":
       return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
