@@ -29,6 +29,7 @@ import { createClient } from "@/lib/supabase/client";
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
 const ZoomableImagePanel = dynamic(() => import("./ZoomableImagePanel"), { ssr: false });
+const FullPageModal = dynamic(() => import("./FullPageModal"), { ssr: false });
 
 const TABLE_FALLBACK_CLASS =
   "overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5";
@@ -412,7 +413,10 @@ function getStemOnlyIfListPresent(questionText: string | null, _passageText: str
   if (!questionText?.trim()) return questionText ?? "";
   const q = questionText.trim();
   const match = q.match(/^([\s\S]*?\?)\s*(?:\r?\n[\s\S]*?)?\s*I\.\s+[\s\S]*$/);
-  if (match) return match[1].trim();
+  if (match) {
+    const stripped = match[1].trim();
+    if (stripped.length >= 40) return stripped;
+  }
   return q;
 }
 
@@ -498,6 +502,7 @@ export default function ExamPage() {
   const [selectedResultQuestion, setSelectedResultQuestion] = useState<number | null>(null);
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
+  const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
@@ -1535,6 +1540,19 @@ export default function ExamPage() {
               style={{ width: `${leftPanelPercent}%` }}
             >
               <div className="p-4 h-full relative">
+                {pdfUrl &&
+                  currentQuestion?.page_number != null &&
+                  (showTablePanel || showGraphPanel) && (
+                    <button
+                      type="button"
+                      onClick={() => setFullPageModalOpen(true)}
+                      className="absolute bottom-2 left-2 rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                      aria-label="Sayfayı göster"
+                    >
+                      <Maximize2 className="mr-1 inline h-3.5 w-3.5" />
+                      Sayfayı göster
+                    </button>
+                  )}
                 {isCsa && leftPanelContent?.trim() && (
                   <div className="absolute top-2 right-2 flex items-center gap-1 rounded border border-dashed border-red-300 bg-[#f8d7da] px-2 py-1 text-xs font-medium text-white">
                     <Calculator className="h-3.5 w-3.5" />
@@ -1815,6 +1833,14 @@ export default function ExamPage() {
           </div>
         </div>
       </footer>
+      {pdfUrl && currentQuestion?.page_number != null && (
+        <FullPageModal
+          open={fullPageModalOpen}
+          onClose={() => setFullPageModalOpen(false)}
+          pdfUrl={pdfUrl}
+          pageNumber={currentQuestion.page_number}
+        />
+      )}
     </div>
   );
 }

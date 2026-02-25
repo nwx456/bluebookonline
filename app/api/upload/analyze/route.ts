@@ -135,7 +135,10 @@ function stripReferenceListFromStem(questionText: string, passageText: string | 
   if (!passageText?.trim()) return q;
   // Match stem (up to and including "?") followed by optional whitespace and "I." starting the list
   const match = q.match(/^([\s\S]*?\?)\s*(?:\r?\n[\s\S]*?)?\s*I\.\s+[\s\S]*$/);
-  if (match) return match[1].trim();
+  if (match) {
+    const stripped = match[1].trim();
+    if (stripped.length >= 30) return stripped;
+  }
   return q;
 }
 

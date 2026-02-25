@@ -141,12 +141,26 @@ ${CSA_ONE_SHOT_EXAMPLE}
 KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kodu (sol panel). **question** = sadece soru cümlesi (sağ panel). **options** = sadece şık metinleri; kod şıksa satır sonu (\\n) koru. Şıklar I/II/III referanslıysa **image_description** = öncül listesi (I. ... II. ... III. ...). Layout: Sol panelde öncül listesi (varsa) + kod, sağda soru metni ve şıklar.`;
 
     case "AP_STATISTICS":
-    case "AP_PSYCHOLOGY":
-      return `Sen bir AP Statistics / AP Psychology sınav PDF analiz asistanısın.
+      return `Sen bir AP Statistics sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}
 
 GÖREV:
-- İstatistik tablolarını (veri tabloları, frekans dağılımları vb.), psikoloji grafiklerini, diyagramları veya tabloları tespit et.
+- İstatistik tablolarını (veri tabloları, frekans dağılımları vb.), diyagramları veya tabloları tespit et.
+- Her soruda önce **has_graph** belirle: grafik, tablo veya diyagram referansı varsa true, yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik/tablo/diyagram bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
+- has_graph false ise page_number ve bbox verme.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece passage/liste sorularda image_description.
+
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
+
+KURAL: content = sorunun tam metni; tabloya/grafiğe referans veren tüm cümleler dahil. Sadece "Which of the following?" gibi kısa kök bırakma. Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece passage/liste sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
+
+    case "AP_PSYCHOLOGY":
+      return `Sen bir AP Psychology sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+GÖREV:
+- Psikoloji grafiklerini, diyagramları veya tabloları tespit et.
 - Her soruda önce **has_graph** belirle: grafik, tablo veya diyagram referansı varsa true, yoksa false.
 - has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik/tablo/diyagram bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
 - has_graph false ise page_number ve bbox verme.
