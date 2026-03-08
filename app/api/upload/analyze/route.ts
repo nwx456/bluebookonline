@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getSystemPrompt, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
+import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE_MB = 50;
@@ -167,6 +167,8 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
     const subjectRaw = formData.get("subject") as string | null;
     const questionCountRaw = formData.get("questionCount") as string | null;
+    const hasVisualsRaw = formData.get("hasVisuals") as string | null;
+    const hasVisuals = hasVisualsRaw === "true";
     const userEmail = (formData.get("userEmail") as string | null)?.trim();
 
     if (!file || typeof file.arrayBuffer !== "function") {
@@ -231,16 +233,22 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64 = buffer.toString("base64");
 
+    const subjectKey = subject as SubjectKey;
+    const isCode = isCodeSubject(subjectKey);
+    const useHasVisuals = isCode ? true : hasVisuals;
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: getSystemPrompt(subject as SubjectKey),
+      systemInstruction: getSystemPrompt(subjectKey, useHasVisuals),
     });
 
-    const isCsa = subject === "AP_CSA";
+    const isCsa = subject === "AP_CSA" || subject === "AP_CSP";
     const userPrompt = isCsa
-      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
-      : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem—the sentence that asks the question before the choices. If the stem is not clearly separate in the PDF, infer a short stem from the options (e.g. "Which of the following is correct?"). Do not leave content or question empty. For Micro/Macro economics, Psychology, and Statistics: include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram (e.g. supply-demand curves, data tables, frequency distributions, psychology diagrams). When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`;
+      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java/code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E), **page_number** (1-based; the PDF page where the code and question appear—required for each question). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
+      : useHasVisuals
+        ? `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem. Do not leave content or question empty. Include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram. When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`
+        : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ). Return ONLY a JSON array of objects. Each object: "type" ("text"), "content" (question stem), "image_description" (passage or list as text, or null), "options" (array A–E), "correct" (A/B/C/D/E). Do NOT include has_graph, page_number, or bbox. Do not include any markdown or explanation, only the JSON array.`;
 
     const result = await model.generateContent([
       { text: userPrompt },
@@ -353,16 +361,12 @@ export async function POST(request: NextRequest) {
       if (isPlaceholderText(questionText)) questionText = "No question text.";
       if (passageText != null && isPlaceholderText(passageText)) passageText = null;
 
-      const isEconomicsOrPassage =
-        subject === "AP_MICROECONOMICS" ||
-        subject === "AP_MACROECONOMICS" ||
-        subject === "AP_PSYCHOLOGY" ||
-        subject === "AP_STATISTICS";
-      if (isEconomicsOrPassage && passageText != null && looksLikeQuestionStemOnly(passageText)) {
+      const isVisualOrPassageSubject = !isCodeSubject(subjectKey);
+      if (isVisualOrPassageSubject && passageText != null && looksLikeQuestionStemOnly(passageText)) {
         passageText = null;
       }
 
-      if (isEconomicsOrPassage) {
+      if (isVisualOrPassageSubject) {
         questionText = stripReferenceListFromStem(questionText, passageText);
       }
 
@@ -385,12 +389,19 @@ export async function POST(request: NextRequest) {
         (q.precondition ?? "").trim() || null;
 
       const hasGraph =
-        isEconomicsOrPassage &&
+        isVisualOrPassageSubject &&
+        useHasVisuals &&
         (hasGraphExplicit || (!hasGraphDenied && pageNum != null));
-      const pageNumFinal =
-        isEconomicsOrPassage && hasGraph && pageNum != null ? pageNum : null;
-      const bboxVal =
-        isEconomicsOrPassage && hasGraph && pageNumFinal != null ? parsedBbox : null;
+      const pageNumFinal = isCodeType
+        ? (pageNum ?? null)
+        : isVisualOrPassageSubject && hasGraph && pageNum != null
+          ? pageNum
+          : null;
+      const bboxVal = isCodeType
+        ? null
+        : isVisualOrPassageSubject && hasGraph && pageNumFinal != null
+          ? parsedBbox
+          : null;
 
       return {
         upload_id: uploadId,
@@ -405,7 +416,7 @@ export async function POST(request: NextRequest) {
         option_e: opts.option_e,
         correct_answer: correct,
         image_url: null,
-        has_graph: isEconomicsOrPassage ? hasGraph : null,
+        has_graph: isVisualOrPassageSubject ? hasGraph : null,
         page_number: pageNumFinal,
         bbox: bboxVal,
       };

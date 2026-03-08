@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
-import { buildSolvePrompt, parseSolveResponse, type SolveQuestionInput } from "@/lib/ai-solve-prompts";
+import { buildSolvePromptWithOptionalPdf, parseSolveResponse, type SolveQuestionInput } from "@/lib/ai-solve-prompts";
 import type { SubjectKey } from "@/lib/gemini-prompts";
 
 const BATCH_SIZE = 8;
 const VALID_ANSWERS = ["A", "B", "C", "D", "E"] as const;
+const PDF_MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+
+async function downloadPdfAsBase64(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseAdmin>>,
+  uploadId: string,
+  storagePath: string | null
+): Promise<string | null> {
+  if (!storagePath?.trim() || !storagePath.endsWith(".pdf")) return null;
+  try {
+    const { data, error } = await supabase.storage.from("pdf_uploads").download(storagePath);
+    if (error && storagePath.startsWith("pending/")) {
+      const fallbackPath = `${uploadId}.pdf`;
+      const fallback = await supabase.storage.from("pdf_uploads").download(fallbackPath);
+      if (fallback.error || !fallback.data) return null;
+      if (fallback.data.size > PDF_MAX_SIZE_BYTES) return null;
+      return Buffer.from(await fallback.data.arrayBuffer()).toString("base64");
+    }
+    if (error || !data) return null;
+    if (data.size > PDF_MAX_SIZE_BYTES) return null;
+    return Buffer.from(await data.arrayBuffer()).toString("base64");
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     const { data: upload } = await supabase
       .from("pdf_uploads")
-      .select("subject")
+      .select("subject, storage_path")
       .eq("id", attempt.upload_id)
       .single();
 
@@ -42,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const { data: allQuestions } = await supabase
       .from("questions")
-      .select("id, question_number, question_text, passage_text, precondition_text, option_a, option_b, option_c, option_d, option_e, correct_answer")
+      .select("id, question_number, question_text, passage_text, precondition_text, option_a, option_b, option_c, option_d, option_e, correct_answer, page_number, has_graph, bbox")
       .eq("upload_id", attempt.upload_id)
       .order("question_number", { ascending: true });
 
@@ -56,6 +80,11 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     const aiAnswerMap = new Map<string, string>();
+    const batchHasGraph = questionsNeedingAi.some((q) => q.has_graph === true);
+    let pdfBase64: string | null = null;
+    if (batchHasGraph && upload?.storage_path) {
+      pdfBase64 = await downloadPdfAsBase64(supabase, attempt.upload_id, upload.storage_path);
+    }
 
     if (questionsNeedingAi.length > 0 && apiKey?.trim()) {
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -74,21 +103,47 @@ export async function POST(request: NextRequest) {
           option_c: q.option_c,
           option_d: q.option_d,
           option_e: q.option_e,
+          page_number: q.page_number ?? null,
+          has_graph: q.has_graph ?? false,
+          bbox: q.bbox as { x: number; y: number; width: number; height: number } | null ?? null,
         }));
 
-        const prompt = buildSolvePrompt(subject, inputs);
-        try {
-          const result = await model.generateContent(prompt);
+        const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
+        const runBatch = async (): Promise<void> => {
+          const result = usePdf && pdfBase64
+            ? await model.generateContent([
+                { text: prompt },
+                { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
+              ])
+            : await model.generateContent(prompt);
           const text = result.response.text();
+          if (!text?.trim()) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn("[exam/complete] Gemini returned empty response for batch", i);
+            }
+            return;
+          }
           const answers = parseSolveResponse(text, batch.length);
+          const parsedCount = answers.filter((a) => a != null).length;
+          if (parsedCount === 0 && process.env.NODE_ENV === "development") {
+            console.warn("[exam/complete] parseSolveResponse got no valid answers. Raw:", text.slice(0, 300));
+          }
           batch.forEach((q, j) => {
             const ans = answers[j];
             if (ans && VALID_ANSWERS.includes(ans as (typeof VALID_ANSWERS)[number])) {
               aiAnswerMap.set(q.id, ans);
             }
           });
+        };
+        try {
+          await runBatch();
         } catch (err) {
           console.error("Gemini solve batch error:", err);
+          try {
+            await runBatch();
+          } catch (retryErr) {
+            console.error("Gemini solve batch retry error:", retryErr);
+          }
         }
       }
     }

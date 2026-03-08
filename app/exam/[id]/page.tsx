@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/gemini-prompts";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
@@ -118,15 +119,9 @@ const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; e
   },
 ];
 
-const SUBJECTS = [
-  { value: "AP_CSA", label: "AP CSA (Computer Science)" },
-  { value: "AP_MICROECONOMICS", label: "AP Microeconomics" },
-  { value: "AP_MACROECONOMICS", label: "AP Macroeconomics" },
-  { value: "AP_PSYCHOLOGY", label: "AP Psychology" },
-  { value: "AP_STATISTICS", label: "AP Statistics" },
-] as const;
+const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
 
-type SubjectValue = (typeof SUBJECTS)[number]["value"];
+type SubjectValue = SubjectKey;
 
 interface PdfUpload {
   id: string;
@@ -395,10 +390,14 @@ function splitCsaPassage(text: string | null): {
 function looksLikeCode(text: string | null): boolean {
   if (!text?.trim()) return false;
   const t = text.trim();
-  return (
+  // Java/code benzeri: metod çağrısı, atama, keyword
+  const hasCodePattern =
+    /\b(String|System\.out|new\s|\.substring\s*\(|ArrayList|for\s*\(|if\s*\(|return\s)/.test(t) ||
+    (t.includes(";") && (t.includes("{") || t.includes("}")));
+  const hasOriginalPattern =
     (t.includes("public ") || t.includes("private ") || t.includes("void ") || t.includes("int ")) &&
-    (t.includes("{") || t.includes("}"))
-  );
+    (t.includes("{") || t.includes("}"));
+  return hasCodePattern || hasOriginalPattern;
 }
 
 /** Option text looks like code (for CSA: render as code block). */
@@ -544,12 +543,10 @@ export default function ExamPage() {
   }, [id]);
 
   useEffect(() => {
-    const isEconomicsOrPassageForPdf =
-      upload?.subject === "AP_MICROECONOMICS" ||
-      upload?.subject === "AP_MACROECONOMICS" ||
-      upload?.subject === "AP_PSYCHOLOGY" ||
-      upload?.subject === "AP_STATISTICS";
-    if (!id || !upload?.storage_path || !isEconomicsOrPassageForPdf) {
+    const needsPdfForGraph =
+      upload?.subject &&
+      !isCodeSubject(upload.subject as SubjectKey);
+    if (!id || !upload?.storage_path || !needsPdfForGraph) {
       setPdfUrl(null);
       return;
     }
@@ -814,8 +811,8 @@ export default function ExamPage() {
     [id, currentQuestion?.id]
   );
   const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
-  const subjectLabel = SUBJECTS.find((s) => s.value === subject)?.label ?? subject;
-  const isCsa = subject === "AP_CSA";
+  const subjectLabel = SUBJECT_LABELS[subject] ?? subject;
+  const isCsa = isCodeSubject(subject);
   const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
   const isMicro = subject === "AP_MICROECONOMICS";
   const isCsaLegacyFallback =
@@ -829,8 +826,7 @@ export default function ExamPage() {
   const leftPanelContent = isCsaLegacyFallback
     ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
     : (currentQuestion?.passage_text ?? "");
-  const isEconomicsOrPassage =
-    isEconomics || subject === "AP_PSYCHOLOGY" || subject === "AP_STATISTICS";
+  const isEconomicsOrPassage = !isCsa;
   let rawStem = isCsaLegacyFallback
     ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
@@ -1540,9 +1536,7 @@ export default function ExamPage() {
               style={{ width: `${leftPanelPercent}%` }}
             >
               <div className="p-4 h-full relative">
-                {pdfUrl &&
-                  currentQuestion?.page_number != null &&
-                  (showTablePanel || showGraphPanel) && (
+                {pdfUrl && currentQuestion?.page_number != null && (
                     <button
                       type="button"
                       onClick={() => setFullPageModalOpen(true)}

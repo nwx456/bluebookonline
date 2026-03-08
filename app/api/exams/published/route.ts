@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 
-const SUBJECTS = [
-  "AP_CSA",
-  "AP_MICROECONOMICS",
-  "AP_MACROECONOMICS",
-  "AP_PSYCHOLOGY",
-  "AP_STATISTICS",
-] as const;
-
-export type SubjectFilter = (typeof SUBJECTS)[number];
+export type SubjectFilter = SubjectKey;
 
 /**
  * GET /api/exams/published?subject=AP_CSA
@@ -28,7 +21,7 @@ export async function GET(request: NextRequest) {
       .eq("is_published", true)
       .order("created_at", { ascending: false });
 
-    if (subjectRaw?.trim() && SUBJECTS.includes(subjectRaw as SubjectFilter)) {
+    if (subjectRaw?.trim() && SUBJECT_KEYS.includes(subjectRaw as SubjectKey)) {
       query = query.eq("subject", subjectRaw.trim());
     }
 

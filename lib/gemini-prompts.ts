@@ -5,13 +5,87 @@
 
 export const SUBJECT_KEYS = [
   "AP_CSA",
+  "AP_CSP",
   "AP_MICROECONOMICS",
   "AP_MACROECONOMICS",
   "AP_PSYCHOLOGY",
   "AP_STATISTICS",
+  "AP_BIOLOGY",
+  "AP_CHEMISTRY",
+  "AP_PHYSICS_1",
+  "AP_PHYSICS_2",
+  "AP_PHYSICS_C_MECH",
+  "AP_PHYSICS_C_EM",
+  "AP_ENVIRONMENTAL_SCIENCE",
+  "AP_HUMAN_GEOGRAPHY",
+  "AP_ENGLISH_LANG",
+  "AP_ENGLISH_LIT",
+  "AP_US_HISTORY",
+  "AP_WORLD_HISTORY",
+  "AP_EUROPEAN_HISTORY",
+  "AP_US_GOVERNMENT",
+  "AP_COMPARATIVE_GOVERNMENT",
+  "AP_CALCULUS_AB",
+  "AP_CALCULUS_BC",
+  "AP_PRECALCULUS",
 ] as const;
 
 export type SubjectKey = (typeof SUBJECT_KEYS)[number];
+
+/** Default hasVisuals for each subject (code=skip, visual=true, text=false) */
+export const SUBJECT_DEFAULT_HAS_VISUALS: Record<SubjectKey, boolean | "code"> = {
+  AP_CSA: "code",
+  AP_CSP: "code",
+  AP_MICROECONOMICS: true,
+  AP_MACROECONOMICS: true,
+  AP_PSYCHOLOGY: false,
+  AP_STATISTICS: true,
+  AP_BIOLOGY: true,
+  AP_CHEMISTRY: true,
+  AP_PHYSICS_1: true,
+  AP_PHYSICS_2: true,
+  AP_PHYSICS_C_MECH: true,
+  AP_PHYSICS_C_EM: true,
+  AP_ENVIRONMENTAL_SCIENCE: true,
+  AP_HUMAN_GEOGRAPHY: true,
+  AP_ENGLISH_LANG: false,
+  AP_ENGLISH_LIT: false,
+  AP_US_HISTORY: false,
+  AP_WORLD_HISTORY: false,
+  AP_EUROPEAN_HISTORY: false,
+  AP_US_GOVERNMENT: false,
+  AP_COMPARATIVE_GOVERNMENT: false,
+  AP_CALCULUS_AB: false,
+  AP_CALCULUS_BC: false,
+  AP_PRECALCULUS: false,
+};
+
+export const SUBJECT_LABELS: Record<SubjectKey, string> = {
+  AP_CSA: "AP CSA (Computer Science)",
+  AP_CSP: "AP Computer Science Principles",
+  AP_MICROECONOMICS: "AP Microeconomics",
+  AP_MACROECONOMICS: "AP Macroeconomics",
+  AP_PSYCHOLOGY: "AP Psychology",
+  AP_STATISTICS: "AP Statistics",
+  AP_BIOLOGY: "AP Biology",
+  AP_CHEMISTRY: "AP Chemistry",
+  AP_PHYSICS_1: "AP Physics 1",
+  AP_PHYSICS_2: "AP Physics 2",
+  AP_PHYSICS_C_MECH: "AP Physics C: Mechanics",
+  AP_PHYSICS_C_EM: "AP Physics C: E&M",
+  AP_ENVIRONMENTAL_SCIENCE: "AP Environmental Science",
+  AP_HUMAN_GEOGRAPHY: "AP Human Geography",
+  AP_ENGLISH_LANG: "AP English Language",
+  AP_ENGLISH_LIT: "AP English Literature",
+  AP_US_HISTORY: "AP US History",
+  AP_WORLD_HISTORY: "AP World History",
+  AP_EUROPEAN_HISTORY: "AP European History",
+  AP_US_GOVERNMENT: "AP US Government",
+  AP_COMPARATIVE_GOVERNMENT: "AP Comparative Government",
+  AP_CALCULUS_AB: "AP Calculus AB",
+  AP_CALCULUS_BC: "AP Calculus BC",
+  AP_PRECALCULUS: "AP Precalculus",
+};
 
 const OUTPUT_SCHEMA = `
 Her soru için şu JSON nesnesini üret:
@@ -23,6 +97,18 @@ Her soru için şu JSON nesnesini üret:
   "correct": "A"
 }
 content = SADECE soru kökü; passage/liste/tablo image_description'da. Boş bırakma. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+`;
+
+const OUTPUT_SCHEMA_TEXT_ONLY = `
+Her soru için şu JSON nesnesini üret (has_graph, page_number, bbox KULLANMA):
+{
+  "type": "text",
+  "content": "SADECE soru kökü (stem): soruyu soran cümle.",
+  "image_description": "passage, liste (I. II. III.) veya tablo metin olarak (yoksa null)",
+  "options": ["A", "B", "C", "D"],
+  "correct": "A"
+}
+content = soru kökü; passage/liste image_description'da. has_graph, page_number, bbox alanları EKLEME. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
 const OUTPUT_SCHEMA_ECONOMICS = `
@@ -52,15 +138,20 @@ Kod içeren her MSQ için şu JSON nesnesini üret:
   "precondition": "optional; Precondition: ... ve Javadoc (/** ... @param ... @return ... */) metni. PDF'te kod bloğunun üstünde veya altında görünen, çoktan seçmeli soru kökü olmayan metin. Soru kökünü buraya koyma.",
   "content": "optional; use only if duplicating question for compatibility; otherwise omit or leave empty",
   "image_description": "optional; şıklar I, II, III'e referans veriyorsa (ör. (A) I only, (B) II only) öncül listesini buraya: I. İlk ifade. II. İkinci ifade. III. Üçüncü ifade. Kod yoksa null.",
+  "page_number": 1,
   "options": ["(A) seçenek metni", "(B) ..."],
   "correct": "A"
 }
+page_number: ZORUNLU. Sorunun (kod + soru) bulunduğu PDF sayfası (1-based).
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
 const CSA_CODE_QUESTION_RULES = `
 **code** alanı – SADECE:
 - Sorunun referans aldığı Java kodu (ör. public class SalesRep { ... } veya ilgili sınıf/metot tanımı).
+- Her sorunun **code** alanı yalnızca o sorunun referans verdiği kodu içermeli.
+- "Questions 4–5 refer to the following class" durumunda hem 4 hem 5 için aynı kodu tekrarla.
+- Farklı sorular farklı kod bloklarına referans veriyorsa, her soruya sadece kendi kodunu yaz; başka soruların kodunu ekleme.
 - Girintileri (indentation) koru.
 
 **code** alanına ASLA EKLEME:
@@ -101,26 +192,22 @@ const MSQ_ONLY_RULE = `
 ÖNEMLİ: Sadece **çoktan seçmeli soruları (MSQ)** çıkar. **Free-response (FRQ)** sorularını ve FRQ bölümlerindeki metni dahil etme; sadece MSQ bölümlerinden çıkar.
 `;
 
-export function getSystemPrompt(subject: SubjectKey): string {
-  switch (subject) {
-    case "AP_MICROECONOMICS":
-    case "AP_MACROECONOMICS":
-      return `Sen bir AP Microeconomics/Macroeconomics sınav PDF analiz asistanısın.
+export function isCodeSubject(subject: SubjectKey): boolean {
+  return subject === "AP_CSA" || subject === "AP_CSP";
+}
+
+const TEXT_ONLY_BASE = (subjectLabel: string) => `Sen bir ${subjectLabel} sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}
 
 GÖREV:
-- Sayfadaki grafikleri (arz-talep, maliyet eğrileri) ve tabloları (örn. Demand Curve | Supply Curve) tespit et.
-- Her soruda önce **has_graph** belirle: grafik (arz-talep eğrisi, maliyet eğrisi vb.) VEYA tablo referansı varsa true, ikisi de yoksa false.
-- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik veya tablo bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
-- has_graph false ise page_number ve bbox verme.
-- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece liste/passage sorularda image_description.
+- Sadece çoktan seçmeli (MSQ) soruları çıkar. Passage veya referans metni varsa image_description'a yaz.
+- has_graph, page_number, bbox KULLANMA. Sadece content ve image_description.
 
-ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
+ÇIKTI: ${OUTPUT_SCHEMA_TEXT_ONLY}`;
 
-KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece liste/passage sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
-
-    case "AP_CSA":
-      return `Sen bir AP Computer Science A (CSA) sınav PDF analiz asistanısın.
+export function getSystemPrompt(subject: SubjectKey, hasVisuals?: boolean): string {
+  if (subject === "AP_CSA" || subject === "AP_CSP") {
+    return `Sen bir AP Computer Science ${subject === "AP_CSP" ? "Principles (CSP)" : "A (CSA)"} sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}
 
 GÖREV:
@@ -138,7 +225,29 @@ ${CSA_ONE_SHOT_EXAMPLE}
 
 ÇIKTI: ${OUTPUT_SCHEMA_CSA}
 
-KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kodu (sol panel). **question** = sadece soru cümlesi (sağ panel). **options** = sadece şık metinleri; kod şıksa satır sonu (\\n) koru. Şıklar I/II/III referanslıysa **image_description** = öncül listesi (I. ... II. ... III. ...). Layout: Sol panelde öncül listesi (varsa) + kod, sağda soru metni ve şıklar.`;
+KURAL: Kod içeren sorularda type: "code" kullan. **code** = sadece referans kodu (sol panel). **question** = sadece soru cümlesi (sağ panel). **options** = sadece şık metinleri; kod şıksa satır sonu (\\n) koru. Şıklar I/II/III referanslıysa **image_description** = öncül listesi (I. ... II. ... III. ...). Her soru için **page_number** (1-based) ver: kod ve sorunun bulunduğu PDF sayfası. Layout: Sol panelde öncül listesi (varsa) + kod, sağda soru metni ve şıklar.`;
+  }
+
+  if (hasVisuals === false) {
+    return TEXT_ONLY_BASE(SUBJECT_LABELS[subject]);
+  }
+
+  switch (subject) {
+    case "AP_MICROECONOMICS":
+    case "AP_MACROECONOMICS":
+      return `Sen bir AP Microeconomics/Macroeconomics sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+GÖREV:
+- Sayfadaki grafikleri (arz-talep, maliyet eğrileri) ve tabloları (örn. Demand Curve | Supply Curve) tespit et.
+- Her soruda önce **has_graph** belirle: grafik (arz-talep eğrisi, maliyet eğrisi vb.) VEYA tablo referansı varsa true, ikisi de yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU. Bbox: grafik veya tablo bölgesinin PDF'teki konumu (x,y sol üst, width,height oranı).
+- has_graph false ise page_number ve bbox verme.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece liste/passage sorularda image_description.
+
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
+
+KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece liste/passage sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
 
     case "AP_STATISTICS":
       return `Sen bir AP Statistics sınav PDF analiz asistanısın.
@@ -169,6 +278,52 @@ GÖREV:
 ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
 
 KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile); image_description gösterilmez. Sadece passage/liste sorularda image_description. page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
+
+    case "AP_BIOLOGY":
+    case "AP_CHEMISTRY":
+    case "AP_PHYSICS_1":
+    case "AP_PHYSICS_2":
+    case "AP_PHYSICS_C_MECH":
+    case "AP_PHYSICS_C_EM":
+    case "AP_ENVIRONMENTAL_SCIENCE":
+    case "AP_HUMAN_GEOGRAPHY":
+      return `Sen bir ${SUBJECT_LABELS[subject]} sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+GÖREV:
+- Grafikleri, diyagramları, tabloları, veri görsellerini tespit et.
+- Her soruda önce **has_graph** belirle: grafik, tablo veya diyagram referansı varsa true, yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU.
+- has_graph false ise page_number ve bbox verme.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece passage/liste sorularda image_description.
+
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
+
+KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile). page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
+
+    case "AP_ENGLISH_LANG":
+    case "AP_ENGLISH_LIT":
+    case "AP_US_HISTORY":
+    case "AP_WORLD_HISTORY":
+    case "AP_EUROPEAN_HISTORY":
+    case "AP_US_GOVERNMENT":
+    case "AP_COMPARATIVE_GOVERNMENT":
+    case "AP_CALCULUS_AB":
+    case "AP_CALCULUS_BC":
+    case "AP_PRECALCULUS":
+      return `Sen bir ${SUBJECT_LABELS[subject]} sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+GÖREV:
+- Grafikleri, diyagramları veya tabloları tespit et (varsa).
+- Her soruda önce **has_graph** belirle: grafik, tablo veya diyagram referansı varsa true, yoksa false.
+- has_graph true ise **page_number** ve **bbox** (0-1 normalleştirilmiş) ZORUNLU.
+- has_graph false ise page_number ve bbox verme.
+- Grafik ve tablo sorularda sol panel PDF'ten crop (bbox ile); sadece passage/liste sorularda image_description.
+
+ÇIKTI: ${OUTPUT_SCHEMA_ECONOMICS}
+
+KURAL: content = sadece soru kökü (stem). Grafik ve tablo sorularda sol panel = SADECE PDF crop (bbox ile). page_number + bbox her grafik ve tablo referanslı soruda zorunlu.`;
 
     default:
       return `Sen bir çoktan seçmeli sınav PDF analiz asistanısın.

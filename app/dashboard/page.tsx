@@ -15,16 +15,17 @@ import {
 } from "lucide-react";
 import { cn, generateId } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import {
+  SUBJECT_KEYS,
+  SUBJECT_LABELS,
+  SUBJECT_DEFAULT_HAS_VISUALS,
+  isCodeSubject,
+  type SubjectKey,
+} from "@/lib/gemini-prompts";
 
-const SUBJECTS = [
-  { value: "AP_CSA", label: "AP CSA (Computer Science)" },
-  { value: "AP_MICROECONOMICS", label: "AP Microeconomics" },
-  { value: "AP_MACROECONOMICS", label: "AP Macroeconomics" },
-  { value: "AP_PSYCHOLOGY", label: "AP Psychology" },
-  { value: "AP_STATISTICS", label: "AP Statistics" },
-] as const;
+const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
 
-type SubjectValue = (typeof SUBJECTS)[number]["value"];
+type SubjectValue = SubjectKey;
 
 interface UploadedExam {
   id: string;
@@ -38,6 +39,7 @@ interface UploadedExam {
 export default function DashboardPage() {
   const router = useRouter();
   const [subject, setSubject] = useState<SubjectValue | "">("");
+  const [hasVisualsInPdf, setHasVisualsInPdf] = useState<boolean | null>(null);
   const [questionCount, setQuestionCount] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -56,7 +58,12 @@ export default function DashboardPage() {
 
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
-  const canAnalyze = selectedFile !== null && isQuestionCountValid && subject !== "";
+  const isCode = subject !== "" && isCodeSubject(subject as SubjectKey);
+  const canAnalyze =
+    selectedFile !== null &&
+    isQuestionCountValid &&
+    subject !== "" &&
+    (isCode || hasVisualsInPdf !== null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -166,6 +173,10 @@ export default function DashboardPage() {
       formData.append("subject", subject);
       formData.append("questionCount", String(questionCountNum));
       formData.append("userEmail", userEmail);
+      formData.append(
+        "hasVisuals",
+        isCode ? "true" : (hasVisualsInPdf ? "true" : "false")
+      );
 
       const res = await fetch("/api/upload/analyze", {
         method: "POST",
@@ -370,6 +381,8 @@ export default function DashboardPage() {
                             type="button"
                             onClick={() => {
                               setSubject(s.value);
+                              const def = SUBJECT_DEFAULT_HAS_VISUALS[s.value];
+                              setHasVisualsInPdf(def === "code" ? true : def);
                               setSubjectOpen(false);
                             }}
                             className={cn(
@@ -401,6 +414,21 @@ export default function DashboardPage() {
                   />
                 </div>
               </div>
+              {subject && !isCode && (
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasVisualsInPdf ?? false}
+                      onChange={(e) => setHasVisualsInPdf(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">
+                      PDF&apos;imde tablo, resim veya grafik var
+                    </span>
+                  </label>
+                </div>
+              )}
               {uploadError && (
                 <p className="mb-3 text-sm text-red-600" role="alert">
                   {uploadError}

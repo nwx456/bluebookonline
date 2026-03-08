@@ -8,15 +8,12 @@ import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { FileText, ChevronDown, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
 
 const SUBJECTS = [
   { value: "", label: "All subjects" },
-  { value: "AP_CSA", label: "AP CSA (Computer Science)" },
-  { value: "AP_MICROECONOMICS", label: "AP Microeconomics" },
-  { value: "AP_MACROECONOMICS", label: "AP Macroeconomics" },
-  { value: "AP_PSYCHOLOGY", label: "AP Psychology" },
-  { value: "AP_STATISTICS", label: "AP Statistics" },
-] as const;
+  ...SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] })),
+];
 
 interface PublishedExam {
   id: string;
