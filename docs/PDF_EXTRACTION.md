@@ -6,26 +6,32 @@ Bu dokümanda PDF’ten soru ayıklama (parsing) için kullanılacak teknikler v
 
 ## 1. Ortam değişkeni (.env)
 
-PDF analizi için **Google Gemini API** kullanılacak. `.env` dosyasına ekleyin:
+PDF analizi için **Gemini** veya **Claude** seçilebilir. `.env` dosyasına ekleyin:
 
 ```env
-# Google AI – PDF soru ayıklama (Gemini 1.5 Flash)
+# Google AI – PDF soru ayıklama (Gemini)
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# Anthropic – PDF soru ayıklama (Claude)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
 
-API anahtarını [Google AI Studio](https://aistudio.google.com/apikey) üzerinden alabilirsiniz.
+- **Gemini:** API anahtarını [Google AI Studio](https://aistudio.google.com/apikey) üzerinden alabilirsiniz.
+- **Claude:** API anahtarını [Anthropic Console](https://console.anthropic.com/) üzerinden alabilirsiniz.
+
+Dashboard'da "Analiz motoru" olarak Gemini veya Claude seçilebilir; seçilen provider için ilgili API key tanımlı olmalıdır.
 
 ---
 
 ## 2. Kullanılacak model ve kütüphane
 
-- **Model:** Gemini 1.5 Flash (PDF ve uzun metin için uygun, hızlı).
-- **Node.js SDK:** `@google/generative-ai` (npm).
+- **Gemini:** Model `gemini-2.5-flash`; SDK `@google/generative-ai`
+- **Claude:** Model `claude-sonnet-4-20250514`; SDK `@anthropic-ai/sdk`
 
 Kurulum:
 
 ```bash
-npm install @google/generative-ai
+npm install @google/generative-ai @anthropic-ai/sdk
 ```
 
 ---

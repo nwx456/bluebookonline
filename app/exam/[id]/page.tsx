@@ -499,6 +499,7 @@ export default function ExamPage() {
   } | null>(null);
   const [completing, setCompleting] = useState(false);
   const [selectedResultQuestion, setSelectedResultQuestion] = useState<number | null>(null);
+  const [resultViewMode, setResultViewMode] = useState<"explanation" | "question">("explanation");
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
@@ -543,10 +544,7 @@ export default function ExamPage() {
   }, [id]);
 
   useEffect(() => {
-    const needsPdfForGraph =
-      upload?.subject &&
-      !isCodeSubject(upload.subject as SubjectKey);
-    if (!id || !upload?.storage_path || !needsPdfForGraph) {
+    if (!id || !upload?.storage_path) {
       setPdfUrl(null);
       return;
     }
@@ -716,7 +714,7 @@ export default function ExamPage() {
       setExamCompleted(true);
     } catch (e) {
       console.error(e);
-      alert("Sınav tamamlanamadı. Lütfen tekrar deneyin.");
+      alert("Failed to complete exam. Please try again.");
     } finally {
       setCompleting(false);
     }
@@ -728,6 +726,7 @@ export default function ExamPage() {
       const row = examResult?.breakdown.find((b) => b.questionNumber === questionNumber);
       if (!q || !upload) return;
       setSelectedResultQuestion(questionNumber);
+      setResultViewMode("explanation");
       setResultExplanationLoading(true);
       setResultExplanation(null);
       try {
@@ -977,7 +976,7 @@ export default function ExamPage() {
             <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                 <h2 className="font-medium text-gray-900">Question Details</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Click to view solution explanation</p>
+                <p className="text-xs text-gray-500 mt-0.5">Click a row to view solution or show question</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1015,30 +1014,99 @@ export default function ExamPage() {
                 </table>
               </div>
             </div>
-            {selectedResultQuestion != null && (
-              <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium text-gray-900">
-                    Question {selectedResultQuestion} – Solution Explanation
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedResultQuestion(null);
-                      setResultExplanation(null);
-                    }}
-                    className="text-sm text-gray-500 hover:text-gray-700"
-                  >
-                    Close
-                  </button>
+            {selectedResultQuestion != null && (() => {
+              const selectedQ = questions.find((q) => q.question_number === selectedResultQuestion);
+              return (
+                <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setResultViewMode("explanation")}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md",
+                          resultViewMode === "explanation"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        )}
+                      >
+                        Solution explanation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setResultViewMode("question")}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md",
+                          resultViewMode === "question"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        )}
+                      >
+                        Show question
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedResultQuestion(null);
+                        setResultExplanation(null);
+                        setResultViewMode("explanation");
+                      }}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {resultViewMode === "explanation" ? (
+                    resultExplanationLoading ? (
+                      <p className="text-sm text-gray-500">Loading explanation…</p>
+                    ) : resultExplanation ? (
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">{resultExplanation}</div>
+                    ) : null
+                  ) : selectedQ ? (
+                    <div className="space-y-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
+                        {selectedQ.question_number}
+                      </div>
+                      {selectedQ.passage_text?.trim() ? (
+                        <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Passage</p>
+                          <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQ.passage_text}</div>
+                        </div>
+                      ) : null}
+                      {selectedQ.precondition_text?.trim() ? (
+                        <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Precondition</p>
+                          <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap">{selectedQ.precondition_text}</pre>
+                        </div>
+                      ) : null}
+                      <p className="text-gray-900 font-medium">{selectedQ.question_text || "Which of the following is correct?"}</p>
+                      <div className="space-y-2">
+                        {[
+                          { key: "A", text: selectedQ.option_a },
+                          { key: "B", text: selectedQ.option_b },
+                          { key: "C", text: selectedQ.option_c },
+                          { key: "D", text: selectedQ.option_d },
+                          { key: "E", text: selectedQ.option_e },
+                        ]
+                          .filter((o): o is { key: string; text: string } => o.text != null && o.text.trim() !== "")
+                          .map(({ key, text }) => (
+                            <div
+                              key={key}
+                              className="flex items-start gap-3 rounded-lg border border-gray-300 px-4 py-3 bg-white text-left text-sm"
+                            >
+                              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium">
+                                {key}
+                              </span>
+                              <span className="flex-1 min-w-0 text-gray-800">{text}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                {resultExplanationLoading ? (
-                  <p className="text-sm text-gray-500">Loading explanation…</p>
-                ) : resultExplanation ? (
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{resultExplanation}</div>
-                ) : null}
-              </div>
-            )}
+              );
+            })()}
             <div className="mt-6 text-center">
               <Link
                 href="/dashboard"
@@ -1516,9 +1584,6 @@ export default function ExamPage() {
             NO CALCULATOR ALLOWED
           </div>
         )}
-        <div className="bg-[#f8d7da] border border-dashed border-red-300 px-4 py-2 text-center text-sm font-medium text-white">
-          THIS IS A TEST PREVIEW
-        </div>
       </header>
 
       {/* Main: split when left content exists, else single centered column */}
@@ -1740,6 +1805,19 @@ export default function ExamPage() {
         ) : (
           <div className="flex-1 overflow-auto flex flex-col items-center min-h-0">
             <div className="w-full max-w-2xl p-6 py-8 flex flex-col gap-4">
+              {isCsa && pdfUrl && currentQuestion?.page_number != null && (
+                <div className="flex justify-end -mt-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setFullPageModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                    aria-label="Sayfayı göster"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    Sayfayı göster
+                  </button>
+                </div>
+              )}
               {questionBlockContent}
             </div>
           </div>
@@ -1809,7 +1887,7 @@ export default function ExamPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm("Bitirmek istediğinize emin misiniz?")) {
+                  if (window.confirm("Are you sure you want to end the exam?")) {
                     completeExam();
                   }
                 }}
@@ -1821,7 +1899,7 @@ export default function ExamPage() {
                     : "bg-green-600 text-white hover:bg-green-700"
                 )}
               >
-                {completing ? "Sonuçlar hesaplanıyor…" : "Sınavı Bitir"}
+                {completing ? "Calculating results…" : "End Exam"}
               </button>
             )}
           </div>

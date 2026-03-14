@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         }));
 
         const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
-        const runBatch = async (): Promise<void> => {
+        const runBatch = async (isRetry = false): Promise<boolean> => {
           const result = usePdf && pdfBase64
             ? await model.generateContent([
                 { text: prompt },
@@ -121,12 +121,23 @@ export async function POST(request: NextRequest) {
             if (process.env.NODE_ENV === "development") {
               console.warn("[exam/complete] Gemini returned empty response for batch", i);
             }
-            return;
+            return false;
           }
           const answers = parseSolveResponse(text, batch.length);
           const parsedCount = answers.filter((a) => a != null).length;
           if (parsedCount === 0 && process.env.NODE_ENV === "development") {
             console.warn("[exam/complete] parseSolveResponse got no valid answers. Raw:", text.slice(0, 300));
+          }
+          const allSame =
+            batch.length > 1 &&
+            parsedCount === batch.length &&
+            answers.every((a) => a === answers[0]);
+          if (allSame && !isRetry && process.env.NODE_ENV === "development") {
+            console.warn("[exam/complete] All answers same for batch - possible parse error, will retry. Raw:", text.slice(0, 300));
+          }
+          if (allSame) {
+            if (!isRetry) return true;
+            return false;
           }
           batch.forEach((q, j) => {
             const ans = answers[j];
@@ -134,13 +145,17 @@ export async function POST(request: NextRequest) {
               aiAnswerMap.set(q.id, ans);
             }
           });
+          return false;
         };
         try {
-          await runBatch();
+          const shouldRetry = await runBatch();
+          if (shouldRetry) {
+            await runBatch(true);
+          }
         } catch (err) {
           console.error("Gemini solve batch error:", err);
           try {
-            await runBatch();
+            await runBatch(true);
           } catch (retryErr) {
             console.error("Gemini solve batch retry error:", retryErr);
           }

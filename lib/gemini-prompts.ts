@@ -104,7 +104,7 @@ Her soru için şu JSON nesnesini üret (has_graph, page_number, bbox KULLANMA):
 {
   "type": "text",
   "content": "SADECE soru kökü (stem): soruyu soran cümle.",
-  "image_description": "passage, liste (I. II. III.) veya tablo metin olarak (yoksa null)",
+  "image_description": "passage, liste (I. II. III.) veya tablo metin olarak (yoksa null). Şıklar (A) I only, (B) II only gibi I/II/III referanslıysa öncül listesini MUTLAKA yaz: I. ... II. ... III. ...",
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
@@ -116,7 +116,7 @@ Her soru için şu JSON nesnesini üret:
 {
   "type": "code" | "image" | "text",
   "content": "SADECE soru kökü (stem): soruyu soran cümle. Liste veya tablo content'e YAZMA.",
-  "image_description": "grafik (SVG), tablo veya referans listesi (I. What goods... II. How... vb.). Soruya referans veren malzeme burada.",
+  "image_description": "grafik (SVG), tablo veya referans listesi (I. What goods... II. How... vb.). Şıklar (A) I only, (B) II only gibi I/II/III referanslıysa, öncül listesini MUTLAKA yaz: I. ... II. ... III. ... Bu liste olmadan soru eksik kalır. Soruya referans veren malzeme burada.",
   "has_graph": true,
   "page_number": 1,
   "bbox": { "x": 0.1, "y": 0.2, "width": 0.6, "height": 0.4 },

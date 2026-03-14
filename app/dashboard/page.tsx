@@ -177,6 +177,7 @@ export default function DashboardPage() {
         "hasVisuals",
         isCode ? "true" : (hasVisualsInPdf ? "true" : "false")
       );
+      formData.append("aiProvider", "gemini");
 
       const res = await fetch("/api/upload/analyze", {
         method: "POST",
@@ -424,7 +425,7 @@ export default function DashboardPage() {
                       className="rounded border-gray-300"
                     />
                     <span className="text-sm text-gray-700">
-                      PDF&apos;imde tablo, resim veya grafik var
+                      My PDF contains images, tables, or graphs
                     </span>
                   </label>
                 </div>

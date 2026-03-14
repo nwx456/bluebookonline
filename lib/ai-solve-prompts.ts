@@ -31,8 +31,9 @@ function buildOptions(q: SolveQuestionInput): string[] {
 
 const OUTPUT_INSTRUCTION = `
 Return ONLY a JSON array of single uppercase letters in the same order as the questions.
-Example: ["A","C","B"] means: question 1 -> A, question 2 -> C, question 3 -> B.
+Example: ["A","C","B","D"] means: question 1 -> A, question 2 -> C, question 3 -> B, question 4 -> D.
 Each element must be exactly one of: "A", "B", "C", "D", "E".
+CRITICAL: Solve each question independently. Return varied answers—different questions typically have different correct answers (A, B, C, D, or E). Returning the same letter for ALL questions is almost always wrong and indicates a failure to solve. Pick the best answer for each question.
 Do not include markdown, explanation, or any other text.`;
 
 /** CSA: Java code + question + precondition + options */
@@ -294,10 +295,6 @@ export function parseSolveResponse(text: string, expectedCount: number): (string
     return commaSepLetters.slice(0, expectedCount).map((l) => normalizeAnswer(l));
   }
 
-  const anyLetter = cleaned.match(/\b([A-E])\b/g);
-  if (anyLetter && anyLetter.length >= expectedCount) {
-    return anyLetter.slice(0, expectedCount).map((m) => normalizeAnswer(m[1]));
-  }
-
+  // anyLetter fallback removed: too risky - can match A/B/C/D/E from prompt text (e.g. "Choose A, B, C, or D")
   return new Array(expectedCount).fill(null);
 }

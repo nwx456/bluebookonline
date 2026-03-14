@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -147,6 +148,8 @@ function looksLikeQuestionStemOnly(text: string | null): boolean {
   if (!text?.trim()) return false;
   const t = text.trim();
   if (t.includes("<table") || t.includes("<svg") || /^\|/.test(t)) return false;
+  // I. II. III. öncül listesi ise stem değildir
+  if (/\n\s*I[I]?\.\s/m.test(t) || /^\s*I\.\s/m.test(t)) return false;
   const lines = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const listLike = lines.filter((l) => /^\s*[IVX]+\.\s/.test(l) || /^\s*\d+\.\s/.test(l));
   if (listLike.length >= 2 || (lines.length >= 2 && listLike.length >= 1)) return false;
@@ -155,21 +158,33 @@ function looksLikeQuestionStemOnly(text: string | null): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey?.trim()) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not set. Add it to .env for PDF analysis." },
-        { status: 500 }
-      );
-    }
-
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const subjectRaw = formData.get("subject") as string | null;
     const questionCountRaw = formData.get("questionCount") as string | null;
     const hasVisualsRaw = formData.get("hasVisuals") as string | null;
     const hasVisuals = hasVisualsRaw === "true";
+    const aiProviderRaw = (formData.get("aiProvider") as string | null)?.trim();
+    const aiProvider = aiProviderRaw === "claude" ? "claude" : "gemini";
     const userEmail = (formData.get("userEmail") as string | null)?.trim();
+
+    if (aiProvider === "gemini") {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey?.trim()) {
+        return NextResponse.json(
+          { error: "GEMINI_API_KEY is not set. Add it to .env for PDF analysis." },
+          { status: 500 }
+        );
+      }
+    } else {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey?.trim()) {
+        return NextResponse.json(
+          { error: "ANTHROPIC_API_KEY is not set. Add it to .env to use Claude for PDF analysis." },
+          { status: 500 }
+        );
+      }
+    }
 
     if (!file || typeof file.arrayBuffer !== "function") {
       return NextResponse.json(
@@ -237,34 +252,64 @@ export async function POST(request: NextRequest) {
     const isCode = isCodeSubject(subjectKey);
     const useHasVisuals = isCode ? true : hasVisuals;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: getSystemPrompt(subjectKey, useHasVisuals),
-    });
-
     const isCsa = subject === "AP_CSA" || subject === "AP_CSP";
     const userPrompt = isCsa
-      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java/code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E), **page_number** (1-based; the PDF page where the code and question appear—required for each question). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
+      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java/code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A), **page_number** (1-based; the PDF page where the code and question appear—required for each question). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
       : useHasVisuals
-        ? `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E). For each question, the "content" (or "question" for code-type) must contain the full question stem. Do not leave content or question empty. Include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram. When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`
-        : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ). Return ONLY a JSON array of objects. Each object: "type" ("text"), "content" (question stem), "image_description" (passage or list as text, or null), "options" (array A–E), "correct" (A/B/C/D/E). Do NOT include has_graph, page_number, or bbox. Do not include any markdown or explanation, only the JSON array.`;
+        ? `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). For each question, the "content" (or "question" for code-type) must contain the full question stem. Do not leave content or question empty. When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram. When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`
+        : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ). Return ONLY a JSON array of objects. Each object: "type" ("text"), "content" (question stem), "image_description" (passage or list as text, or null), "options" (array A–E), "correct" (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Do NOT include has_graph, page_number, or bbox. Do not include any markdown or explanation, only the JSON array.`;
 
-    const result = await model.generateContent([
-      { text: userPrompt },
-      {
-        inlineData: {
-          data: base64,
-          mimeType: "application/pdf",
+    let text: string;
+
+    if (aiProvider === "claude") {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8192,
+        system: getSystemPrompt(subjectKey, useHasVisuals),
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf" as const,
+                  data: base64,
+                },
+              },
+              {
+                type: "text",
+                text: userPrompt,
+              },
+            ],
+          },
+        ],
+      });
+      const textBlock = message.content.find((b) => b.type === "text");
+      text = textBlock && "text" in textBlock ? textBlock.text : "";
+    } else {
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        systemInstruction: getSystemPrompt(subjectKey, useHasVisuals),
+      });
+      const result = await model.generateContent([
+        { text: userPrompt },
+        {
+          inlineData: {
+            data: base64,
+            mimeType: "application/pdf",
+          },
         },
-      },
-    ]);
+      ]);
+      text = result.response.text() ?? "";
+    }
 
-    const response = result.response;
-    const text = response.text();
-    if (!text) {
+    if (!text?.trim()) {
       return NextResponse.json(
-        { error: "Gemini returned no content. The PDF may be unreadable or empty." },
+        { error: `${aiProvider === "claude" ? "Claude" : "Gemini"} returned no content. The PDF may be unreadable or empty.` },
         { status: 502 }
       );
     }
@@ -274,7 +319,7 @@ export async function POST(request: NextRequest) {
       questions = parseJsonFromResponse(text);
     } catch {
       return NextResponse.json(
-        { error: "Failed to parse Gemini response as JSON. Try again or use a simpler PDF." },
+        { error: "Failed to parse AI response as JSON. Try again or use a simpler PDF." },
         { status: 502 }
       );
     }
