@@ -333,10 +333,7 @@ export default function Home() {
             >
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-gray-900">Warnings</h2>
-                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Important</span>
-                </div>
+                <h2 className="text-base font-semibold text-gray-900">Warnings</h2>
               </div>
               {warningsOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
             </div>
