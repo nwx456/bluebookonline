@@ -22,6 +22,13 @@ import {
   Superscript,
   Wrench,
   X,
+  CheckCircle,
+  XCircle,
+  CircleDashed,
+  Clock,
+  BarChart3,
+  BookOpen,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -936,81 +943,113 @@ export default function ExamPage() {
     const r = examResult;
     const m = Math.floor(r.timeSpentSeconds / 60);
     const s = r.timeSpentSeconds % 60;
+    const scoreLabel = r.percentage >= 70 ? "Well done" : r.percentage >= 50 ? "Good effort" : "Keep practicing";
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-        <header className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="font-semibold text-gray-900 hover:underline">
-              Bluebook
+        <header className="flex-shrink-0 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 px-6 py-4">
+          <div className="flex items-center justify-between max-w-2xl mx-auto">
+            <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+              <BookOpen className="h-6 w-6 text-blue-600" />
+              Bluebook Online
+            </Link>
+            <Link href="/dashboard" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
             </Link>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold text-gray-900 mb-6">Exam Result</h1>
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm mb-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                <div>
-                  <p className="text-3xl font-bold text-green-600">{r.correctCount}</p>
-                  <p className="text-sm text-gray-600">Correct</p>
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-bold text-gray-900">Exam Result</h1>
+              <p className="mt-1 text-sm text-gray-500">{upload?.filename ?? "Exam"}</p>
+            </div>
+
+            {/* Score highlight */}
+            <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50 to-white p-8 mb-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                <div className="flex flex-col items-center">
+                  <div className="text-5xl sm:text-6xl font-bold text-blue-600">{r.percentage}%</div>
+                  <p className="text-sm font-medium text-gray-600 mt-1">{scoreLabel}</p>
                 </div>
-                <div>
-                  <p className="text-3xl font-bold text-red-600">{r.incorrectCount}</p>
-                  <p className="text-sm text-gray-600">Incorrect</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-gray-500">{r.unansweredCount}</p>
-                  <p className="text-sm text-gray-600">Unanswered</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-blue-600">{r.percentage}%</p>
-                  <p className="text-sm text-gray-600">Score</p>
+                <div className="h-16 w-px bg-gray-200 hidden sm:block" />
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>Time: {m}:{s.toString().padStart(2, "0")}</span>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-gray-500 text-center">
-                Time: {m}:{s.toString().padStart(2, "0")}
-              </p>
             </div>
-            <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+
+            {/* Stats cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
+                <CheckCircle className="h-8 w-8 mx-auto text-green-600 mb-1" />
+                <p className="text-2xl font-bold text-green-700">{r.correctCount}</p>
+                <p className="text-xs font-medium text-green-600">Correct</p>
+              </div>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
+                <XCircle className="h-8 w-8 mx-auto text-red-600 mb-1" />
+                <p className="text-2xl font-bold text-red-700">{r.incorrectCount}</p>
+                <p className="text-xs font-medium text-red-600">Incorrect</p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
+                <CircleDashed className="h-8 w-8 mx-auto text-gray-500 mb-1" />
+                <p className="text-2xl font-bold text-gray-600">{r.unansweredCount}</p>
+                <p className="text-xs font-medium text-gray-500">Unanswered</p>
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
+                <BarChart3 className="h-8 w-8 mx-auto text-blue-600 mb-1" />
+                <p className="text-2xl font-bold text-blue-700">{r.total}</p>
+                <p className="text-xs font-medium text-blue-600">Total</p>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <strong>Note:</strong> Results may not be 100% accurate. AI-generated answers and explanations are for reference only.
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <h2 className="font-medium text-gray-900">Question Details</h2>
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-4 py-4 border-b border-gray-200">
+                <h2 className="font-semibold text-gray-900">Question Details</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Click a row to view solution or show question</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left px-4 py-2 font-medium text-gray-700">Question</th>
-                      <th className="text-left px-4 py-2 font-medium text-gray-700">Your Answer</th>
-                      <th className="text-left px-4 py-2 font-medium text-gray-700">Correct Answer</th>
-                      <th className="text-left px-4 py-2 font-medium text-gray-700">Status</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {r.breakdown.map((row) => (
-                      <tr
-                        key={row.questionNumber}
-                        onClick={() => handleExplainClick(row.questionNumber)}
-                        className={cn(
-                          "border-b border-gray-100 cursor-pointer hover:bg-gray-50",
-                          selectedResultQuestion === row.questionNumber && "bg-blue-50"
-                        )}
-                      >
-                        <td className="px-4 py-2">{row.questionNumber}</td>
-                        <td className="px-4 py-2">{row.userAnswer ?? "—"}</td>
-                        <td className="px-4 py-2">{row.correctAnswer ?? "—"}</td>
-                        <td className="px-4 py-2">
-                          {row.userAnswer == null || row.userAnswer === ""
-                            ? "Unanswered"
-                            : row.isCorrect
-                              ? "Correct"
-                              : "Incorrect"}
-                        </td>
-                      </tr>
-                    ))}
+                    {r.breakdown.map((row) => {
+                      const status = row.userAnswer == null || row.userAnswer === "" ? "unanswered" : row.isCorrect ? "correct" : "incorrect";
+                      return (
+                        <tr
+                          key={row.questionNumber}
+                          onClick={() => handleExplainClick(row.questionNumber)}
+                          className={cn(
+                            "border-b border-gray-100 cursor-pointer transition-colors",
+                            selectedResultQuestion === row.questionNumber ? "bg-blue-50" : "hover:bg-gray-50"
+                          )}
+                        >
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.questionNumber}</td>
+                          <td className="px-4 py-3">{row.userAnswer ?? "—"}</td>
+                          <td className="px-4 py-3">{row.correctAnswer ?? "—"}</td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                              status === "correct" && "bg-green-100 text-green-800",
+                              status === "incorrect" && "bg-red-100 text-red-800",
+                              status === "unanswered" && "bg-gray-100 text-gray-600"
+                            )}>
+                              {status === "correct" ? "Correct" : status === "incorrect" ? "Incorrect" : "Unanswered"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1018,14 +1057,14 @@ export default function ExamPage() {
             {selectedResultQuestion != null && (() => {
               const selectedQ = questions.find((q) => q.question_number === selectedResultQuestion);
               return (
-                <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
+                <div className="mt-6 rounded-xl border-2 border-blue-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => setResultViewMode("explanation")}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md",
+                          "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                           resultViewMode === "explanation"
                             ? "bg-blue-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -1037,7 +1076,7 @@ export default function ExamPage() {
                         type="button"
                         onClick={() => setResultViewMode("question")}
                         className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md",
+                          "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
                           resultViewMode === "question"
                             ? "bg-blue-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -1053,8 +1092,9 @@ export default function ExamPage() {
                         setResultExplanation(null);
                         setResultViewMode("explanation");
                       }}
-                      className="text-sm text-gray-500 hover:text-gray-700"
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
                     >
+                      <X className="h-4 w-4" />
                       Close
                     </button>
                   </div>
@@ -1108,12 +1148,27 @@ export default function ExamPage() {
                 </div>
               );
             })()}
-            <div className="mt-6 text-center">
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href={`/exam/${id}`}
+                className="inline-flex items-center gap-2 rounded-lg border-2 border-blue-600 bg-white px-6 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Retry exam
+              </Link>
               <Link
                 href="/dashboard"
-                className="inline-block rounded-md bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
               >
+                <LayoutDashboard className="h-4 w-4" />
                 Back to Dashboard
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-6 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />
+                Home
               </Link>
             </div>
           </div>
@@ -1607,7 +1662,7 @@ export default function ExamPage() {
               style={{ width: `${leftPanelPercent}%` }}
             >
               <div className="p-4 h-full relative">
-                {pdfUrl && currentQuestion?.page_number != null && (
+                {pdfUrl && (
                     <button
                       type="button"
                       onClick={() => setFullPageModalOpen(true)}
@@ -1811,7 +1866,7 @@ export default function ExamPage() {
         ) : (
           <div className="flex-1 overflow-auto flex flex-col items-center min-h-0">
             <div className="w-full max-w-2xl p-6 py-8 flex flex-col gap-4">
-              {isCsa && pdfUrl && currentQuestion?.page_number != null && (
+              {pdfUrl && (
                 <div className="flex justify-end -mt-2 mb-2">
                   <button
                     type="button"
@@ -1912,13 +1967,18 @@ export default function ExamPage() {
             )}
           </div>
         </div>
+        {currentIndex === questions.length - 1 && (
+          <p className="text-xs text-gray-500 text-center mt-2">
+            This process may take a while.
+          </p>
+        )}
       </footer>
-      {pdfUrl && currentQuestion?.page_number != null && (
+      {pdfUrl && (
         <FullPageModal
           open={fullPageModalOpen}
           onClose={() => setFullPageModalOpen(false)}
           pdfUrl={pdfUrl}
-          pageNumber={currentQuestion.page_number}
+          pageNumber={currentQuestion?.page_number ?? currentQuestion?.question_number ?? 1}
         />
       )}
       {showEndExamConfirm && (
@@ -1926,6 +1986,9 @@ export default function ExamPage() {
           <div className="mx-4 max-w-sm rounded-lg bg-white p-6 shadow-xl">
             <p className="mb-4 text-sm text-gray-700">
               You marked these questions for review. Are you sure you want to end the exam?
+            </p>
+            <p className="mb-4 text-xs text-gray-500">
+              This process may take a while.
             </p>
             <div className="mb-4 flex flex-wrap gap-2">
               {questions

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { HeaderNav } from "@/components/HeaderNav";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload } from "lucide-react";
+import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload, AlertTriangle, Search, LayoutDashboard, Brain, Share2, PanelLeft, LayoutTemplate, Navigation, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
 
@@ -37,6 +37,7 @@ export default function Home() {
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
+  const [interfaceGuideOpen, setInterfaceGuideOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -92,7 +93,7 @@ export default function Home() {
     if (!createdAt) return false;
     const d = new Date(createdAt);
     const now = new Date();
-    return now.getTime() - d.getTime() < 7 * 24 * 60 * 60 * 1000;
+    return now.getTime() - d.getTime() < 3 * 24 * 60 * 60 * 1000;
   };
 
   return (
@@ -152,6 +153,96 @@ export default function Home() {
           )}
         </section>
 
+        <section className="mb-8">
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setInterfaceGuideOpen((o) => !o)}
+              onKeyDown={(e) => e.key === "Enter" && setInterfaceGuideOpen((o) => !o)}
+              className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-2">
+                <LayoutTemplate className="h-5 w-5 text-blue-600 shrink-0" />
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Exam Interface Guide</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">See what the exam screen looks like and what each element does</p>
+                </div>
+              </div>
+              {interfaceGuideOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+            </div>
+            {interfaceGuideOpen && (
+              <div className="border-t border-gray-200 p-4 sm:p-6">
+                <div className="flex gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 mb-6">
+                  <LayoutTemplate className="h-5 w-5 shrink-0 text-indigo-600 mt-0.5" />
+                  <p className="text-sm text-gray-700">
+                    This is a general overview. The layout can vary by subject. For example, AP CSA shows code; Economics or Psychology may show graphs, tables, or passages. If the display looks wrong or unclear, use <strong>Show page</strong> to view the original question in the PDF.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50 mb-6">
+                  <img
+                    src="/exam-interface-preview.png"
+                    alt="Bluebook Online exam interface preview"
+                    className="w-full h-auto object-contain max-h-[500px]"
+                  />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                  <div className="rounded-lg border-2 border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <LayoutDashboard className="h-5 w-5 text-slate-600" />
+                      <h3 className="font-semibold text-gray-900">Header Bar</h3>
+                    </div>
+                    <ul className="space-y-1.5 text-gray-600">
+                      <li><strong>Bluebook</strong> – Application branding and link to home.</li>
+                      <li><strong>Section I / Directions</strong> – Current section and dropdown for instructions.</li>
+                      <li><strong>Timer & Hide</strong> – Countdown for remaining time; Hide to conceal the timer.</li>
+                      <li><strong>Highlights & Notes</strong> – Highlight text or add personal notes.</li>
+                      <li><strong>Reference</strong> – Access reference materials or documentation.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PanelLeft className="h-5 w-5 text-emerald-600" />
+                      <h3 className="font-semibold text-gray-900">Left Panel – Graphs, Code & Context</h3>
+                    </div>
+                    <ul className="space-y-1.5 text-gray-600">
+                      <li><strong>Purpose</strong> – Shows graphs, tables, code, or passages depending on the subject. Economics may show supply/demand curves; AP CSA shows code; Psychology may show passages.</li>
+                      <li><strong>Code segment</strong> – For AP CSA: introduces the code block to analyze.</li>
+                      <li><strong>Graphs & tables</strong> – For subjects with visuals: displays charts, diagrams, or data tables.</li>
+                      <li><strong>Show page</strong> – Opens the original PDF at the relevant page so you can verify the question as it appears in the source. Use this when the on-screen display looks wrong or unclear. You can scroll through all pages.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <LayoutTemplate className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-semibold text-gray-900">Right Panel – Question & Answers</h3>
+                    </div>
+                    <ul className="space-y-1.5 text-gray-600">
+                      <li><strong>Question number</strong> – Current question position (e.g. 4).</li>
+                      <li><strong>Mark for Review</strong> – Flag the question to revisit before submitting.</li>
+                      <li><strong>AP badge</strong> – Indicates Advanced Placement level or category.</li>
+                      <li><strong>Multiple-choice options (A–E)</strong> – Select the correct answer; click the option to choose.</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border-2 border-violet-200 bg-violet-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Navigation className="h-5 w-5 text-violet-600" />
+                      <h3 className="font-semibold text-gray-900">Footer Bar</h3>
+                    </div>
+                    <ul className="space-y-1.5 text-gray-600">
+                      <li><strong>Username</strong> – Displays your user ID or username.</li>
+                      <li><strong>Question X of Y</strong> – Current position in the exam; click to open the question grid.</li>
+                      <li><strong>Back</strong> – Go to the previous question.</li>
+                      <li><strong>Next</strong> – Go to the next question.</li>
+                      <li><strong>End Exam</strong> – Submit the exam and see your score (on the last question).</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="mb-8 space-y-4">
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
             <div
@@ -161,53 +252,71 @@ export default function Home() {
               onKeyDown={(e) => e.key === "Enter" && setHowToOpen((o) => !o)}
               className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
             >
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-gray-900">How to use</h2>
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Start here</span>
+              <div className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-blue-600 shrink-0" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-gray-900">How to use</h2>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Start here</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Step-by-step guide to browse, upload, solve, and share exams</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">Step-by-step guide to browse, upload, solve, and share exams</p>
               </div>
               {howToOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
             </div>
             {howToOpen && (
               <div className="border-t border-gray-200 px-4 pb-6 pt-4">
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Browse</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      View all published exams on this page. Use the subject dropdown to filter by AP subject (e.g. AP Psychology, AP Calculus). Click Solve on any exam to start.
-                    </p>
+                <div className="space-y-4">
+                  <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Search className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Browse</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        View all published exams on this page. Use the subject dropdown to filter by AP subject (e.g. AP Psychology, AP Calculus). Click Solve on any exam to start.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Upload</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed mb-3">
-                      <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">Go to Dashboard</Link> and upload your PDF. Follow these steps:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600 font-medium">
-                      <li className="pl-1">Select the AP subject from the dropdown.</li>
-                      <li className="pl-1">Enter the question count.</li>
-                      <li className="pl-1">If your PDF has images, tables, or graphs, check the box.</li>
-                      <li className="pl-1">Drag and drop or click to choose the file. The system will extract questions automatically.</li>
-                    </ol>
+                  <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Upload className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Upload</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                        <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">Go to Dashboard</Link> and upload your PDF. Follow these steps:
+                      </p>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600 font-medium">
+                        <li className="pl-1">Select the AP subject from the dropdown.</li>
+                        <li className="pl-1">Enter the question count.</li>
+                        <li className="pl-1">If your PDF has images, tables, or graphs, check the box.</li>
+                        <li className="pl-1">Drag and drop or click to choose the file. The system will extract questions automatically.</li>
+                      </ol>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Solve</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Answer each question by selecting A, B, C, D, or E. Use Mark for Review to flag questions you want to revisit. Navigate with Previous/Next or the question grid. When finished, click End Exam to submit and see your score. The exam interface mimics the real Bluebook digital testing experience.
-                    </p>
+                  <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Play className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Solve</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        Answer each question by selecting A, B, C, D, or E. Use Mark for Review to flag questions you want to revisit. Navigate with Previous/Next or the question grid. When finished, click End Exam to submit and see your score. The exam interface mimics the real Bluebook digital testing experience.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1">AI scoring</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      If your PDF has no answer key, AI generates one when you first complete the exam. These answers are saved permanently, so future attempts (yours or others) skip AI and use the stored key. This saves time and API cost.
-                    </p>
+                  <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Brain className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">AI scoring</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        If your PDF has no answer key, AI generates one when you first complete the exam. These answers are saved permanently, so future attempts (yours or others) skip AI and use the stored key. This saves time and API cost.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-1">Publish</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      In your <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">Dashboard</Link>, each exam has a Publish toggle. Turn it on to make the exam visible on this home page for all users. Anyone signed in can then solve it. Turn it off to keep the exam private (only you can solve it). You can toggle anytime. Published exams appear in the list above, sorted by newest first.
-                    </p>
+                  <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Share2 className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-1">Publish</h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        In your <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">Dashboard</Link>, each exam has a Publish toggle. Turn it on to make the exam visible on this home page for all users. Anyone signed in can then solve it. Turn it off to keep the exam private (only you can solve it). You can toggle anytime. Published exams appear in the list above, sorted by newest first.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -223,27 +332,42 @@ export default function Home() {
               className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
             >
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold text-gray-900">Warnings</h2>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Important</span>
+                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-gray-900">Warnings</h2>
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Important</span>
+                </div>
               </div>
               {warningsOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
             </div>
             {warningsOpen && (
               <div className="border-t border-gray-200 px-4 pb-4 pt-2">
-                <ul className="space-y-3 text-sm text-gray-600">
-                  <li>
-                    <strong>AI accuracy</strong> – AI-generated answer keys may not always be correct. Use for practice only; verify important answers with official sources.
-                  </li>
-                  <li>
-                    Poor scan quality, skewed pages, or low resolution can affect question extraction and AI scoring accuracy.
-                  </li>
-                  <li>
-                    This is not an official College Board or AP exam platform. We mimic the Bluebook digital exam experience for practice; for educational use only.
-                  </li>
-                  <li>
-                    The timer is optional and does not reflect official AP exam timing. Use it as a rough guide.
-                  </li>
-                </ul>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div><strong>Display accuracy</strong> – The exam screen may not always display questions correctly. When in doubt, use the <strong>Show page</strong> button to view the original question in the PDF.</div>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div><strong>PDF only</strong> – Only PDF format is accepted for uploads.</div>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div><strong>AI accuracy</strong> – AI-generated answer keys may not always be correct. Use for practice only; verify important answers with official sources.</div>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div>Poor scan quality, skewed pages, or low resolution can affect question extraction and AI scoring accuracy.</div>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div>This is not an official College Board or AP exam platform. We mimic the Bluebook digital exam experience for practice; for educational use only.</div>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div>The timer is optional and does not reflect official AP exam timing. Use it as a rough guide.</div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -258,7 +382,10 @@ export default function Home() {
               onKeyDown={(e) => e.key === "Enter" && setSubjectsOpen((o) => !o)}
               className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
             >
-              <h2 className="text-base font-semibold text-gray-900">Supported subjects</h2>
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-blue-600 shrink-0" />
+                <h2 className="text-base font-semibold text-gray-900">Supported subjects</h2>
+              </div>
               {subjectsOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
             </div>
             {subjectsOpen && (
@@ -288,7 +415,10 @@ export default function Home() {
               onKeyDown={(e) => e.key === "Enter" && setFaqOpen((o) => !o)}
               className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
             >
-              <h2 className="text-base font-semibold text-gray-900">FAQ</h2>
+              <div className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-blue-600 shrink-0" />
+                <h2 className="text-base font-semibold text-gray-900">FAQ</h2>
+              </div>
               {faqOpen ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
             </div>
             {faqOpen && (
