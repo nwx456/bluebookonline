@@ -163,6 +163,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // AI cevaplarını questions tablosuna kalıcı yaz (tekrar AI çağrısı önlenir)
+    for (const [qId, ans] of aiAnswerMap) {
+      await supabase.from("questions").update({ correct_answer: ans }).eq("id", qId);
+    }
+
     const { data: attemptAnswers } = await supabase
       .from("attempt_answers")
       .select("id, question_id, user_answer")

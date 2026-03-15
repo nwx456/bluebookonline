@@ -503,6 +503,7 @@ export default function ExamPage() {
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
+  const [showEndExamConfirm, setShowEndExamConfirm] = useState(false);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
@@ -1169,13 +1170,18 @@ export default function ExamPage() {
                 );
               }}
               className={cn(
-                "w-full flex items-start gap-3 rounded-lg border border-gray-300 px-4 py-3 text-left text-sm transition-colors",
+                "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors",
                 isSelected
                   ? "border-blue-600 bg-blue-600/5 text-gray-900"
-                  : "bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
+                  : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
               )}
             >
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium mt-0.5 bg-transparent">
+              <span
+                className={cn(
+                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5",
+                  isSelected ? "border-blue-600 bg-blue-50 text-blue-600" : "border-gray-400 bg-transparent"
+                )}
+              >
                 {key}
               </span>
               <span className="flex-1 min-w-0">
@@ -1606,10 +1612,10 @@ export default function ExamPage() {
                       type="button"
                       onClick={() => setFullPageModalOpen(true)}
                       className="absolute bottom-2 left-2 rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
-                      aria-label="Sayfayı göster"
+                      aria-label="Show page"
                     >
                       <Maximize2 className="mr-1 inline h-3.5 w-3.5" />
-                      Sayfayı göster
+                      Show page
                     </button>
                   )}
                 {isCsa && leftPanelContent?.trim() && (
@@ -1811,10 +1817,10 @@ export default function ExamPage() {
                     type="button"
                     onClick={() => setFullPageModalOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
-                    aria-label="Sayfayı göster"
+                    aria-label="Show page"
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
-                    Sayfayı göster
+                    Show page
                   </button>
                 </div>
               )}
@@ -1887,7 +1893,9 @@ export default function ExamPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (window.confirm("Are you sure you want to end the exam?")) {
+                  if (markedForReview.size > 0) {
+                    setShowEndExamConfirm(true);
+                  } else if (window.confirm("Are you sure you want to end the exam?")) {
                     completeExam();
                   }
                 }}
@@ -1912,6 +1920,47 @@ export default function ExamPage() {
           pdfUrl={pdfUrl}
           pageNumber={currentQuestion.page_number}
         />
+      )}
+      {showEndExamConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <p className="mb-4 text-sm text-gray-700">
+              You marked these questions for review. Are you sure you want to end the exam?
+            </p>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {questions
+                .filter((q) => markedForReview.has(q.id))
+                .map((q) => (
+                  <span
+                    key={q.id}
+                    className="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm font-medium"
+                  >
+                    {q.question_number}
+                  </span>
+                ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEndExamConfirm(false)}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEndExamConfirm(false);
+                  completeExam();
+                }}
+                disabled={completing}
+                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                Yes, End Exam
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -3,7 +3,34 @@
  * correct_answer boş soruları çözmek için Gemini'ye gönderilecek.
  */
 
-import type { SubjectKey } from "./gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "./gemini-prompts";
+
+const SUBJECT_SOLVE_CONFIG: Record<SubjectKey, { passageLabel: string; reasoningHint: string }> = {
+  AP_CSA: { passageLabel: "Reference code", reasoningHint: "Java knowledge" },
+  AP_CSP: { passageLabel: "Reference code", reasoningHint: "computer science concepts" },
+  AP_MICROECONOMICS: { passageLabel: "Graph/Table/Reference data", reasoningHint: "economic reasoning" },
+  AP_MACROECONOMICS: { passageLabel: "Graph/Table/Reference data", reasoningHint: "economic reasoning" },
+  AP_PSYCHOLOGY: { passageLabel: "Passage", reasoningHint: "psychology concepts" },
+  AP_STATISTICS: { passageLabel: "Data/Table/Reference", reasoningHint: "statistical reasoning" },
+  AP_BIOLOGY: { passageLabel: "Graph/Table/Reference data", reasoningHint: "biological reasoning" },
+  AP_CHEMISTRY: { passageLabel: "Graph/Table/Reference data", reasoningHint: "chemical reasoning" },
+  AP_PHYSICS_1: { passageLabel: "Graph/Table/Reference data", reasoningHint: "physics reasoning" },
+  AP_PHYSICS_2: { passageLabel: "Graph/Table/Reference data", reasoningHint: "physics reasoning" },
+  AP_PHYSICS_C_MECH: { passageLabel: "Graph/Table/Reference data", reasoningHint: "mechanics reasoning" },
+  AP_PHYSICS_C_EM: { passageLabel: "Graph/Table/Reference data", reasoningHint: "electromagnetism reasoning" },
+  AP_ENVIRONMENTAL_SCIENCE: { passageLabel: "Graph/Table/Reference data", reasoningHint: "environmental science reasoning" },
+  AP_HUMAN_GEOGRAPHY: { passageLabel: "Graph/Table/Reference data", reasoningHint: "geographic reasoning" },
+  AP_ENGLISH_LANG: { passageLabel: "Passage", reasoningHint: "rhetorical and language analysis" },
+  AP_ENGLISH_LIT: { passageLabel: "Passage", reasoningHint: "literary analysis" },
+  AP_US_HISTORY: { passageLabel: "Passage", reasoningHint: "historical reasoning" },
+  AP_WORLD_HISTORY: { passageLabel: "Passage", reasoningHint: "historical reasoning" },
+  AP_EUROPEAN_HISTORY: { passageLabel: "Passage", reasoningHint: "historical reasoning" },
+  AP_US_GOVERNMENT: { passageLabel: "Passage", reasoningHint: "political science concepts" },
+  AP_COMPARATIVE_GOVERNMENT: { passageLabel: "Passage", reasoningHint: "comparative government concepts" },
+  AP_CALCULUS_AB: { passageLabel: "Graph/Reference data", reasoningHint: "calculus concepts and mathematical reasoning" },
+  AP_CALCULUS_BC: { passageLabel: "Graph/Reference data", reasoningHint: "calculus concepts and mathematical reasoning" },
+  AP_PRECALCULUS: { passageLabel: "Graph/Reference data", reasoningHint: "precalculus concepts and mathematical reasoning" },
+};
 
 export interface SolveQuestionInput {
   id: string;
@@ -36,8 +63,9 @@ Each element must be exactly one of: "A", "B", "C", "D", "E".
 CRITICAL: Solve each question independently. Return varied answers—different questions typically have different correct answers (A, B, C, D, or E). Returning the same letter for ALL questions is almost always wrong and indicates a failure to solve. Pick the best answer for each question.
 Do not include markdown, explanation, or any other text.`;
 
-/** CSA: Java code + question + precondition + options */
-export function buildCsaSolvePrompt(questions: SolveQuestionInput[]): string {
+/** CSA/CSP: code + question + precondition + options */
+export function buildCsaSolvePrompt(questions: SolveQuestionInput[], subject: SubjectKey): string {
+  const expertLabel = SUBJECT_LABELS[subject];
   const blocks = questions.map((q, i) => {
     const opts = buildOptions(q);
     const pre = q.precondition_text?.trim();
@@ -54,7 +82,7 @@ Options:
 ${opts.join("\n")}`;
   });
 
-  return `You are an expert in AP Computer Science A (Java). Solve each multiple-choice question below. Use the reference code and your Java knowledge to pick the correct answer.
+  return `You are an expert in ${expertLabel}. Solve each multiple-choice question below. Use the reference code and your knowledge to pick the correct answer.
 
 ${blocks.join("\n")}
 
@@ -80,74 +108,19 @@ Options:
 ${opts.join("\n")}`;
 }
 
-/** Economics (Micro/Macro): stem + passage (graph/table) + options */
-export function buildEconomicsSolvePrompt(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatQuestionBlock(q, i, false));
-  return `You are an expert in AP Microeconomics and Macroeconomics. Solve each multiple-choice question. Use the graph, table, or reference data when provided. Apply economic reasoning to pick the correct answer.
-
-${blocks.join("\n")}
-
-${OUTPUT_INSTRUCTION}`;
-}
-
-/** Economics with PDF: attach PDF for graph/table questions */
-export function buildEconomicsSolvePromptWithPdf(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatQuestionBlock(q, i, true));
-  return `You are an expert in AP Microeconomics and Macroeconomics. The PDF document is attached. For questions that reference a graph or table, look at the specified page (1-based) in the PDF. Solve each multiple-choice question. Apply economic reasoning to pick the correct answer.
-
-${blocks.join("\n")}
-
-${OUTPUT_INSTRUCTION}`;
-}
-
-/** Psychology: stem + passage + options */
-export function buildPsychologySolvePrompt(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatQuestionBlock(q, i, false, "Passage"));
-  return `You are an expert in AP Psychology. Solve each multiple-choice question. Use the passage when provided. Apply psychology concepts to pick the correct answer.
-
-${blocks.join("\n")}
-
-${OUTPUT_INSTRUCTION}`;
-}
-
-/** Psychology with PDF: attach PDF for graph/diagram questions */
-export function buildPsychologySolvePromptWithPdf(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatQuestionBlock(q, i, true, "Passage"));
-  return `You are an expert in AP Psychology. The PDF document is attached. For questions that reference a graph or diagram, look at the specified page (1-based) in the PDF. Solve each multiple-choice question. Apply psychology concepts to pick the correct answer.
-
-${blocks.join("\n")}
-
-${OUTPUT_INSTRUCTION}`;
-}
-
-function formatStatsQuestionBlock(q: SolveQuestionInput, i: number, withPdfHint: boolean): string {
-  const opts = buildOptions(q);
-  const passage = (q.passage_text ?? "").trim();
-  const pageHint = withPdfHint && q.has_graph && q.page_number != null
-    ? ` (Page ${q.page_number} – data/table is on this page in the attached PDF)`
+function buildGenericSolvePrompt(
+  subject: SubjectKey,
+  questions: SolveQuestionInput[],
+  usePdf: boolean,
+  passageLabel: string,
+  reasoningHint: string
+): string {
+  const expertLabel = SUBJECT_LABELS[subject];
+  const blocks = questions.map((q, i) => formatQuestionBlock(q, i, usePdf, passageLabel));
+  const pdfLine = usePdf
+    ? `The PDF document is attached. For questions that reference a graph, table, or diagram, look at the specified page (1-based) in the PDF. `
     : "";
-  return `
---- Question ${i + 1}${pageHint} ---
-${passage ? `Data/Table/Reference:\n${passage}\n\n` : ""}Question: ${q.question_text.trim()}
-
-Options:
-${opts.join("\n")}`;
-}
-
-/** Statistics: stem + passage/table + options */
-export function buildStatisticsSolvePrompt(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatStatsQuestionBlock(q, i, false));
-  return `You are an expert in AP Statistics. Solve each multiple-choice question. Use the data, table, or reference when provided. Apply statistical reasoning to pick the correct answer.
-
-${blocks.join("\n")}
-
-${OUTPUT_INSTRUCTION}`;
-}
-
-/** Statistics with PDF: attach PDF for data/table questions */
-export function buildStatisticsSolvePromptWithPdf(questions: SolveQuestionInput[]): string {
-  const blocks = questions.map((q, i) => formatStatsQuestionBlock(q, i, true));
-  return `You are an expert in AP Statistics. The PDF document is attached. For questions that reference data or a table, look at the specified page (1-based) in the PDF. Solve each multiple-choice question. Apply statistical reasoning to pick the correct answer.
+  return `You are an expert in ${expertLabel}. ${pdfLine}Solve each multiple-choice question. Use the ${passageLabel.toLowerCase()} when provided. Apply ${reasoningHint} to pick the correct answer.
 
 ${blocks.join("\n")}
 
@@ -155,38 +128,11 @@ ${OUTPUT_INSTRUCTION}`;
 }
 
 export function buildSolvePrompt(subject: SubjectKey, questions: SolveQuestionInput[]): string {
-  switch (subject) {
-    case "AP_CSA":
-    case "AP_CSP":
-      return buildCsaSolvePrompt(questions);
-    case "AP_MICROECONOMICS":
-    case "AP_MACROECONOMICS":
-    case "AP_BIOLOGY":
-    case "AP_CHEMISTRY":
-    case "AP_PHYSICS_1":
-    case "AP_PHYSICS_2":
-    case "AP_PHYSICS_C_MECH":
-    case "AP_PHYSICS_C_EM":
-    case "AP_ENVIRONMENTAL_SCIENCE":
-    case "AP_HUMAN_GEOGRAPHY":
-      return buildEconomicsSolvePrompt(questions);
-    case "AP_PSYCHOLOGY":
-    case "AP_ENGLISH_LANG":
-    case "AP_ENGLISH_LIT":
-    case "AP_US_HISTORY":
-    case "AP_WORLD_HISTORY":
-    case "AP_EUROPEAN_HISTORY":
-    case "AP_US_GOVERNMENT":
-    case "AP_COMPARATIVE_GOVERNMENT":
-    case "AP_CALCULUS_AB":
-    case "AP_CALCULUS_BC":
-    case "AP_PRECALCULUS":
-      return buildPsychologySolvePrompt(questions);
-    case "AP_STATISTICS":
-      return buildStatisticsSolvePrompt(questions);
-    default:
-      return buildPsychologySolvePrompt(questions);
+  if (subject === "AP_CSA" || subject === "AP_CSP") {
+    return buildCsaSolvePrompt(questions, subject);
   }
+  const config = SUBJECT_SOLVE_CONFIG[subject];
+  return buildGenericSolvePrompt(subject, questions, false, config.passageLabel, config.reasoningHint);
 }
 
 /** Build prompt with optional PDF attachment. Returns prompt and whether PDF should be attached. */
@@ -197,50 +143,14 @@ export function buildSolvePromptWithOptionalPdf(
 ): { prompt: string; usePdf: boolean } {
   const batchHasGraph = questions.some((q) => q.has_graph === true);
   const canUsePdf = batchHasGraph && !!pdfBase64?.trim();
-  switch (subject) {
-    case "AP_CSA":
-    case "AP_CSP":
-      return { prompt: buildCsaSolvePrompt(questions), usePdf: false };
-    case "AP_MICROECONOMICS":
-    case "AP_MACROECONOMICS":
-    case "AP_BIOLOGY":
-    case "AP_CHEMISTRY":
-    case "AP_PHYSICS_1":
-    case "AP_PHYSICS_2":
-    case "AP_PHYSICS_C_MECH":
-    case "AP_PHYSICS_C_EM":
-    case "AP_ENVIRONMENTAL_SCIENCE":
-    case "AP_HUMAN_GEOGRAPHY":
-      return {
-        prompt: canUsePdf ? buildEconomicsSolvePromptWithPdf(questions) : buildEconomicsSolvePrompt(questions),
-        usePdf: canUsePdf,
-      };
-    case "AP_PSYCHOLOGY":
-    case "AP_ENGLISH_LANG":
-    case "AP_ENGLISH_LIT":
-    case "AP_US_HISTORY":
-    case "AP_WORLD_HISTORY":
-    case "AP_EUROPEAN_HISTORY":
-    case "AP_US_GOVERNMENT":
-    case "AP_COMPARATIVE_GOVERNMENT":
-    case "AP_CALCULUS_AB":
-    case "AP_CALCULUS_BC":
-    case "AP_PRECALCULUS":
-      return {
-        prompt: canUsePdf ? buildPsychologySolvePromptWithPdf(questions) : buildPsychologySolvePrompt(questions),
-        usePdf: canUsePdf,
-      };
-    case "AP_STATISTICS":
-      return {
-        prompt: canUsePdf ? buildStatisticsSolvePromptWithPdf(questions) : buildStatisticsSolvePrompt(questions),
-        usePdf: canUsePdf,
-      };
-    default:
-      return {
-        prompt: canUsePdf ? buildPsychologySolvePromptWithPdf(questions) : buildPsychologySolvePrompt(questions),
-        usePdf: canUsePdf,
-      };
+  if (subject === "AP_CSA" || subject === "AP_CSP") {
+    return { prompt: buildCsaSolvePrompt(questions, subject), usePdf: false };
   }
+  const config = SUBJECT_SOLVE_CONFIG[subject];
+  return {
+    prompt: buildGenericSolvePrompt(subject, questions, canUsePdf, config.passageLabel, config.reasoningHint),
+    usePdf: canUsePdf,
+  };
 }
 
 function normalizeAnswer(s: string): string | null {

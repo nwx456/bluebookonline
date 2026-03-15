@@ -10,9 +10,9 @@ import {
   Play,
   ChevronDown,
   BookOpen,
-  LogOut,
   X,
 } from "lucide-react";
+import { HeaderNav } from "@/components/HeaderNav";
 import { cn, generateId } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -218,13 +218,6 @@ export default function DashboardPage() {
     ? (SUBJECTS.find((s) => s.value === subject)?.label ?? subject)
     : "Select subject";
 
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
-
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -235,31 +228,13 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-      <header className="border-b border-gray-200 bg-white shadow-sm">
+      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link href="/dashboard" className="font-semibold text-gray-900">
+          <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+            <BookOpen className="h-6 w-6 text-blue-600" />
             Bluebook Online
           </Link>
-          <nav className="flex items-center gap-4">
-            <span className="text-sm text-gray-600" title={userEmail || undefined}>
-              {userDisplayName}
-            </span>
-            <span className="text-sm text-gray-500">Dashboard</span>
-            <Link
-              href="/"
-              className="text-sm font-medium text-gray-600 hover:text-blue-600"
-            >
-              Home
-            </Link>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </nav>
+          <HeaderNav />
         </div>
       </header>
 
