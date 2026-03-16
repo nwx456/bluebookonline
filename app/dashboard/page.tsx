@@ -15,6 +15,8 @@ import {
   Brain,
   Lightbulb,
   ImageIcon,
+  Clock,
+  XCircle,
 } from "lucide-react";
 import { HeaderNav } from "@/components/HeaderNav";
 import { cn, generateId } from "@/lib/utils";
@@ -28,6 +30,10 @@ import {
 } from "@/lib/gemini-prompts";
 
 const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
+const SUBJECTS_FILTER = [
+  { value: "" as const, label: "All subjects" },
+  ...SUBJECTS,
+];
 
 type SubjectValue = SubjectKey;
 
@@ -38,6 +44,44 @@ interface UploadedExam {
   questionCount: number;
   uploadedAt: string;
   isPublished: boolean;
+}
+
+interface RecentAttempt {
+  id: string;
+  uploadId: string;
+  filename: string;
+  subject: string;
+  completedAt: string;
+  correctCount: number;
+  incorrectCount: number;
+  totalQuestions: number;
+  percentage: number;
+}
+
+interface AttemptQuestion {
+  id: string;
+  question_number: number;
+  question_text: string;
+  passage_text: string | null;
+  precondition_text?: string | null;
+  option_a: string | null;
+  option_b: string | null;
+  option_c: string | null;
+  option_d: string | null;
+  option_e: string | null;
+}
+
+interface AttemptBreakdownRow {
+  questionNumber: number;
+  userAnswer: string | null;
+  correctAnswer: string | null;
+  isCorrect: boolean;
+}
+
+interface ExpandedAttemptData {
+  upload: { id: string; subject: string; filename: string };
+  questions: AttemptQuestion[];
+  result: { breakdown: AttemptBreakdownRow[] };
 }
 
 export default function DashboardPage() {
@@ -52,6 +96,8 @@ export default function DashboardPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadedExam[]>([]);
   const [subjectOpen, setSubjectOpen] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState<SubjectValue | "">("");
+  const [subjectFilterOpen, setSubjectFilterOpen] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -59,6 +105,15 @@ export default function DashboardPage() {
   const [togglingPublishId, setTogglingPublishId] = useState<string | null>(null);
   const [userDisplayName, setUserDisplayName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
+  const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
+  const [expandedAttemptData, setExpandedAttemptData] = useState<ExpandedAttemptData | null>(null);
+  const [expandedAttemptLoading, setExpandedAttemptLoading] = useState(false);
+  const [selectedWrongQuestion, setSelectedWrongQuestion] = useState<number | null>(null);
+  const [wrongResultViewMode, setWrongResultViewMode] = useState<"explanation" | "question">("explanation");
+  const [wrongResultExplanation, setWrongResultExplanation] = useState<string | null>(null);
+  const [wrongResultExplanationLoading, setWrongResultExplanationLoading] = useState(false);
 
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
@@ -79,6 +134,7 @@ export default function DashboardPage() {
       }
       const email = session.user.email ?? "";
       setUserEmail(email);
+      setAccessToken(session.access_token ?? null);
       const uname = (session.user?.user_metadata?.username as string)?.trim();
       setUserDisplayName(uname || email?.split("@")[0] || "Account");
       supabase
@@ -115,6 +171,78 @@ export default function DashboardPage() {
         });
     });
   }, [router]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetch("/api/exams/recent", { headers: { Authorization: `Bearer ${accessToken}` } })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.attempts) setRecentAttempts(res.attempts);
+      });
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!expandedAttemptId || !accessToken) {
+      setExpandedAttemptData(null);
+      return;
+    }
+    setExpandedAttemptLoading(true);
+    setSelectedWrongQuestion(null);
+    setWrongResultExplanation(null);
+    fetch(`/api/exam/attempt/${expandedAttemptId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          setExpandedAttemptData(null);
+          return;
+        }
+        setExpandedAttemptData({
+          upload: data.upload,
+          questions: data.questions ?? [],
+          result: { breakdown: data.result?.breakdown ?? [] },
+        });
+      })
+      .finally(() => setExpandedAttemptLoading(false));
+  }, [expandedAttemptId, accessToken]);
+
+  const handleWrongQuestionClick = useCallback(
+    async (questionNumber: number) => {
+      const data = expandedAttemptData;
+      if (!data) return;
+      const q = data.questions.find((qq) => qq.question_number === questionNumber);
+      const row = data.result.breakdown.find((b) => b.questionNumber === questionNumber);
+      if (!q || !row) return;
+      setSelectedWrongQuestion(questionNumber);
+      setWrongResultViewMode("explanation");
+      setWrongResultExplanationLoading(true);
+      setWrongResultExplanation(null);
+      try {
+        const opts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e].filter(
+          (o): o is string => o != null && String(o).trim() !== ""
+        );
+        const res = await fetch("/api/exam/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questionText: q.question_text,
+            passageText: q.passage_text ?? "",
+            options: opts,
+            correctAnswer: row.correctAnswer ?? "A",
+            subject: data.upload.subject,
+          }),
+        });
+        const json = await res.json();
+        setWrongResultExplanation(json.explanation ?? "No explanation available.");
+      } catch {
+        setWrongResultExplanation("Failed to load explanation.");
+      } finally {
+        setWrongResultExplanationLoading(false);
+      }
+    },
+    [expandedAttemptData]
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -222,6 +350,21 @@ export default function DashboardPage() {
     ? (SUBJECTS.find((s) => s.value === subject)?.label ?? subject)
     : "Select subject";
 
+  const filteredUploads = subjectFilter
+    ? uploads.filter((u) => u.subject === subjectFilter)
+    : uploads;
+
+  const wrongAnswersFromAttempt = expandedAttemptData
+    ? expandedAttemptData.result.breakdown.filter(
+        (b) => !b.isCorrect && b.userAnswer != null && String(b.userAnswer).trim() !== ""
+      )
+    : [];
+
+  const subjectFilterLabel =
+    subjectFilter === ""
+      ? "All subjects"
+      : SUBJECTS_FILTER.find((s) => s.value === subjectFilter)?.label ?? subjectFilter;
+
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -251,6 +394,205 @@ export default function DashboardPage() {
             Upload your AP exam PDF to get started. The AI will extract questions automatically.
           </p>
         </div>
+
+        {recentAttempts.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              Recent exams
+            </h2>
+            <div className="space-y-4">
+              {recentAttempts.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden"
+                >
+                  <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate" title={a.filename}>
+                        {a.filename}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {a.percentage}% · {a.correctCount}/{a.totalQuestions}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(a.completedAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        View
+                      </button>
+                      <Link
+                        href={`/exam/${a.uploadId}`}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Open exam
+                      </Link>
+                    </div>
+                  </div>
+                  {expandedAttemptId === a.id && (
+                    <div className="border-t border-gray-100 bg-gray-50/50 p-4">
+                      {expandedAttemptLoading ? (
+                        <p className="text-sm text-gray-500">Loading…</p>
+                      ) : expandedAttemptData ? (
+                        <>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <XCircle className="h-4 w-4 text-red-600" />
+                            Wrong answers ({wrongAnswersFromAttempt.length})
+                          </h3>
+                          {wrongAnswersFromAttempt.length === 0 ? (
+                            <p className="text-sm text-gray-500">No wrong answers (unanswered excluded).</p>
+                          ) : (
+                            <>
+                              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b border-gray-200 bg-gray-50">
+                                        <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
+                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
+                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {wrongAnswersFromAttempt.map((row) => (
+                                        <tr
+                                          key={row.questionNumber}
+                                          onClick={() => handleWrongQuestionClick(row.questionNumber)}
+                                          className={cn(
+                                            "border-b border-gray-100 cursor-pointer transition-colors",
+                                            selectedWrongQuestion === row.questionNumber ? "bg-blue-50" : "hover:bg-gray-50"
+                                          )}
+                                        >
+                                          <td className="px-4 py-3 font-medium text-gray-900">{row.questionNumber}</td>
+                                          <td className="px-4 py-3 text-red-600">{row.userAnswer ?? "—"}</td>
+                                          <td className="px-4 py-3 text-green-600">{row.correctAnswer ?? "—"}</td>
+                                          <td className="px-4 py-3">
+                                            <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                                              Incorrect
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                              {selectedWrongQuestion != null && (() => {
+                                const selectedQ = expandedAttemptData.questions.find((q) => q.question_number === selectedWrongQuestion);
+                                return (
+                                  <div className="mt-6 rounded-xl border-2 border-blue-200 bg-white p-6 shadow-sm">
+                                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setWrongResultViewMode("explanation")}
+                                          className={cn(
+                                            "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                                            wrongResultViewMode === "explanation"
+                                              ? "bg-blue-600 text-white"
+                                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          )}
+                                        >
+                                          Solution explanation
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setWrongResultViewMode("question")}
+                                          className={cn(
+                                            "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                                            wrongResultViewMode === "question"
+                                              ? "bg-blue-600 text-white"
+                                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          )}
+                                        >
+                                          Show question
+                                        </button>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedWrongQuestion(null)}
+                                        className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                                      >
+                                        <X className="h-4 w-4" />
+                                        Close
+                                      </button>
+                                    </div>
+                                    {wrongResultViewMode === "explanation" ? (
+                                      wrongResultExplanationLoading ? (
+                                        <p className="text-sm text-gray-500">Loading explanation…</p>
+                                      ) : wrongResultExplanation ? (
+                                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{wrongResultExplanation}</div>
+                                      ) : null
+                                    ) : selectedQ ? (
+                                      <div className="space-y-4">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
+                                          {selectedQ.question_number}
+                                        </div>
+                                        {selectedQ.passage_text?.trim() ? (
+                                          <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Passage</p>
+                                            <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQ.passage_text}</div>
+                                          </div>
+                                        ) : null}
+                                        {selectedQ.precondition_text?.trim() ? (
+                                          <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Precondition</p>
+                                            <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap">{selectedQ.precondition_text}</pre>
+                                          </div>
+                                        ) : null}
+                                        <p className="text-gray-900 font-medium">{selectedQ.question_text || "Which of the following is correct?"}</p>
+                                        <div className="space-y-2">
+                                          {[
+                                            { key: "A", text: selectedQ.option_a },
+                                            { key: "B", text: selectedQ.option_b },
+                                            { key: "C", text: selectedQ.option_c },
+                                            { key: "D", text: selectedQ.option_d },
+                                            { key: "E", text: selectedQ.option_e },
+                                          ]
+                                            .filter((o): o is { key: string; text: string } => o.text != null && String(o.text).trim() !== "")
+                                            .map(({ key, text }) => (
+                                              <div
+                                                key={key}
+                                                className="flex items-start gap-3 rounded-lg border border-gray-300 px-4 py-3 bg-white text-left text-sm"
+                                              >
+                                                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium">
+                                                  {key}
+                                                </span>
+                                                <span className="flex-1 min-w-0 text-gray-800">{text}</span>
+                                              </div>
+                                            ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          )}
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {!showUploadForm ? (
           <section className="mb-8">
@@ -514,10 +856,67 @@ export default function DashboardPage() {
             {/* Right column: My exams */}
             <div className="lg:order-2">
               <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  My exams
-                </h2>
+                {uploads.length > 0 && (
+                  <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm mb-6 ring-1 ring-gray-100/50">
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                      <span className="font-medium text-gray-900">
+                        {filteredUploads.length} exam{filteredUploads.length !== 1 ? "s" : ""}
+                      </span>
+                      <span className="text-gray-400">·</span>
+                      <span className="text-gray-600">
+                        {filteredUploads.reduce((s, e) => s + e.questionCount, 0)} total questions
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    My exams
+                  </h2>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSubjectFilterOpen((o) => !o)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700",
+                        "hover:bg-gray-50 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                      )}
+                    >
+                      {subjectFilterLabel}
+                      <ChevronDown className={cn("h-4 w-4 text-gray-500", subjectFilterOpen && "rotate-180")} />
+                    </button>
+                    {subjectFilterOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          aria-hidden
+                          onClick={() => setSubjectFilterOpen(false)}
+                        />
+                        <div className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                          {SUBJECTS_FILTER.map((s) => (
+                            <button
+                              key={s.value || "all"}
+                              type="button"
+                              onClick={() => {
+                                setSubjectFilter(s.value as SubjectValue | "");
+                                setSubjectFilterOpen(false);
+                              }}
+                              className={cn(
+                                "w-full px-3 py-2 text-left text-sm",
+                                subjectFilter === s.value
+                                  ? "bg-blue-600 text-white"
+                                  : "text-gray-700 hover:bg-gray-50"
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
                 {deleteError && (
             <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
               <span>{deleteError}</span>
@@ -531,9 +930,9 @@ export default function DashboardPage() {
               </button>
             </div>
           )}
-          {uploads.length === 0 ? (
+          {filteredUploads.length === 0 ? (
             <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-              No exams yet. Upload a PDF above.
+              {uploads.length === 0 ? "No exams yet. Upload a PDF above." : "No exams match this filter."}
             </div>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
@@ -561,7 +960,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {uploads.map((exam) => (
+                  {filteredUploads.map((exam) => (
                     <tr key={exam.id} className="hover:bg-gray-50/50">
                       <td className="px-4 py-3 flex items-center gap-2">
                         <FileText className="h-4 w-4 text-gray-400" />
@@ -694,18 +1093,75 @@ export default function DashboardPage() {
         )}
         {!showUploadForm && (
           <section className="mt-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              My exams
-            </h2>
+            {uploads.length > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm mb-6 ring-1 ring-gray-100/50">
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <span className="font-medium text-gray-900">
+                    {filteredUploads.length} exam{filteredUploads.length !== 1 ? "s" : ""}
+                  </span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-600">
+                    {filteredUploads.reduce((s, e) => s + e.questionCount, 0)} total questions
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                My exams
+              </h2>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSubjectFilterOpen((o) => !o)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700",
+                    "hover:bg-gray-50 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  )}
+                >
+                  {subjectFilterLabel}
+                  <ChevronDown className={cn("h-4 w-4 text-gray-500", subjectFilterOpen && "rotate-180")} />
+                </button>
+                {subjectFilterOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      aria-hidden
+                      onClick={() => setSubjectFilterOpen(false)}
+                    />
+                    <div className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                      {SUBJECTS_FILTER.map((s) => (
+                        <button
+                          key={s.value || "all"}
+                          type="button"
+                          onClick={() => {
+                            setSubjectFilter(s.value as SubjectValue | "");
+                            setSubjectFilterOpen(false);
+                          }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-sm",
+                            subjectFilter === s.value
+                              ? "bg-blue-600 text-white"
+                              : "text-gray-700 hover:bg-gray-50"
+                          )}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
             {deleteError && (
               <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
                 <span>{deleteError}</span>
                 <button type="button" onClick={() => setDeleteError(null)} className="text-red-500 hover:text-red-700 font-medium" aria-label="Dismiss">Dismiss</button>
               </div>
             )}
-            {uploads.length === 0 ? (
-              <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">No exams yet. Upload a PDF above.</div>
+            {filteredUploads.length === 0 ? (
+              <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">{uploads.length === 0 ? "No exams yet. Upload a PDF above." : "No exams match this filter."}</div>
             ) : (
               <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -720,7 +1176,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
-                    {uploads.map((exam) => (
+                    {filteredUploads.map((exam) => (
                       <tr key={exam.id} className="hover:bg-gray-50/50">
                         <td className="px-4 py-3 flex items-center gap-2">
                           <FileText className="h-4 w-4 text-gray-400" />

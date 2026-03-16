@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
   ChevronDown,
   ChevronUp,
   Delete,
+  Eraser,
   Flag,
   Highlighter,
   Calculator,
@@ -19,6 +20,7 @@ import {
   RotateCcw,
   RotateCw,
   Star,
+  StickyNote,
   Superscript,
   Wrench,
   X,
@@ -157,6 +159,78 @@ interface Question {
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
+
+const CALCULATOR_ALLOWED_SUBJECTS = new Set([
+  "AP_MICROECONOMICS",
+  "AP_MACROECONOMICS",
+  "AP_BIOLOGY",
+  "AP_CHEMISTRY",
+  "AP_ENVIRONMENTAL_SCIENCE",
+  "AP_PHYSICS_1",
+  "AP_PHYSICS_2",
+  "AP_PHYSICS_C_MECH",
+  "AP_PHYSICS_C_EM",
+  "AP_STATISTICS",
+]);
+
+const HIGHLIGHT_COLORS: Record<string, string> = {
+  yellow: "bg-yellow-200",
+  blue: "bg-blue-200",
+  pink: "bg-pink-200",
+};
+
+type HighlightRange = { start: number; end: number; color: string };
+
+function renderTextWithHighlights(
+  text: string,
+  highlightRanges: HighlightRange[]
+): React.ReactNode {
+  if (!text) return null;
+  if (!highlightRanges.length) return text;
+  const sorted = [...highlightRanges].sort((a, b) => a.start - b.start);
+  const merged: HighlightRange[] = [];
+  for (const h of sorted) {
+    const start = Math.max(0, h.start);
+    const end = Math.min(text.length, h.end);
+    if (start >= end) continue;
+    const next = merged.filter((m) => !(m.start < end && m.end > start));
+    next.push({ start, end, color: h.color });
+    merged.length = 0;
+    merged.push(...next.sort((a, b) => a.start - b.start));
+  }
+  const segments: Array<{ text: string; color?: string }> = [];
+  let pos = 0;
+  for (const m of merged.sort((a, b) => a.start - b.start)) {
+    if (pos < m.start) segments.push({ text: text.slice(pos, m.start) });
+    segments.push({ text: text.slice(m.start, m.end), color: m.color });
+    pos = m.end;
+  }
+  if (pos < text.length) segments.push({ text: text.slice(pos) });
+  return segments.map((s, i) =>
+    s.color ? (
+      <span key={i} className={HIGHLIGHT_COLORS[s.color] ?? "bg-yellow-200"}>
+        {s.text}
+      </span>
+    ) : (
+      <span key={i}>{s.text}</span>
+    )
+  );
+}
+
+function getSelectionOffsets(container: Node): { start: number; end: number } | null {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return null;
+  const measureRange = document.createRange();
+  measureRange.selectNodeContents(container);
+  measureRange.setEnd(range.startContainer, range.startOffset);
+  const start = measureRange.toString().length;
+  measureRange.setStart(container, 0);
+  measureRange.setEnd(range.endContainer, range.endOffset);
+  const end = measureRange.toString().length;
+  return { start: Math.min(start, end), end: Math.max(start, end) };
+}
 
 function formatTimer(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -467,10 +541,42 @@ function safeCalculatorEval(expr: string, lastResult: number | null): number | n
   }
 }
 
+/** Scientific calculator eval: adds pow, abs, sin, cos, tan, pi */
+function safeCalculatorEvalScientific(
+  expr: string,
+  lastResult: number | null,
+  useRadians: boolean
+): number | null {
+  try {
+    let s = expr.trim().replace(/×/g, "*").replace(/÷/g, "/");
+    if (lastResult != null) s = s.replace(/\bans\b/gi, String(lastResult));
+    s = s.replace(/\bπ\b/gi, String(Math.PI));
+    s = s.replace(/√(\d+\.?\d*)/g, "Math.sqrt($1)");
+    s = s.replace(/√\(([^)]+)\)/g, (_, inner) => `Math.sqrt(${inner})`);
+    s = s.replace(/\^/g, "**");
+    s = s.replace(/\|([^|]+)\|/g, (_, inner) => `Math.abs(${inner})`);
+    const deg = useRadians ? 1 : "Math.PI/180";
+    s = s.replace(/\bsin\(([^)]+)\)/gi, (_, inner) => `Math.sin((${inner})*${deg})`);
+    s = s.replace(/\bcos\(([^)]+)\)/gi, (_, inner) => `Math.cos((${inner})*${deg})`);
+    s = s.replace(/\btan\(([^)]+)\)/gi, (_, inner) => `Math.tan((${inner})*${deg})`);
+    s = s.replace(/(\d+\.?\d*)%/g, "($1/100)");
+    s = s.replace(/(\d+\.?\d*)²/g, "($1**2)");
+    const fn = new Function("Math", "return " + s);
+    const result = fn(Math);
+    return typeof result === "number" && Number.isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
+  const reviewAttemptId = searchParams.get("attempt") ?? "";
+  const reviewQuestionNum = searchParams.get("question");
+  const reviewQuestion = reviewQuestionNum ? parseInt(reviewQuestionNum, 10) : null;
   const [upload, setUpload] = useState<PdfUpload | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -492,6 +598,7 @@ export default function ExamPage() {
   const [calculatorDisplay, setCalculatorDisplay] = useState("");
   const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
   const [calculatorPos, setCalculatorPos] = useState({ x: 32, y: 96 });
+  const [calculatorRadians, setCalculatorRadians] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [questionIdToImageUrl, setQuestionIdToImageUrl] = useState<Record<string, string>>({});
   const [examCompleted, setExamCompleted] = useState(false);
@@ -511,6 +618,13 @@ export default function ExamPage() {
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
   const [showEndExamConfirm, setShowEndExamConfirm] = useState(false);
+  const [highlights, setHighlights] = useState<
+    Record<string, Array<{ start: number; end: number; color: string }>>
+  >({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [noteWidgetOpen, setNoteWidgetOpen] = useState(false);
+  const [highlightToolbarOpen, setHighlightToolbarOpen] = useState(false);
+  const [highlightMode, setHighlightMode] = useState<"yellow" | "blue" | "pink" | "eraser" | null>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
@@ -532,6 +646,47 @@ export default function ExamPage() {
       setLoading(false);
       return;
     }
+    if (reviewAttemptId) {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.access_token) {
+          setLoading(false);
+          return;
+        }
+        fetch(`/api/exam/attempt/${reviewAttemptId}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.error) {
+              setLoading(false);
+              return;
+            }
+            if (data.upload?.id !== id) {
+              setLoading(false);
+              return;
+            }
+            setUpload(data.upload as PdfUpload);
+            setQuestions((data.questions ?? []) as Question[]);
+            setExamCompleted(true);
+            setExamResult({
+              total: data.result?.total ?? 0,
+              correctCount: data.result?.correctCount ?? 0,
+              incorrectCount: data.result?.incorrectCount ?? 0,
+              unansweredCount: data.result?.unansweredCount ?? 0,
+              percentage: data.result?.percentage ?? 0,
+              timeSpentSeconds: data.result?.timeSpentSeconds ?? 0,
+              breakdown: data.result?.breakdown ?? [],
+            });
+            if (reviewQuestion != null && !Number.isNaN(reviewQuestion)) {
+              setSelectedResultQuestion(reviewQuestion);
+            }
+            setLoading(false);
+          })
+          .catch(() => setLoading(false));
+      });
+      return;
+    }
     const supabase = createClient();
     Promise.all([
       supabase
@@ -549,7 +704,7 @@ export default function ExamPage() {
       if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);
       if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
     });
-  }, [id]);
+  }, [id, reviewAttemptId, reviewQuestion]);
 
   useEffect(() => {
     if (!id || !upload?.storage_path) {
@@ -694,6 +849,28 @@ export default function ExamPage() {
     [answers, saveAnswer]
   );
 
+  const applyHighlightSelection = useCallback(
+    (blockId: string, start: number, end: number) => {
+      if (!highlightMode || start >= end) return;
+      setHighlights((prev) => {
+        const list = prev[blockId] ?? [];
+        if (highlightMode === "eraser") {
+          const next = list.filter((h) => !(h.start < end && h.end > start));
+          if (next.length === 0) {
+            const { [blockId]: _, ...rest } = prev;
+            return rest;
+          }
+          return { ...prev, [blockId]: next };
+        }
+        return {
+          ...prev,
+          [blockId]: [...list, { start, end, color: highlightMode }],
+        };
+      });
+    },
+    [highlightMode]
+  );
+
   const completeExam = useCallback(async () => {
     if (!attemptId || completing) return;
     setCompleting(true);
@@ -822,6 +999,10 @@ export default function ExamPage() {
   const isCsa = isCodeSubject(subject);
   const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
   const isMicro = subject === "AP_MICROECONOMICS";
+  const isCalculatorAllowed = CALCULATOR_ALLOWED_SUBJECTS.has(subject);
+  const isCalculatorScientific =
+    isCalculatorAllowed &&
+    !["AP_MICROECONOMICS", "AP_MACROECONOMICS"].includes(subject);
   const isCsaLegacyFallback =
     isCsa &&
     !currentQuestion?.passage_text?.trim() &&
@@ -1205,16 +1386,31 @@ export default function ExamPage() {
           AP
         </div>
       </div>
-      <p className="text-gray-900 font-medium">{rightPanelQuestionText}</p>
+      <p
+        className="text-gray-900 font-medium select-text cursor-text"
+        onMouseUp={(e) => {
+          const offsets = getSelectionOffsets(e.currentTarget);
+          if (offsets && offsets.start < offsets.end && currentQuestion) {
+            applyHighlightSelection(`${currentQuestion.id}-stem`, offsets.start, offsets.end);
+          }
+        }}
+      >
+        {renderTextWithHighlights(
+          rightPanelQuestionText,
+          highlights[currentQuestion?.id ? `${currentQuestion.id}-stem` : ""] ?? []
+        )}
+      </p>
       <div className="space-y-2">
         {options.map(({ key, text }) => {
           const isSelected = currentQuestion && answers[currentQuestion.id] === key;
           const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
           const optionContent = text ?? "";
+          const blockId = currentQuestion ? `${currentQuestion.id}-opt-${key}` : "";
           return (
-            <button
+            <div
               key={key}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 if (!currentQuestion) return;
                 setAnswers((prev) => ({ ...prev, [currentQuestion.id]: key }));
@@ -1224,34 +1420,56 @@ export default function ExamPage() {
                   markedForReview.has(currentQuestion.id)
                 );
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (!currentQuestion) return;
+                  setAnswers((prev) => ({ ...prev, [currentQuestion.id]: key }));
+                  saveAnswer(
+                    currentQuestion.id,
+                    key,
+                    markedForReview.has(currentQuestion.id)
+                  );
+                }
+              }}
               className={cn(
-                "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors",
+                "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors cursor-pointer",
                 isSelected
                   ? "border-blue-600 bg-blue-600/5 text-gray-900"
                   : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
               )}
             >
-              <span
+              <div
                 className={cn(
-                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5",
+                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5 transition-colors",
                   isSelected ? "border-blue-600 bg-blue-50 text-blue-600" : "border-gray-400 bg-transparent"
                 )}
               >
                 {key}
-              </span>
-              <span className="flex-1 min-w-0">
+              </div>
+              <span
+                className="flex-1 min-w-0 select-text"
+                onMouseUp={(e) => {
+                  const offsets = getSelectionOffsets(e.currentTarget);
+                  if (offsets && offsets.start < offsets.end && blockId) {
+                    applyHighlightSelection(blockId, offsets.start, offsets.end);
+                  }
+                }}
+              >
                 {showAsCode ? (
                   <pre className="text-sm font-mono whitespace-pre-wrap break-words bg-gray-50 rounded p-2 overflow-x-auto">
-                    <code>{optionContent}</code>
+                    <code>
+                      {renderTextWithHighlights(optionContent, highlights[blockId] ?? [])}
+                    </code>
                   </pre>
                 ) : (
-                  optionContent
+                  renderTextWithHighlights(optionContent, highlights[blockId] ?? [])
                 )}
               </span>
               <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400">
                 <Plus className="h-4 w-4 text-gray-500" />
               </span>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -1380,8 +1598,8 @@ export default function ExamPage() {
         </>
       )}
 
-      {/* Calculator - Micro only */}
-      {isMicro && (
+      {/* Calculator - all calculator-allowed subjects */}
+      {isCalculatorAllowed && (
         <>
           <div
             className={cn(
@@ -1393,7 +1611,8 @@ export default function ExamPage() {
           />
           <div
             className={cn(
-              "fixed z-50 w-72 rounded-lg bg-white shadow-2xl overflow-hidden transition-opacity duration-300",
+              "fixed z-50 rounded-lg bg-white shadow-2xl overflow-hidden transition-opacity duration-300",
+              isCalculatorScientific ? "w-80" : "w-72",
               calculatorOpen ? "opacity-100" : "opacity-0 pointer-events-none"
             )}
             style={{ left: calculatorPos.x, top: calculatorPos.y }}
@@ -1422,142 +1641,256 @@ export default function ExamPage() {
                 </button>
               </div>
             </div>
-            <div className="p-3 bg-gray-100">
-              <div className="bg-white border border-gray-300 rounded px-3 py-2 mb-3 font-mono text-xl text-right min-h-[2.5rem]">
+            <div className={cn("p-3", isCalculatorScientific ? "bg-white" : "bg-gray-100")}>
+              <div
+                className={cn(
+                  "rounded px-3 py-2 mb-3 font-mono text-xl text-right min-h-[2.5rem]",
+                  isCalculatorScientific ? "bg-white border-2 border-blue-500" : "bg-white border border-gray-300"
+                )}
+              >
                 {calculatorDisplay || "0"}
               </div>
-              {/* Top row: 5 columns */}
-              <div className="grid grid-cols-5 gap-1 mb-1">
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay("")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                >
-                  <RotateCcw className="h-4 w-4 mx-auto" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay("")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                >
-                  <RotateCw className="h-4 w-4 mx-auto" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay("")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-xs"
-                >
-                  clear all
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d.slice(0, -1))}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                >
-                  <Delete className="h-4 w-4 mx-auto" />
-                </button>
-                <button
-                  type="button"
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300"
-                >
-                  <Wrench className="h-4 w-4 mx-auto" />
-                </button>
-              </div>
-              {/* Main grid: 4 columns, 6 rows; = spans 2 rows */}
-              <div className="grid grid-cols-4 gap-1 grid-rows-[repeat(6,auto)]">
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + "(")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  (
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + ")")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  )
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + "√")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  √
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + "÷")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  ÷
-                </button>
-                {[
-                  ["7", "8", "9", "×"],
-                  ["4", "5", "6", "-"],
-                  ["1", "2", "3", "+"],
-                ].map((row) =>
-                  row.map((sym) => (
-                    <button
-                      key={sym}
-                      type="button"
-                      onClick={() => setCalculatorDisplay((d) => d + sym)}
-                      className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                    >
-                      {sym}
+              {isCalculatorScientific ? (
+                <>
+                  <div className="flex items-center gap-2 mb-2 text-sm">
+                    <div className="flex gap-0.5">
+                      <span className="px-2 py-1 border-b-2 border-blue-600 font-medium">main</span>
+                      <span className="px-2 py-1 text-gray-400">abc</span>
+                      <span className="px-2 py-1 text-gray-400">func</span>
+                    </div>
+                    <div className="flex gap-1 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setCalculatorRadians(true)}
+                        className={cn(
+                          "px-2 py-1 rounded text-xs font-medium",
+                          calculatorRadians ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+                        )}
+                      >
+                        RAD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalculatorRadians(false)}
+                        className={cn(
+                          "px-2 py-1 rounded text-xs font-medium",
+                          !calculatorRadians ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+                        )}
+                      >
+                        DEG
+                      </button>
+                      <button type="button" className="p-1 rounded hover:bg-gray-100">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" className="p-1 rounded hover:bg-gray-100 opacity-50">
+                        <RotateCw className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" onClick={() => setCalculatorDisplay("")} className="text-xs text-gray-500">
+                        clear all
+                      </button>
+                      <button type="button" className="p-1 rounded hover:bg-gray-100">
+                        <Wrench className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {[
+                      ["a²", "a^b", "|a|", "√", "ⁿ√", "π"],
+                      ["sin", "cos", "tan", "(", ")", ","],
+                    ].map((row, ri) =>
+                      row.map((label) => {
+                        const insert =
+                          label === "a²"
+                            ? "²"
+                            : label === "a^b"
+                              ? "^"
+                              : label === "|a|"
+                                ? "|"
+                                : label === "ⁿ√"
+                                  ? "√"
+                                  : label === "π"
+                                    ? "π"
+                                    : label === "sin"
+                                      ? "sin("
+                                      : label === "cos"
+                                        ? "cos("
+                                        : label === "tan"
+                                          ? "tan("
+                                          : label;
+                        return (
+                          <button
+                            key={`${ri}-${label}`}
+                            type="button"
+                            onClick={() => setCalculatorDisplay((d) => d + insert)}
+                            className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-sm font-medium"
+                          >
+                            {label}
+                          </button>
+                        );
+                      })
+                    )}
+                    {[
+                      ["7", "8", "9", "÷", "%", "a/b"],
+                      ["4", "5", "6", "×", "←", "→"],
+                      ["1", "2", "3", "-", "C", ""],
+                      ["0", ".", "ans", "+", "=", "="],
+                    ].map((row, ri) =>
+                      row.map((sym, si) => {
+                        if (sym === "") return <div key={`n-${ri}-${si}`} />;
+                        if (sym === "←")
+                          return (
+                            <button
+                              key={`n-${ri}-${si}`}
+                              type="button"
+                              onClick={() => setCalculatorDisplay((d) => d.slice(0, -1))}
+                              className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+                            >
+                              <Delete className="h-4 w-4 mx-auto" />
+                            </button>
+                          );
+                        if (sym === "→") return <button key={`n-${ri}-${si}`} type="button" className="p-2 rounded bg-gray-100 opacity-50" />;
+                        if (sym === "C")
+                          return (
+                            <button
+                              key={`n-${ri}-${si}`}
+                              type="button"
+                              onClick={() => setCalculatorDisplay("")}
+                              className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-sm"
+                            >
+                              ×
+                            </button>
+                          );
+                        if (sym === "=" && si === 4)
+                          return (
+                            <button
+                              key={`n-${ri}-${si}`}
+                              type="button"
+                              onClick={() => {
+                                const result = safeCalculatorEvalScientific(
+                                  calculatorDisplay || "0",
+                                  calculatorLastResult,
+                                  calculatorRadians
+                                );
+                                if (result != null) {
+                                  setCalculatorLastResult(result);
+                                  setCalculatorDisplay(String(result));
+                                }
+                              }}
+                              className="p-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-lg font-medium col-span-2 flex items-center justify-center"
+                            >
+                              =
+                            </button>
+                          );
+                        if (sym === "=" && si === 5) return null;
+                        const insertStr = sym === "a/b" ? "/" : sym;
+                        return (
+                          <button
+                            key={`n-${ri}-${si}`}
+                            type="button"
+                            onClick={() =>
+                              setCalculatorDisplay(
+                                sym === "ans"
+                                  ? (d: string) => d + (d && /\d$/.test(d) ? "*" : "") + "ans"
+                                  : (d: string) => d + insertStr
+                              )
+                            }
+                            className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-sm font-medium"
+                          >
+                            {sym}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-5 gap-1 mb-1">
+                    <button type="button" onClick={() => setCalculatorDisplay("")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm">
+                      <RotateCcw className="h-4 w-4 mx-auto" />
                     </button>
-                  ))
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + "0")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalculatorDisplay((d) => d + ".")}
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
-                >
-                  .
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCalculatorDisplay(
-                      (d) => d + (d && /\d$/.test(d) ? "*" : "") + "ans"
-                    )
-                  }
-                  className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
-                >
-                  ans
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const result = safeCalculatorEval(
-                      calculatorDisplay || "0",
-                      calculatorLastResult
-                    );
-                    if (result != null) {
-                      setCalculatorLastResult(result);
-                      setCalculatorDisplay(String(result));
-                    }
-                  }}
-                  className="p-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-lg font-medium row-span-2 flex items-center justify-center"
-                >
-                  =
-                </button>
-              </div>
+                    <button type="button" onClick={() => setCalculatorDisplay("")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm">
+                      <RotateCw className="h-4 w-4 mx-auto" />
+                    </button>
+                    <button type="button" onClick={() => setCalculatorDisplay("")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-xs">
+                      clear all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalculatorDisplay((d) => d.slice(0, -1))}
+                      className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                    >
+                      <Delete className="h-4 w-4 mx-auto" />
+                    </button>
+                    <button type="button" className="p-2 rounded bg-gray-200 hover:bg-gray-300">
+                      <Wrench className="h-4 w-4 mx-auto" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 grid-rows-[repeat(6,auto)]">
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + "(")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      (
+                    </button>
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + ")")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      )
+                    </button>
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + "√")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      √
+                    </button>
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + "÷")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      ÷
+                    </button>
+                    {[
+                      ["7", "8", "9", "×"],
+                      ["4", "5", "6", "-"],
+                      ["1", "2", "3", "+"],
+                    ].map((row) =>
+                      row.map((sym) => (
+                        <button
+                          key={sym}
+                          type="button"
+                          onClick={() => setCalculatorDisplay((d) => d + sym)}
+                          className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium"
+                        >
+                          {sym}
+                        </button>
+                      ))
+                    )}
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + "0")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      0
+                    </button>
+                    <button type="button" onClick={() => setCalculatorDisplay((d) => d + ".")} className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-lg font-medium">
+                      .
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCalculatorDisplay((d) => d + (d && /\d$/.test(d) ? "*" : "") + "ans")}
+                      className="p-2 rounded bg-gray-200 hover:bg-gray-300 text-sm"
+                    >
+                      ans
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const result = safeCalculatorEval(calculatorDisplay || "0", calculatorLastResult);
+                        if (result != null) {
+                          setCalculatorLastResult(result);
+                          setCalculatorDisplay(String(result));
+                        }
+                      }}
+                      className="p-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-lg font-medium row-span-2 flex items-center justify-center"
+                    >
+                      =
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>
       )}
 
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-gray-200 bg-white text-gray-900">
+      <header className="flex-shrink-0 border-b border-gray-200 bg-[#E5E7EB] text-gray-900">
         <div className="relative flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-gray-700 hover:underline">
@@ -1608,10 +1941,114 @@ export default function ExamPage() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
-            <span className="flex items-center gap-1 text-sm text-gray-600">
-              <Highlighter className="h-4 w-4" /> Highlights & Notes
-            </span>
+          <div className="flex items-center gap-2 flex-1 justify-end min-w-0 relative">
+            <div className="flex items-center gap-1 bg-[#E5E7EB] rounded-lg px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => setHighlightToolbarOpen((o) => !o)}
+                className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors bg-[#E5E7EB] text-gray-600 hover:text-gray-900"
+                title="Highlights & Notes"
+              >
+                <div className="flex items-center gap-1">
+                  <Highlighter className="h-4 w-4" />
+                  <StickyNote className="h-4 w-4" />
+                </div>
+                <span className="text-xs font-medium">Highlights & Notes</span>
+              </button>
+              {highlightToolbarOpen && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setHighlightMode((m) => (m === "yellow" ? null : "yellow"))}
+                className={cn(
+                  "w-8 h-8 rounded-full border-2 transition-colors",
+                  highlightMode === "yellow"
+                    ? "bg-yellow-200 border-yellow-600 ring-2 ring-yellow-400"
+                    : "bg-yellow-200 border-transparent hover:border-yellow-400"
+                )}
+                title="Yellow highlight"
+              />
+              <button
+                type="button"
+                onClick={() => setHighlightMode((m) => (m === "blue" ? null : "blue"))}
+                className={cn(
+                  "w-8 h-8 rounded-full border-2 transition-colors",
+                  highlightMode === "blue"
+                    ? "bg-blue-200 border-blue-600 ring-2 ring-blue-400"
+                    : "bg-blue-200 border-transparent hover:border-blue-400"
+                )}
+                title="Light blue highlight"
+              />
+              <button
+                type="button"
+                onClick={() => setHighlightMode((m) => (m === "pink" ? null : "pink"))}
+                className={cn(
+                  "w-8 h-8 rounded-full border-2 transition-colors",
+                  highlightMode === "pink"
+                    ? "bg-pink-200 border-pink-600 ring-2 ring-pink-400"
+                    : "bg-pink-200 border-transparent hover:border-pink-400"
+                )}
+                title="Light pink highlight"
+              />
+              <button
+                type="button"
+                onClick={() => setHighlightMode((m) => (m === "eraser" ? null : "eraser"))}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors bg-gray-100",
+                  highlightMode === "eraser"
+                    ? "border-gray-600 ring-2 ring-gray-400"
+                    : "border-transparent hover:border-gray-400"
+                )}
+                title="Eraser"
+              >
+                <Eraser className="h-4 w-4 text-gray-600" />
+              </button>
+              <div className="w-px h-5 bg-gray-300" />
+              <button
+                type="button"
+                onClick={() => setNoteWidgetOpen((o) => !o)}
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors",
+                  noteWidgetOpen
+                    ? "bg-amber-100 border-amber-500 ring-2 ring-amber-300"
+                    : "bg-white border-gray-300 hover:border-amber-400 hover:bg-amber-50"
+                )}
+                title="Add note"
+              >
+                <StickyNote className="h-4 w-4 text-amber-600" />
+              </button>
+                </>
+              )}
+            </div>
+            {noteWidgetOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-gray-300 bg-white z-50 overflow-hidden">
+                <div className="flex items-center justify-between bg-amber-300 px-3 py-2">
+                  <span className="font-bold text-gray-900">
+                    {currentQuestion ? `Q${currentQuestion.question_number}` : "Note"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setNoteWidgetOpen(false)}
+                    className="p-1 rounded-full hover:bg-amber-400/50"
+                    title="Close note"
+                  >
+                    <Delete className="h-4 w-4 text-gray-700" />
+                  </button>
+                </div>
+                <div className="p-3 bg-white">
+                  <textarea
+                    value={notes[currentQuestion?.id ?? ""] ?? ""}
+                    onChange={(e) => {
+                      if (!currentQuestion) return;
+                      setNotes((prev) => ({ ...prev, [currentQuestion.id]: e.target.value }));
+                    }}
+                    placeholder="Notes are saved automatically."
+                    className="w-full min-h-[100px] rounded border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none"
+                    disabled={!currentQuestion}
+                  />
+                </div>
+              </div>
+            )}
             {isCsa ? (
               <button
                 type="button"
@@ -1625,7 +2062,7 @@ export default function ExamPage() {
                 <Superscript className="h-4 w-4" /> Reference
               </span>
             )}
-            {isMicro ? (
+            {isCalculatorAllowed ? (
               <button
                 type="button"
                 onClick={() => setCalculatorOpen(true)}
@@ -1886,7 +2323,7 @@ export default function ExamPage() {
       </main>
 
       {/* Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3 text-gray-900">
+      <footer className="flex-shrink-0 border-t border-gray-200 bg-[#E5E7EB] px-4 py-3 text-gray-900">
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-700">{userName || userEmail || "User"}</p>
           <div className="relative">
@@ -1930,7 +2367,7 @@ export default function ExamPage() {
               type="button"
               onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
               disabled={currentIndex === 0}
-              className="rounded-md bg-[#36454F] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d3748] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-xl bg-[#36454F] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d3748] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Back
             </button>
@@ -1940,7 +2377,7 @@ export default function ExamPage() {
                 setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))
               }
               disabled={currentIndex >= questions.length - 1}
-              className="rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-xl bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </button>
@@ -1956,7 +2393,7 @@ export default function ExamPage() {
                 }}
                 disabled={completing}
                 className={cn(
-                  "rounded-md px-4 py-2 text-sm font-medium",
+                  "rounded-xl px-4 py-2 text-sm font-medium",
                   completing
                     ? "bg-gray-400 text-white cursor-not-allowed"
                     : "bg-green-600 text-white hover:bg-green-700"
