@@ -583,6 +583,7 @@ export default function ExamPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(new Set());
+  const [eliminatedOptions, setEliminatedOptions] = useState<Map<string, Set<string>>>(new Map());
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -848,6 +849,17 @@ export default function ExamPage() {
     },
     [answers, saveAnswer]
   );
+
+  const toggleEliminate = useCallback((questionId: string, key: string) => {
+    setEliminatedOptions((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(questionId) ?? []);
+      if (set.has(key)) set.delete(key);
+      else set.add(key);
+      next.set(questionId, set);
+      return next;
+    });
+  }, []);
 
   const applyHighlightSelection = useCallback(
     (blockId: string, start: number, end: number) => {
@@ -1403,6 +1415,7 @@ export default function ExamPage() {
       <div className="space-y-2">
         {options.map(({ key, text }) => {
           const isSelected = currentQuestion && answers[currentQuestion.id] === key;
+          const isEliminated = currentQuestion && eliminatedOptions.get(currentQuestion.id)?.has(key);
           const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
           const optionContent = text ?? "";
           const blockId = currentQuestion ? `${currentQuestion.id}-opt-${key}` : "";
@@ -1433,22 +1446,32 @@ export default function ExamPage() {
                 }
               }}
               className={cn(
-                "w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors cursor-pointer",
+                "relative w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors cursor-pointer",
                 isSelected
                   ? "border-blue-600 bg-blue-600/5 text-gray-900"
-                  : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"
+                  : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800",
+                isEliminated && "bg-gray-100"
               )}
             >
+              {isEliminated && (
+                <div
+                  className="absolute left-4 right-12 top-1/2 h-px -translate-y-1/2 bg-gray-400 pointer-events-none z-0"
+                  aria-hidden
+                />
+              )}
               <div
                 className={cn(
-                  "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5 transition-colors",
+                  "relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5 transition-colors",
                   isSelected ? "border-blue-600 bg-blue-50 text-blue-600" : "border-gray-400 bg-transparent"
                 )}
               >
                 {key}
               </div>
               <span
-                className="flex-1 min-w-0 select-text"
+                className={cn(
+                  "relative z-10 flex-1 min-w-0 select-text",
+                  isEliminated && "text-gray-500"
+                )}
                 onMouseUp={(e) => {
                   const offsets = getSelectionOffsets(e.currentTarget);
                   if (offsets && offsets.start < offsets.end && blockId) {
@@ -1466,8 +1489,36 @@ export default function ExamPage() {
                   renderTextWithHighlights(optionContent, highlights[blockId] ?? [])
                 )}
               </span>
-              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400">
-                <Plus className="h-4 w-4 text-gray-500" />
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (currentQuestion) toggleEliminate(currentQuestion.id, key);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (currentQuestion) toggleEliminate(currentQuestion.id, key);
+                  }
+                }}
+                className={cn(
+                  "relative z-10 flex flex-shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-300",
+                  isEliminated
+                    ? "flex-col gap-0.5 bg-gray-100 p-1.5 text-gray-500 hover:bg-gray-200"
+                    : "h-6 w-6 bg-white text-gray-500 hover:bg-gray-50"
+                )}
+                aria-label={isEliminated ? "Undo elimination" : "Eliminate option"}
+              >
+                {isEliminated ? (
+                  <>
+                    <RotateCcw className="h-4 w-4" />
+                    <span className="text-xs">Undo</span>
+                  </>
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
               </span>
             </div>
           );
