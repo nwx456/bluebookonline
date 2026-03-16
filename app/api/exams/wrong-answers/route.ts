@@ -77,6 +77,12 @@ export async function GET(request: NextRequest) {
       questionNumber: number;
       userAnswer: string | null;
       correctAnswer: string | null;
+      questionText: string | null;
+      optionA: string | null;
+      optionB: string | null;
+      optionC: string | null;
+      optionD: string | null;
+      optionE: string | null;
     }> = [];
 
     const uploadIds = latestAttemptByUpload.map((a) => a.uploadId);
