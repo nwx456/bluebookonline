@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HeaderNav } from "@/components/HeaderNav";
 import { BookOpen } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Bluebook Online mimics the real College Board Bluebook exam. Free AP exam practice for students worldwide. AP CSA, CSP, Economics, Calculus.",
+};
 
 export default function AboutPage() {
   return (
