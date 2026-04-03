@@ -45,10 +45,6 @@ export const metadata: Metadata = {
       "x-default": baseUrl,
     },
   },
-  icons: {
-    icon: [{ url: "/appicon.png", type: "image/png" }],
-    apple: "/appicon.png",
-  },
   openGraph: {
     title: defaultTitle,
     description: defaultDescription,
