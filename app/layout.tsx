@@ -66,7 +66,9 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    google:
+      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ??
+      "2Vq7KT7ix17kMhqkmgZZnhff-iOpm9ptGvn4w9bPkQk",
   },
 };
 
