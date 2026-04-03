@@ -145,3 +145,86 @@ export async function GET(
     );
   }
 }
+
+/**
+ * DELETE /api/exam/attempt/[attemptId]
+ * Removes this attempt and its attempt_answers only (does not delete the exam PDF).
+ * Only the attempt owner can delete.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ attemptId: string }> }
+) {
+  try {
+    const { attemptId } = await params;
+    if (!attemptId?.trim()) {
+      return NextResponse.json(
+        { error: "Attempt ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const { user, error: authError } = await getAuthUser(request);
+    if (authError || !user?.email) {
+      return NextResponse.json(
+        { error: authError ?? "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    const userEmail = user.email.trim().toLowerCase();
+
+    const supabase = createServerSupabaseAdmin();
+
+    const { data: attempt, error: attemptError } = await supabase
+      .from("attempts")
+      .select("id, user_email")
+      .eq("id", attemptId)
+      .single();
+
+    if (attemptError || !attempt) {
+      return NextResponse.json({ error: "Attempt not found." }, { status: 404 });
+    }
+
+    const attemptUser = (attempt.user_email as string)?.trim().toLowerCase();
+    if (attemptUser !== userEmail) {
+      return NextResponse.json(
+        { error: "You can only delete your own attempts." },
+        { status: 403 }
+      );
+    }
+
+    const { error: answersError } = await supabase
+      .from("attempt_answers")
+      .delete()
+      .eq("attempt_id", attemptId);
+
+    if (answersError) {
+      console.error("attempt_answers delete error:", answersError);
+      return NextResponse.json(
+        { error: "Failed to delete attempt answers." },
+        { status: 500 }
+      );
+    }
+
+    const { error: deleteAttemptError } = await supabase
+      .from("attempts")
+      .delete()
+      .eq("id", attemptId);
+
+    if (deleteAttemptError) {
+      console.error("attempt delete error:", deleteAttemptError);
+      return NextResponse.json(
+        { error: "Failed to delete attempt." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Attempt delete error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Request failed." },
+      { status: 500 }
+    );
+  }
+}

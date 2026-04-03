@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAttemptId, setDeletingAttemptId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [togglingPublishId, setTogglingPublishId] = useState<string | null>(null);
   const [userDisplayName, setUserDisplayName] = useState<string>("");
@@ -206,6 +207,39 @@ export default function DashboardPage() {
       })
       .finally(() => setExpandedAttemptLoading(false));
   }, [expandedAttemptId, accessToken]);
+
+  const handleDeleteAttempt = useCallback(
+    async (attemptId: string) => {
+      if (!accessToken) return;
+      if (
+        !confirm(
+          "Remove this attempt from your recent list? The exam PDF is not deleted."
+        )
+      ) {
+        return;
+      }
+      setDeletingAttemptId(attemptId);
+      try {
+        const res = await fetch(`/api/exam/attempt/${attemptId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert((data.error as string) ?? "Failed to delete attempt.");
+          return;
+        }
+        setRecentAttempts((prev) => prev.filter((x) => x.id !== attemptId));
+        if (expandedAttemptId === attemptId) {
+          setExpandedAttemptId(null);
+          setExpandedAttemptData(null);
+        }
+      } finally {
+        setDeletingAttemptId(null);
+      }
+    },
+    [accessToken, expandedAttemptId]
+  );
 
   const handleWrongQuestionClick = useCallback(
     async (questionNumber: number) => {
@@ -401,50 +435,73 @@ export default function DashboardPage() {
               <Clock className="h-5 w-5 text-blue-600" />
               Recent exams
             </h2>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {recentAttempts.map((a) => (
                 <div
                   key={a.id}
-                  className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden"
+                  className={cn(
+                    "rounded-lg border bg-white p-2.5 flex flex-col gap-2 shadow-sm overflow-hidden transition-colors",
+                    expandedAttemptId === a.id
+                      ? "border-blue-400 ring-1 ring-blue-200"
+                      : "border-gray-200 hover:border-gray-300"
+                  )}
                 >
-                  <div className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900 truncate" title={a.filename}>
-                        {a.filename}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {a.percentage}% · {a.correctCount}/{a.totalQuestions}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {new Date(a.completedAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
+                  <div className="flex flex-col gap-0.5">
+                    <p
+                      className="text-xs font-medium text-gray-900 line-clamp-2 leading-snug"
+                      title={a.filename}
+                    >
+                      {a.filename}
+                    </p>
+                    <p className="text-[10px] text-gray-500 truncate">
+                      {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
+                    </p>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 mt-0.5">
+                      <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
+                        {a.percentage}%
+                      </span>
+                      <span className="text-[11px] text-gray-600 tabular-nums">
+                        {a.correctCount}/{a.totalQuestions} correct
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        View
-                      </button>
-                      <Link
-                        href={`/exam/${a.uploadId}`}
-                        className="text-sm text-gray-500 hover:text-gray-700"
-                      >
-                        Open exam
-                      </Link>
-                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      {new Date(a.completedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
                   </div>
-                  {expandedAttemptId === a.id && (
-                    <div className="border-t border-gray-100 bg-gray-50/50 p-4">
+                  <div className="flex flex-wrap items-center justify-center gap-1 pt-1.5 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)}
+                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                    >
+                      <Play className="h-3 w-3" />
+                      View
+                    </button>
+                    <Link
+                      href={`/exam/${a.uploadId}`}
+                      className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                    >
+                      Open
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={deletingAttemptId === a.id}
+                      onClick={() => handleDeleteAttempt(a.id)}
+                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      aria-label="Delete attempt"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {expandedAttemptId && (
+              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4">
                       {expandedAttemptLoading ? (
                         <p className="text-sm text-gray-500">Loading…</p>
                       ) : expandedAttemptData ? (
@@ -586,11 +643,8 @@ export default function DashboardPage() {
                           )}
                         </>
                       ) : null}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+              </div>
+            )}
           </section>
         )}
 
