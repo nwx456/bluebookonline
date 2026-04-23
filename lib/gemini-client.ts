@@ -23,19 +23,6 @@ export interface GeminiGenerateResult {
 
 function resolveModels(explicit?: string[]): string[] {
   if (explicit && explicit.length > 0) return explicit;
-
-  const csv = process.env.GEMINI_MODELS?.trim();
-  if (csv) {
-    const parsed = csv
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (parsed.length > 0) return parsed;
-  }
-
-  const single = process.env.GEMINI_MODEL?.trim();
-  if (single) return [single];
-
   return DEFAULT_MODELS;
 }
 
