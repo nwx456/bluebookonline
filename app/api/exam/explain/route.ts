@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateWithFallback } from "@/lib/gemini-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
     const passageText = (body.passageText ?? body.passage_text ?? "") as string;
     const options = (body.options ?? []) as string[];
     const correctAnswer = (body.correctAnswer ?? body.correct_answer ?? "A") as string;
-    const subject = (body.subject ?? "AP_PSYCHOLOGY") as string;
 
     if (!questionText?.trim()) {
       return NextResponse.json(
@@ -42,13 +41,12 @@ ${optsText}
 
 Explain why ${correctAnswer} is correct:`;
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const { text } = await generateWithFallback({
+      apiKey,
+      contents: prompt,
+    });
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text()?.trim() ?? "";
-
-    return NextResponse.json({ explanation: text || "No explanation available." });
+    return NextResponse.json({ explanation: text.trim() || "No explanation available." });
   } catch (err) {
     console.error("exam explain error:", err);
     return NextResponse.json(

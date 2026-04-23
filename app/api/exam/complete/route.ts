@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { buildSolvePromptWithOptionalPdf, parseSolveResponse, type SolveQuestionInput } from "@/lib/ai-solve-prompts";
 import type { SubjectKey } from "@/lib/gemini-prompts";
+import { generateWithFallback } from "@/lib/gemini-client";
 
 const BATCH_SIZE = 8;
 const VALID_ANSWERS = ["A", "B", "C", "D", "E"] as const;
@@ -87,9 +87,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (questionsNeedingAi.length > 0 && apiKey?.trim()) {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
       for (let i = 0; i < questionsNeedingAi.length; i += BATCH_SIZE) {
         const batch = questionsNeedingAi.slice(i, i + BATCH_SIZE);
         const inputs: SolveQuestionInput[] = batch.map((q) => ({
@@ -110,13 +107,13 @@ export async function POST(request: NextRequest) {
 
         const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
         const runBatch = async (isRetry = false): Promise<boolean> => {
-          const result = usePdf && pdfBase64
-            ? await model.generateContent([
+          const contents = usePdf && pdfBase64
+            ? [
                 { text: prompt },
                 { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
-              ])
-            : await model.generateContent(prompt);
-          const text = result.response.text();
+              ]
+            : prompt;
+          const { text } = await generateWithFallback({ apiKey, contents });
           if (!text?.trim()) {
             if (process.env.NODE_ENV === "development") {
               console.warn("[exam/complete] Gemini returned empty response for batch", i);

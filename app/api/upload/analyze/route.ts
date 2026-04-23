@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { generateWithFallback } from "@/lib/gemini-client";
 
 const MAX_FILE_SIZE_MB = 50;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -290,21 +290,20 @@ export async function POST(request: NextRequest) {
       const textBlock = message.content.find((b) => b.type === "text");
       text = textBlock && "text" in textBlock ? textBlock.text : "";
     } else {
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+      const { text: analyzed } = await generateWithFallback({
+        apiKey: process.env.GEMINI_API_KEY!,
         systemInstruction: getSystemPrompt(subjectKey, useHasVisuals),
-      });
-      const result = await model.generateContent([
-        { text: userPrompt },
-        {
-          inlineData: {
-            data: base64,
-            mimeType: "application/pdf",
+        contents: [
+          { text: userPrompt },
+          {
+            inlineData: {
+              data: base64,
+              mimeType: "application/pdf",
+            },
           },
-        },
-      ]);
-      text = result.response.text() ?? "";
+        ],
+      });
+      text = analyzed;
     }
 
     if (!text?.trim()) {
