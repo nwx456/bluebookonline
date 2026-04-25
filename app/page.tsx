@@ -9,11 +9,51 @@ import type { User } from "@supabase/supabase-js";
 import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload, AlertTriangle, Search, LayoutDashboard, Brain, Share2, PanelLeft, LayoutTemplate, Navigation, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
+import { SUBJECT_META } from "@/lib/subject-meta";
 
 const SUBJECTS = [
   { value: "", label: "All subjects" },
   ...SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] })),
 ];
+
+const HOME_FAQ_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is Bluebook Online?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is it free?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Bluebook Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How does AI scoring work?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "If your PDF has no answer key, AI generates one when you first complete the exam. The key is saved so future attempts skip AI and use the stored answers.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I use my own PDFs?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. Sign in, go to Dashboard, and upload your AP exam PDF. The system extracts questions automatically. You can publish exams to share with others.",
+      },
+    },
+  ],
+};
 
 interface PublishedExam {
   id: string;
@@ -98,6 +138,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(HOME_FAQ_JSON_LD) }}
+      />
       <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
@@ -113,15 +157,23 @@ export default function Home() {
           <div className="flex items-center justify-center gap-3">
             <BookOpen className="h-12 w-12 text-blue-600 shrink-0" />
             <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
-              Bluebook Online
+              Free AP Exam Practice with the Bluebook Experience
             </h1>
           </div>
           <p className="mt-2 text-gray-600">
-            Browse and solve published exams. Sign in to upload and share your own.
+            Practice {SUBJECT_KEYS.length} AP subjects with AI-scored digital exams. Upload your own PDF or solve community-published mock tests.
           </p>
           <p className="mt-4 max-w-2xl mx-auto text-sm text-gray-500">
-            Bluebook Online mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve questions, get instant scoring. AI can generate answer keys when the PDF has none. For educational practice only.
+            Bluebook Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.
           </p>
+          <div className="mt-4">
+            <Link
+              href="/exams"
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
+            >
+              Browse all 24 AP practice tests &rarr;
+            </Link>
+          </div>
           {configError ? (
             <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 max-w-lg mx-auto">
               Configuration error: Supabase environment variables are missing. If you&apos;re the site owner, add{" "}
@@ -389,14 +441,23 @@ export default function Home() {
               <div className="border-t border-gray-200 px-4 pb-4 pt-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                   {SUBJECT_KEYS.map((key) => (
-                    <div
+                    <Link
                       key={key}
-                      className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700"
+                      href={`/exams/${SUBJECT_META[key].slug}`}
+                      className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
                     >
                       <BookOpen className="h-3.5 w-3.5 shrink-0 text-blue-600" />
                       {SUBJECT_LABELS[key].replace(/^AP /, "")}
-                    </div>
+                    </Link>
                   ))}
+                </div>
+                <div className="mt-3 text-center">
+                  <Link
+                    href="/exams"
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    View all AP practice tests &rarr;
+                  </Link>
                 </div>
               </div>
             )}
@@ -673,6 +734,14 @@ export default function Home() {
                   Dashboard
                 </Link>
                 <span className="text-gray-300">|</span>
+                <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Practice tests
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href="/blog" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Blog
+                </Link>
+                <span className="text-gray-300">|</span>
                 <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">
                   About
                 </Link>
@@ -685,6 +754,14 @@ export default function Home() {
               <>
                 <Link href="/dashboard" className="text-gray-600 hover:text-blue-600 hover:underline">
                   Dashboard
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Practice tests
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href="/blog" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Blog
                 </Link>
                 <span className="text-gray-300">|</span>
                 <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">

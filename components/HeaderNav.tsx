@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { Home, LayoutDashboard, LogIn, LogOut, UserPlus, Info } from "lucide-react";
+import { Home, LayoutDashboard, LogIn, LogOut, UserPlus, Info, BookOpen, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function HeaderNav() {
@@ -38,22 +38,30 @@ export function HeaderNav() {
 
   if (!mounted || configError) {
     return (
-      <nav className="flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+      <nav className="flex items-center gap-1 sm:gap-2">
+        <Link href="/" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
           <Home className="h-4 w-4" />
-          Home
+          <span className="hidden sm:inline">Home</span>
         </Link>
-        <Link href="/about" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+        <Link href="/exams" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+          <BookOpen className="h-4 w-4" />
+          <span className="hidden sm:inline">Practice Tests</span>
+        </Link>
+        <Link href="/blog" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+          <Newspaper className="h-4 w-4" />
+          <span className="hidden sm:inline">Blog</span>
+        </Link>
+        <Link href="/about" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
           <Info className="h-4 w-4" />
-          About
+          <span className="hidden sm:inline">About</span>
         </Link>
-        <Link href="/login" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+        <Link href="/login" className="hidden md:flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
           <LogIn className="h-4 w-4" />
           Sign in
         </Link>
-        <Link href="/signup" className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <Link href="/signup" className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
           <UserPlus className="h-4 w-4" />
-          Sign up
+          <span className="hidden sm:inline">Sign up</span>
         </Link>
       </nav>
     );
@@ -70,26 +78,50 @@ export function HeaderNav() {
         <Link
           href="/"
           className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
             pathname === "/"
               ? "bg-blue-50 text-blue-600"
               : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
           )}
         >
           <Home className="h-4 w-4" />
-          Home
+          <span className="hidden sm:inline">Home</span>
+        </Link>
+        <Link
+          href="/exams"
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+            pathname?.startsWith("/exams")
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+          )}
+        >
+          <BookOpen className="h-4 w-4" />
+          <span className="hidden sm:inline">Practice Tests</span>
+        </Link>
+        <Link
+          href="/blog"
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+            pathname?.startsWith("/blog")
+              ? "bg-blue-50 text-blue-600"
+              : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+          )}
+        >
+          <Newspaper className="h-4 w-4" />
+          <span className="hidden sm:inline">Blog</span>
         </Link>
         <Link
           href="/dashboard"
           className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
             pathname?.startsWith("/dashboard")
               ? "bg-blue-50 text-blue-600"
               : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
           )}
         >
           <LayoutDashboard className="h-4 w-4" />
-          Dashboard
+          <span className="hidden sm:inline">Dashboard</span>
         </Link>
         <div className="ml-2 flex items-center gap-2 border-l border-gray-200 pl-3">
           <div
@@ -115,22 +147,62 @@ export function HeaderNav() {
   }
 
   return (
-    <nav className="flex items-center gap-3">
-      <Link href="/" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+    <nav className="flex items-center gap-1 sm:gap-2">
+      <Link
+        href="/"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+          pathname === "/"
+            ? "bg-blue-50 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+        )}
+      >
         <Home className="h-4 w-4" />
-        Home
+        <span className="hidden sm:inline">Home</span>
       </Link>
-      <Link href="/about" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+      <Link
+        href="/exams"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+          pathname?.startsWith("/exams")
+            ? "bg-blue-50 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+        )}
+      >
+        <BookOpen className="h-4 w-4" />
+        <span className="hidden sm:inline">Practice Tests</span>
+      </Link>
+      <Link
+        href="/blog"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+          pathname?.startsWith("/blog")
+            ? "bg-blue-50 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+        )}
+      >
+        <Newspaper className="h-4 w-4" />
+        <span className="hidden sm:inline">Blog</span>
+      </Link>
+      <Link
+        href="/about"
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+          pathname?.startsWith("/about")
+            ? "bg-blue-50 text-blue-600"
+            : "text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+        )}
+      >
         <Info className="h-4 w-4" />
-        About
+        <span className="hidden sm:inline">About</span>
       </Link>
-      <Link href="/login" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+      <Link href="/login" className="hidden md:flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
         <LogIn className="h-4 w-4" />
         Sign in
       </Link>
-      <Link href="/signup" className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+      <Link href="/signup" className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
         <UserPlus className="h-4 w-4" />
-        Sign up
+        <span className="hidden sm:inline">Sign up</span>
       </Link>
     </nav>
   );
