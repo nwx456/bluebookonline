@@ -72,7 +72,10 @@ export async function GET(request: NextRequest) {
       createdAt: u.created_at,
     }));
 
-    return NextResponse.json({ exams: result });
+    return NextResponse.json(
+      { exams: result },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   } catch (err) {
     console.error("Published exams error:", err);
     return NextResponse.json(

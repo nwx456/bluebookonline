@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpen, Clock, FileText, ListChecks, Play, Sparkles, CalendarDays, Calculator, Newspaper } from "lucide-react";
+import { BookOpen, Clock, FileText, ListChecks, CalendarDays, Calculator, Newspaper } from "lucide-react";
 import { HeaderNav } from "@/components/HeaderNav";
-import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { PublishedExamsList } from "@/components/exams/PublishedExamsList";
+import { SubjectHeroCta } from "@/components/exams/SubjectHeroCta";
 import {
   ALL_SUBJECTS,
   SUBJECT_BY_SLUG,
   CATEGORY_LABELS,
   getRelatedSubjects,
-  type SubjectMeta,
 } from "@/lib/subject-meta";
 
 export const revalidate = 3600;
@@ -52,64 +52,6 @@ export async function generateMetadata({
   };
 }
 
-interface PublishedExam {
-  id: string;
-  filename: string;
-  questionCount: number;
-  ownerUsername: string;
-  createdAt?: string;
-}
-
-async function fetchPublishedExamsForSubject(meta: SubjectMeta): Promise<PublishedExam[]> {
-  try {
-    const supabase = createServerSupabaseAdmin();
-    const { data: uploads } = await supabase
-      .from("pdf_uploads")
-      .select("id, filename, user_email, created_at")
-      .eq("is_published", true)
-      .eq("subject", meta.key)
-      .order("created_at", { ascending: false })
-      .limit(12);
-
-    const uploadList = uploads ?? [];
-    if (uploadList.length === 0) return [];
-
-    const emails = [...new Set(uploadList.map((u) => u.user_email).filter(Boolean))] as string[];
-    let usernameMap: Record<string, string> = {};
-    if (emails.length > 0) {
-      const { data: users } = await supabase
-        .from("usertable")
-        .select("email, username")
-        .in("email", emails);
-      usernameMap = Object.fromEntries(
-        (users ?? []).map((u) => [u.email, (u.username as string)?.trim() || "Anonymous"])
-      );
-    }
-
-    const ids = uploadList.map((u) => u.id);
-    const { data: counts } = await supabase
-      .from("questions")
-      .select("upload_id")
-      .in("upload_id", ids);
-    const countByUpload: Record<string, number> = {};
-    for (const c of counts ?? []) {
-      const u = c.upload_id as string;
-      countByUpload[u] = (countByUpload[u] ?? 0) + 1;
-    }
-
-    return uploadList.map((u) => ({
-      id: u.id as string,
-      filename: (u.filename as string) ?? "PDF",
-      questionCount: countByUpload[u.id as string] ?? 0,
-      ownerUsername: usernameMap[u.user_email as string] ?? "Anonymous",
-      createdAt: u.created_at as string | undefined,
-    }));
-  } catch (err) {
-    console.error("Subject page published fetch error:", err);
-    return [];
-  }
-}
-
 export default async function SubjectLandingPage({
   params,
 }: {
@@ -119,7 +61,6 @@ export default async function SubjectLandingPage({
   const meta = SUBJECT_BY_SLUG[slug];
   if (!meta) notFound();
 
-  const exams = await fetchPublishedExamsForSubject(meta);
   const related = getRelatedSubjects(meta, 4);
   const url = `${baseUrl}/exams/${meta.slug}`;
 
@@ -230,21 +171,7 @@ export default async function SubjectLandingPage({
               2026 exam date: {meta.examDate2026}
             </div>
           )}
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <Sparkles className="h-4 w-4" />
-              Sign up free
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Already have an account? Sign in
-            </Link>
-          </div>
+          <SubjectHeroCta />
         </section>
 
         {meta.relatedBlogSlug && (
@@ -411,67 +338,11 @@ export default async function SubjectLandingPage({
           </div>
         </section>
 
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Published {meta.fullName} practice exams
-            </h2>
-            <span className="text-sm text-gray-500">
-              {exams.length} {exams.length === 1 ? "exam" : "exams"}
-            </span>
-          </div>
-          {exams.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center shadow-sm">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-                <FileText className="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 className="mt-3 text-base font-semibold text-gray-900">
-                No published {meta.shortName} exams yet
-              </h3>
-              <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
-                Be the first to upload and share an {meta.fullName} practice test. Sign in to upload
-                your own PDF; AI will extract the questions automatically.
-              </p>
-              <Link
-                href="/signup"
-                className="mt-5 inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Upload the first exam
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {exams.map((exam) => (
-                <div
-                  key={exam.id}
-                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition-shadow flex flex-col"
-                >
-                  <div className="flex items-start gap-3">
-                    <FileText className="h-7 w-7 shrink-0 text-blue-600" />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm text-gray-900 truncate" title={exam.filename}>
-                        {exam.filename}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-1">
-                    <p className="text-xs text-gray-500">{exam.questionCount} questions</p>
-                    <p className="text-xs text-gray-500">{exam.ownerUsername}</p>
-                  </div>
-                  <div className="mt-4">
-                    <Link
-                      href={`/exam/${exam.id}`}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      <Play className="h-4 w-4" />
-                      Solve
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        <PublishedExamsList
+          subjectKey={meta.key}
+          subjectFullName={meta.fullName}
+          subjectShortName={meta.shortName}
+        />
 
         <section id="how-ai-works" className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">How AI scoring works</h2>
