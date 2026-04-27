@@ -35,6 +35,8 @@ const SUBJECTS_FILTER = [
   ...SUBJECTS,
 ];
 
+const UNPUBLISH_CONFIRM_COOLDOWN_SEC = 3;
+
 type SubjectValue = SubjectKey;
 
 interface UploadedExam {
@@ -104,6 +106,8 @@ export default function DashboardPage() {
   const [deletingAttemptId, setDeletingAttemptId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [togglingPublishId, setTogglingPublishId] = useState<string | null>(null);
+  const [unpublishTarget, setUnpublishTarget] = useState<UploadedExam | null>(null);
+  const [unpublishCooldownSec, setUnpublishCooldownSec] = useState(0);
   const [userDisplayName, setUserDisplayName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -181,6 +185,18 @@ export default function DashboardPage() {
         if (res.attempts) setRecentAttempts(res.attempts);
       });
   }, [accessToken]);
+
+  useEffect(() => {
+    if (!unpublishTarget) {
+      setUnpublishCooldownSec(0);
+      return;
+    }
+    setUnpublishCooldownSec(UNPUBLISH_CONFIRM_COOLDOWN_SEC);
+    const interval = setInterval(() => {
+      setUnpublishCooldownSec((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [unpublishTarget]);
 
   useEffect(() => {
     if (!expandedAttemptId || !accessToken) {
@@ -278,6 +294,59 @@ export default function DashboardPage() {
     [expandedAttemptData]
   );
 
+  const closeUnpublishModal = useCallback(() => {
+    setUnpublishTarget(null);
+  }, []);
+
+  const applyPublishChange = useCallback(async (exam: UploadedExam, newPublished: boolean) => {
+    setTogglingPublishId(exam.id);
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const res = await fetch(`/api/upload/${exam.id}/publish`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isPublished: newPublished }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleteError((data.error as string) || "Failed to update publish status.");
+        return;
+      }
+      setUploads((prev) =>
+        prev.map((u) => (u.id === exam.id ? { ...u, isPublished: newPublished } : u))
+      );
+    } finally {
+      setTogglingPublishId(null);
+    }
+  }, []);
+
+  const handlePublishToggleClick = useCallback(
+    async (exam: UploadedExam) => {
+      const newVal = !exam.isPublished;
+      if (!newVal) {
+        setUnpublishTarget(exam);
+        return;
+      }
+      await applyPublishChange(exam, true);
+    },
+    [applyPublishChange]
+  );
+
+  const confirmUnpublish = useCallback(async () => {
+    if (!unpublishTarget || unpublishCooldownSec > 0) return;
+    const exam = unpublishTarget;
+    closeUnpublishModal();
+    await applyPublishChange(exam, false);
+  }, [unpublishTarget, unpublishCooldownSec, closeUnpublishModal, applyPublishChange]);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -364,7 +433,7 @@ export default function DashboardPage() {
           subject,
           questionCount: questionCountNum,
           uploadedAt: new Date().toISOString(),
-          isPublished: false,
+          isPublished: true,
         },
         ...prev,
       ]);
@@ -1042,38 +1111,7 @@ export default function DashboardPage() {
                           role="switch"
                           aria-checked={exam.isPublished}
                           disabled={togglingPublishId === exam.id}
-                          onClick={async () => {
-                            setTogglingPublishId(exam.id);
-                            try {
-                              const supabase = createClient();
-                              const {
-                                data: { session },
-                              } = await supabase.auth.getSession();
-                              const token = session?.access_token;
-                              if (!token) return;
-                              const newVal = !exam.isPublished;
-                              const res = await fetch(`/api/upload/${exam.id}/publish`, {
-                                method: "PATCH",
-                                headers: {
-                                  Authorization: `Bearer ${token}`,
-                                  "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({ isPublished: newVal }),
-                              });
-                              const data = await res.json().catch(() => ({}));
-                              if (!res.ok) {
-                                setDeleteError((data.error as string) || "Failed to update publish status.");
-                                return;
-                              }
-                              setUploads((prev) =>
-                                prev.map((u) =>
-                                  u.id === exam.id ? { ...u, isPublished: newVal } : u
-                                )
-                              );
-                            } finally {
-                              setTogglingPublishId(null);
-                            }
-                          }}
+                          onClick={() => void handlePublishToggleClick(exam)}
                           className={cn(
                             "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
                             exam.isPublished
@@ -1240,7 +1278,26 @@ export default function DashboardPage() {
                         <td className="px-4 py-3 text-sm text-gray-600">{exam.questionCount || "—"}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{new Date(exam.uploadedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" })}</td>
                         <td className="px-4 py-3">
-                          <button type="button" role="switch" aria-checked={exam.isPublished} disabled={togglingPublishId === exam.id} onClick={async () => { setTogglingPublishId(exam.id); try { const supabase = createClient(); const { data: { session } } = await supabase.auth.getSession(); const token = session?.access_token; if (!token) return; const newVal = !exam.isPublished; const res = await fetch(`/api/upload/${exam.id}/publish`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ isPublished: newVal }) }); const data = await res.json().catch(() => ({})); if (!res.ok) { setDeleteError((data.error as string) || "Failed to update publish status."); return; } setUploads((prev) => prev.map((u) => u.id === exam.id ? { ...u, isPublished: newVal } : u)); } finally { setTogglingPublishId(null); } }} className={cn("relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", exam.isPublished ? "bg-green-600 focus:ring-green-500" : "bg-gray-200 focus:ring-blue-500")}><span className={cn("pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition", exam.isPublished ? "translate-x-5" : "translate-x-1")} /></button>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={exam.isPublished}
+                            disabled={togglingPublishId === exam.id}
+                            onClick={() => void handlePublishToggleClick(exam)}
+                            className={cn(
+                              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                              exam.isPublished
+                                ? "bg-green-600 focus:ring-green-500"
+                                : "bg-gray-200 focus:ring-blue-500"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition",
+                                exam.isPublished ? "translate-x-5" : "translate-x-1"
+                              )}
+                            />
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -1257,6 +1314,54 @@ export default function DashboardPage() {
           </section>
         )}
       </main>
+      {unpublishTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeUnpublishModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unpublish-dialog-title"
+            className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h2 id="unpublish-dialog-title" className="text-lg font-semibold text-gray-900">
+              Unpublish this exam?
+            </h2>
+            <p className="mt-3 text-sm text-gray-600">
+              Published exams help everyone practice. We recommend keeping yours published.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeUnpublishModal}
+                className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={unpublishCooldownSec > 0 || togglingPublishId === unpublishTarget.id}
+                onClick={() => void confirmUnpublish()}
+                className={cn(
+                  "rounded-md px-4 py-2 text-sm font-medium text-white",
+                  unpublishCooldownSec > 0 || togglingPublishId === unpublishTarget.id
+                    ? "bg-amber-700/50 cursor-not-allowed"
+                    : "bg-amber-700 hover:bg-amber-800"
+                )}
+              >
+                {unpublishCooldownSec > 0
+                  ? `Unpublish anyway (${unpublishCooldownSec})`
+                  : "Unpublish anyway"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

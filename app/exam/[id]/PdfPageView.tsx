@@ -2,11 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import { cropCanvasToDataUrl } from "@/lib/pdf-crop";
+import { prepareCropRect } from "@/lib/pdf-geometry";
 
 /** Bbox: pixel coordinates (x, y = top-left) or 0-1 normalized (legacy). */
 export type PdfBbox = { x: number; y: number; width: number; height: number };
 
-/** Renders a single PDF page (Macro/Micro graph). Uses cropCanvasToDataUrl for crop; displays as img for consistency. */
+/**
+ * Renders a single PDF page or a cropped region of it as a high-resolution
+ * data URL. The bbox is expanded with a safety margin and falls back to the
+ * full page when the AI-supplied region is implausibly small.
+ */
 export default function PdfPageView({
   pdfUrl,
   pageNumber,
@@ -35,7 +40,7 @@ export default function PdfPageView({
     setCropDataUrl(null);
     (async () => {
       try {
-        const scale = 2;
+        const scale = 3;
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         const doc = await pdfjsLib.getDocument({ url: pdfUrl }).promise;
@@ -51,46 +56,32 @@ export default function PdfPageView({
         const fullWidth = viewport.width;
         const fullHeight = viewport.height;
 
+        const offScreen = document.createElement("canvas");
+        offScreen.width = fullWidth;
+        offScreen.height = fullHeight;
+        const offCtx = offScreen.getContext("2d");
+        if (!offCtx) return;
+        await page.render({
+          canvas: offScreen,
+          canvasContext: offCtx,
+          viewport,
+        }).promise;
+        if (cancelled) return;
+
+        let usedRect: { x: number; y: number; width: number; height: number } | null = null;
         if (bbox && bbox.width > 0 && bbox.height > 0) {
-          const offScreen = document.createElement("canvas");
-          offScreen.width = fullWidth;
-          offScreen.height = fullHeight;
-          const offCtx = offScreen.getContext("2d");
-          if (!offCtx) return;
-          await page.render({
-            canvas: offScreen,
-            canvasContext: offCtx,
-            viewport,
-          }).promise;
+          const prepared = prepareCropRect(bbox, fullWidth, fullHeight);
+          usedRect = prepared.rect;
+        }
+
+        if (usedRect && usedRect.width > 0 && usedRect.height > 0) {
+          const dataUrl = cropCanvasToDataUrl(offScreen, usedRect, "image/png");
           if (cancelled) return;
-
-          const isNormalized =
-            bbox.x <= 1 && bbox.y <= 1 && bbox.width <= 1 && bbox.height <= 1;
-          const rect = {
-            x: isNormalized ? bbox.x * fullWidth : bbox.x,
-            y: isNormalized ? bbox.y * fullHeight : bbox.y,
-            width: isNormalized ? bbox.width * fullWidth : bbox.width,
-            height: isNormalized ? bbox.height * fullHeight : bbox.height,
-          };
-
-          const dataUrl = cropCanvasToDataUrl(offScreen, rect, "image/png");
-          if (cancelled) return;
-
           if (dataUrl) {
-            const clampedW = Math.min(
-              Math.floor(rect.width),
-              fullWidth - Math.max(0, Math.floor(rect.x))
-            );
-            const clampedH = Math.min(
-              Math.floor(rect.height),
-              fullHeight - Math.max(0, Math.floor(rect.y))
-            );
-            const aspect = clampedW > 0 && clampedH > 0 ? clampedW / clampedH : 1;
-            if (!cancelled) {
-              setAspectRatio(aspect);
-              setCropDataUrl(dataUrl);
-              onRendered?.(dataUrl);
-            }
+            const aspect = usedRect.width / usedRect.height;
+            setAspectRatio(aspect);
+            setCropDataUrl(dataUrl);
+            onRendered?.(dataUrl);
           } else {
             canvas.width = fullWidth;
             canvas.height = fullHeight;
@@ -100,11 +91,7 @@ export default function PdfPageView({
         } else {
           canvas.width = fullWidth;
           canvas.height = fullHeight;
-          await page.render({
-            canvas,
-            canvasContext: ctx,
-            viewport,
-          }).promise;
+          ctx.drawImage(offScreen, 0, 0);
           if (!cancelled) setAspectRatio(fullWidth / fullHeight);
         }
       } catch (e) {
@@ -138,7 +125,6 @@ export default function PdfPageView({
           Loading PDF page…
         </p>
       )}
-      {/* Canvas her zaman mount - effect için gerekli (ref deadlock önleme) */}
       <canvas
         ref={canvasRef}
         style={
@@ -152,7 +138,6 @@ export default function PdfPageView({
           src={cropDataUrl}
           alt="Graph"
           className="max-w-full h-auto block object-contain w-full"
-          style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
         />
       )}
     </div>

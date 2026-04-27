@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { generateWithFallback } from "@/lib/gemini-client";
+import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
 
 const MAX_FILE_SIZE_MB = 50;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -254,10 +255,10 @@ export async function POST(request: NextRequest) {
 
     const isCsa = subject === "AP_CSA" || subject === "AP_CSP";
     const userPrompt = isCsa
-      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java/code only), **question** (the multiple-choice question sentence only), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A), **page_number** (1-based; the PDF page where the code and question appear—required for each question). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
+      ? `Extract only multiple-choice questions (MSQ). Ignore FRQ sections and instruction-only text. Analyze the attached PDF and return a JSON array of up to ${questionCount} MSQ objects. Each object: **code** (reference Java/code only), **question** (ONLY the MCQ sentence that asks the question; exclude "This question refers to…", "Questions X–Y refer to…", block headers—those belong in image_description if needed), **precondition** (optional; Precondition/Javadoc text), **options** (array of choice texts A–E), **correct** (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A), **page_number** (1-based; the PDF page where the code and question appear—required for each question). Preserve question order as in the PDF. Do not output markdown or explanation, only the JSON array.`
       : useHasVisuals
-        ? `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (question text or code), "image_description" (SVG/table or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). For each question, the "content" (or "question" for code-type) must contain the full question stem. Do not leave content or question empty. When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram. When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`
-        : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ). Return ONLY a JSON array of objects. Each object: "type" ("text"), "content" (question stem), "image_description" (passage or list as text, or null), "options" (array A–E), "correct" (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Do NOT include has_graph, page_number, or bbox. Do not include any markdown or explanation, only the JSON array.`;
+        ? `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ) or content from FRQ sections. Return ONLY a JSON array of objects. Each object must have: "type" ("code" | "image" | "text"), "content" (ONLY the actual MCQ stem—the sentence that asks the question; exclude block headers like "This question refers to…", "These questions refer to…", "Questions X–Y refer to…", "Directions:…", "Use the figure/table above"—put those in "image_description"), "image_description" (SVG/table/block intro/passage or null), "options" (array of option texts in order A, B, C, D [and E if present]), "correct" (letter A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). Do not leave content or question empty. When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Include "has_graph" (true/false) for each question—true when the question references a graph, table, or diagram. When has_graph is true, include "page_number" (1-based) and "bbox" (0-1 normalized: x, y, width, height) for the graph/table region in the PDF. Do not include any markdown or explanation, only the JSON array.`
+        : `Analyze the attached PDF and extract exactly up to ${questionCount} multiple-choice questions. Extract only multiple-choice questions (MSQ). Do not include free-response questions (FRQ). Return ONLY a JSON array of objects. Each object: "type" ("text"), "content" (ONLY the actual MCQ stem; exclude shared block headers like "This question refers to…"—put those in "image_description"), "image_description" (passage or list as text, or null), "options" (array A–E), "correct" (A/B/C/D/E ONLY if the PDF contains an answer key for this question; otherwise null—do NOT guess or default to A). When options reference I, II, III (e.g. (A) I only, (B) II only), you MUST include the premise list in image_description: "I. First statement. II. Second statement. III. Third statement." Do not omit this. Do NOT include has_graph, page_number, or bbox. Do not include any markdown or explanation, only the JSON array.`;
 
     let text: string;
 
@@ -344,6 +345,7 @@ export async function POST(request: NextRequest) {
         storage_path: `pending/${file.name}`,
         subject,
         original_text: text.slice(0, 50_000),
+        is_published: true,
       })
       .select("id")
       .single();
@@ -400,6 +402,15 @@ export async function POST(request: NextRequest) {
         }
       } else {
         passageText = (q.image_description ?? "")?.trim() || null;
+      }
+
+      const shared = partitionStemAndSharedIntro(questionText);
+      if (shared.intro?.trim() && shared.stem?.trim()) {
+        questionText = shared.stem.trim();
+        const intro = shared.intro.trim();
+        passageText = passageText?.trim()
+          ? `${intro}\n\n${passageText}`
+          : intro;
       }
 
       if (isPlaceholderText(questionText)) questionText = "No question text.";

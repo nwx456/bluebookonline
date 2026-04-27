@@ -87,6 +87,10 @@ export const SUBJECT_LABELS: Record<SubjectKey, string> = {
   AP_PRECALCULUS: "AP Precalculus",
 };
 
+const SHARED_STIMULUS_RULE = `
+PAYLAŞILAN BLOK / UYARI (ZORUNLU): PDF'te sorunun üstünde "This question refers to…", "These questions refer to…", "Questions 4–5 refer to…", "Directions: …", "Use the figure/table above/below" gibi **soru kökü olmayan** giriş satırları varsa bunları **content** veya **question** alanına ASLA yazma. Bu metni **image_description** içinde ver (grafik olsa bile; önce blok metni, sonra varsa tablo/SVG). Çoklu soru setinde tutarlılık için her ilgili soru nesnesinde aynı blok metnini tekrarlayabilirsin. Gerçek MCQ kökü = soruyu soran cümle (genelde "Which…", "What…", "How…" veya numaralı "N. Which…").
+`;
+
 const OUTPUT_SCHEMA = `
 Her soru için şu JSON nesnesini üret:
 {
@@ -96,7 +100,8 @@ Her soru için şu JSON nesnesini üret:
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-content = SADECE soru kökü; passage/liste/tablo image_description'da. Boş bırakma. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+content = SADECE soru kökü; passage/liste/tablo image_description'da. Boş bırakma.${SHARED_STIMULUS_RULE}
+ Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
 const OUTPUT_SCHEMA_TEXT_ONLY = `
@@ -108,7 +113,8 @@ Her soru için şu JSON nesnesini üret (has_graph, page_number, bbox KULLANMA):
   "options": ["A", "B", "C", "D"],
   "correct": "A"
 }
-content = soru kökü; passage/liste image_description'da. has_graph, page_number, bbox alanları EKLEME. Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+content = soru kökü; passage/liste image_description'da. has_graph, page_number, bbox alanları EKLEME.${SHARED_STIMULUS_RULE}
+ Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
 const OUTPUT_SCHEMA_ECONOMICS = `
@@ -126,6 +132,13 @@ Her soru için şu JSON nesnesini üret:
 has_graph: Soruda grafik (arz-talep, maliyet eğrisi vb.) VEYA tablo (örn. Demand Curve | Supply Curve) referansı VAR MI? true = grafik veya tablo var, false = ikisi de yok. Grafik/tablo yoksa page_number ve bbox null veya atlayın.
 page_number: has_graph true ise ZORUNLU. 1-based PDF sayfa numarası: grafik veya tablonun bulunduğu sayfa.
 bbox: has_graph true ise ZORUNLU. 0-1 normalleştirilmiş: x,y = sol üst (0=sol, 1=sağ; 0=üst, 1=alt), width, height = oran. Grafik veya tablo bölgesini PDF'teki konumuyla belirt. Örn: sol yarı + üst %40 için x:0, y:0, width:0.5, height:0.4.
+BBOX KURALLARI (ZORUNLU):
+1) Bbox HER ZAMAN tüm grafiği/tabloyu çevreler: eksen etiketleri, legend, başlık (ör. "Figure 1"), açıklayıcı altyazı, satır/sütun başlıkları DAHİL.
+2) Görsel kenarına SIKI sarma; her yandan en az %3-5 boşluk bırak.
+3) Şüphede daha GENİŞ bir bbox seç; asla daha dar değil. Kenarda kalan birkaç pikseli kaybetmektense fazladan beyaz alan al.
+4) Minimum bbox boyutu: width >= 0.18 VE height >= 0.12 (yani sayfanın en az %2-3'ü). Daha küçük bir alan istersen yine de bu minimumlara genişlet.
+5) Bbox ASLA başka soruya ait grafiği veya tabloyu kapsamamalı; ama tek soruya ait bütün figür DAHİL olmalı.
+6) Geniş bir tablo (sayfa boyu) söz konusuysa width 0.85+ kullanmaktan çekinme; tablo başlığı/dipnot da dahil edilmeli.${SHARED_STIMULUS_RULE}
 Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
 `;
 
@@ -167,7 +180,7 @@ const CSA_CODE_QUESTION_RULES = `
 - Çoktan seçmeli soru cümlesi (ör. "4. A client method, computeBonus, will return a salesRep bonus computed by multiplying his ytdSales by a percentage. Which replacement for /* missing code */ is correct?"). question alanını asla boş bırakma.
 
 **question** alanına ASLA EKLEME:
-- Sınıf kodunun tekrarı, "Questions 4-5 refer to the class X." cümlesi.
+- Sınıf kodunun tekrarı, "Questions 4-5 refer to the class X." cümlesi, "This question refers to…" / "These questions refer to…" gibi paylaşılan blok girişleri (bunlar image_description veya ayrı bağlamda).
 - Şık metinleri (A-E).
 
 **options** dizisi:
@@ -201,6 +214,7 @@ ${MSQ_ONLY_RULE}
 
 GÖREV:
 - Sadece çoktan seçmeli (MSQ) soruları çıkar. Passage veya referans metni varsa image_description'a yaz.
+- Paylaşılan blok girişleri ("This question refers to…", "Questions X–Y refer to…") content'e değil, image_description'a.
 - has_graph, page_number, bbox KULLANMA. Sadece content ve image_description.
 
 ÇIKTI: ${OUTPUT_SCHEMA_TEXT_ONLY}`;

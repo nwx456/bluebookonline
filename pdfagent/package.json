@@ -1,0 +1,35 @@
+{
+  "name": "pdfagent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bağımsız PDF ingestion ajanı + admin paneli. Curated allowlist üzerinden PDF bulur, doğrular, ana siteye yükler.",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "typecheck": "tsc --noEmit",
+    "worker": "tsx workers/index.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed:admin": "tsx scripts/seed-admin.ts",
+    "smoke": "tsx scripts/smoke-test.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.1",
+    "jose": "^5.9.6",
+    "next": "16.1.6",
+    "pg": "^8.13.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

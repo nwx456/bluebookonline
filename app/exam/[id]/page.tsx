@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -35,14 +35,19 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/gemini-prompts";
+import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
 const ZoomableImagePanel = dynamic(() => import("./ZoomableImagePanel"), { ssr: false });
 const FullPageModal = dynamic(() => import("./FullPageModal"), { ssr: false });
+const SafeStorageImage = dynamic(() => import("./SafeStorageImage"), { ssr: false });
+const PdfExplorePanel = dynamic(() => import("./PdfExplorePanel"), { ssr: false });
 
 const TABLE_FALLBACK_CLASS =
   "overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5";
+
+const PRE_START_UNLOCK_SECONDS = 10;
 
 /** AP CSA Java Quick Reference - Class Constructors and Methods */
 const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; explanation: string }[] }[] = [
@@ -305,6 +310,18 @@ function looksLikeTableText(text: string | null): boolean {
   const colCount = dataRows[0].length;
   if (dataRows.some((r) => r.length !== colCount)) return false;
   return true;
+}
+
+/** Plain text suitable for graph panel context banner (not table/SVG). */
+function isPlainGraphContextPassage(text: string | null | undefined): text is string {
+  if (!text?.trim()) return false;
+  const t = text.trim();
+  return (
+    !isTableHtml(t) &&
+    !isTableWithOptionLettersFormat(t) &&
+    !looksLikeTableText(t) &&
+    !isSvgContent(t)
+  );
 }
 
 /** True if text looks like a single question stem (e.g. "Which of the following…?"); not table/SVG/list. */
@@ -588,9 +605,10 @@ export default function ExamPage() {
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [preStartUnlockRemaining, setPreStartUnlockRemaining] = useState(PRE_START_UNLOCK_SECONDS);
   const [timerVisible, setTimerVisible] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [leftPanelPercent, setLeftPanelPercent] = useState(45);
+  const [leftPanelPercent, setLeftPanelPercent] = useState(50);
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [questionListOpen, setQuestionListOpen] = useState(false);
   const [referenceOpen, setReferenceOpen] = useState(false);
@@ -602,6 +620,15 @@ export default function ExamPage() {
   const [calculatorRadians, setCalculatorRadians] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [questionIdToImageUrl, setQuestionIdToImageUrl] = useState<Record<string, string>>({});
+  const [unusableImageSrcs, setUnusableImageSrcs] = useState<Set<string>>(new Set());
+  const markImageUnusable = useCallback((src: string) => {
+    setUnusableImageSrcs((prev) => {
+      if (prev.has(src)) return prev;
+      const next = new Set(prev);
+      next.add(src);
+      return next;
+    });
+  }, []);
   const [examCompleted, setExamCompleted] = useState(false);
   const [examResult, setExamResult] = useState<{
     total: number;
@@ -641,6 +668,18 @@ export default function ExamPage() {
       setUserName((session.user?.user_metadata?.username as string) ?? "");
     });
   }, [router]);
+
+  useEffect(() => {
+    setPreStartUnlockRemaining(PRE_START_UNLOCK_SECONDS);
+  }, [id]);
+
+  useEffect(() => {
+    if (loading || attemptId || !upload) return;
+    const interval = setInterval(() => {
+      setPreStartUnlockRemaining((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, attemptId, upload]);
 
   useEffect(() => {
     if (!id) {
@@ -953,6 +992,18 @@ export default function ExamPage() {
   );
 
   const currentQuestion = questions[currentIndex] ?? null;
+  const storedImgSrcRaw = currentQuestion
+    ? currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]
+    : null;
+  const usableStoredImgSrc =
+    storedImgSrcRaw && !unusableImageSrcs.has(storedImgSrcRaw) ? storedImgSrcRaw : null;
+  const canExplorePdf = Boolean(
+    pdfUrl &&
+      currentQuestion?.page_number != null &&
+      currentQuestion?.bbox != null &&
+      currentQuestion.bbox.width > 0 &&
+      currentQuestion.bbox.height > 0
+  );
   const handleGraphRendered = useCallback(
     async (dataUrl: string) => {
       const qId = currentQuestion?.id;
@@ -1023,6 +1074,13 @@ export default function ExamPage() {
   const csaSplit = isCsaLegacyFallback
     ? splitCsaQuestionStem(currentQuestion?.question_text ?? null)
     : null;
+  const stemPartition = useMemo(
+    () =>
+      isCsa
+        ? { stem: "", intro: null as string | null }
+        : partitionStemAndSharedIntro(currentQuestion?.question_text ?? ""),
+    [isCsa, currentQuestion?.question_text]
+  );
   const leftPanelContent = isCsaLegacyFallback
     ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
     : (currentQuestion?.passage_text ?? "");
@@ -1030,6 +1088,10 @@ export default function ExamPage() {
   let rawStem = isCsaLegacyFallback
     ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
+  if (!isCsa && stemPartition.intro?.trim()) {
+    const s = stemPartition.stem?.trim();
+    if (s) rawStem = s;
+  }
   if (
     !isCsaLegacyFallback &&
     isEconomicsOrPassage &&
@@ -1075,6 +1137,27 @@ export default function ExamPage() {
         isSvgContent(leftPanelContent) ||
         (isEconomicsOrPassage && !looksLikeQuestionStem(leftPanelContent))));
 
+  const graphContextBannerText = useMemo(() => {
+    if (isCsa || !currentQuestion) return null;
+    const pass = currentQuestion.passage_text?.trim() || null;
+    const passOk = pass && isPlainGraphContextPassage(pass) ? pass : null;
+    const introFromStem = stemPartition.intro?.trim() || null;
+    if (introFromStem && passOk) {
+      if (passOk.startsWith(introFromStem)) return passOk;
+      const pfx = passOk.slice(0, Math.min(48, passOk.length));
+      if (pfx && introFromStem.startsWith(pfx)) return introFromStem;
+      return `${introFromStem}\n\n${passOk}`;
+    }
+    return introFromStem ?? passOk;
+  }, [isCsa, currentQuestion, stemPartition.intro]);
+
+  const graphExploreContextBlock =
+    graphContextBannerText?.trim() ? (
+      <p className="text-xs text-gray-600 mb-2 whitespace-pre-wrap leading-snug border-b border-gray-100 pb-2">
+        {graphContextBannerText}
+      </p>
+    ) : null;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -1103,19 +1186,48 @@ export default function ExamPage() {
           </Link>
         </header>
         <main className="flex-1 flex items-center justify-center p-8">
-          <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm max-w-md w-full text-center">
+          <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm max-w-lg w-full text-center">
             <h1 className="text-xl font-semibold text-gray-900">Start Exam</h1>
             <p className="mt-2 text-sm text-gray-600">{subjectLabel}</p>
             <p className="mt-1 text-sm text-gray-500">
               {questions.length} question{questions.length !== 1 ? "s" : ""}
             </p>
+            <div className="mt-5 rounded-md border border-blue-100 bg-blue-50/80 px-4 py-3 text-left text-sm text-gray-700">
+              <p>
+                During the exam, if anything looks wrong or unclear (question text, cropping, or how a
+                graph or figure lines up), use the Show page button in the exam to open the original
+                PDF. The on-screen layout is prepared with AI assistance and may not always match the
+                source document exactly.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-gray-500">Looks like this in the exam:</span>
+                <span
+                  className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm pointer-events-none select-none"
+                  aria-hidden
+                >
+                  <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+                  Show page
+                </span>
+              </div>
+            </div>
+            {preStartUnlockRemaining > 0 ? (
+              <p className="mt-4 text-sm text-gray-500" aria-live="polite">
+                You can start in {preStartUnlockRemaining}s.
+              </p>
+            ) : (
+              <p className="mt-4 text-sm text-green-700" aria-live="polite">
+                Ready when you are.
+              </p>
+            )}
             <button
               type="button"
               onClick={startExam}
-              disabled={starting}
+              disabled={starting || preStartUnlockRemaining > 0}
               className={cn(
-                "mt-6 w-full rounded-md px-4 py-3 text-sm font-medium text-white",
-                starting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                "mt-3 w-full rounded-md px-4 py-3 text-sm font-medium text-white",
+                starting || preStartUnlockRemaining > 0
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
               )}
             >
               {starting ? "Starting…" : "Start Exam"}
@@ -2142,14 +2254,14 @@ export default function ExamPage() {
             {/* Left panel */}
             <div
               className={cn(
-                "flex-shrink-0 overflow-auto border-r bg-white",
+                "flex-shrink-0 overflow-auto border-r bg-white min-w-0 min-h-0",
                 isCsa && leftPanelContent?.trim()
                   ? "border-2 border-amber-400"
                   : "border-r border-gray-200"
               )}
               style={{ width: `${leftPanelPercent}%` }}
             >
-              <div className="p-4 h-full relative">
+              <div className="p-4 h-full relative min-w-0">
                 {pdfUrl && (
                     <button
                       type="button"
@@ -2168,60 +2280,76 @@ export default function ExamPage() {
                   </div>
                 )}
                 {showTablePanel ? (
-                  <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
-                    {(currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
-                      <img
-                        src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
-                        alt="Table"
-                        className="max-w-full h-auto block object-contain"
-                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
-                      />
-                    ) : pdfUrl &&
-                      currentQuestion?.page_number != null &&
-                      currentQuestion?.bbox != null ? (
-                      <PdfPageView
-                        pdfUrl={pdfUrl}
-                        pageNumber={currentQuestion.page_number}
-                        bbox={currentQuestion.bbox}
+                  canExplorePdf ? (
+                    <>
+                      {graphExploreContextBlock}
+                      <PdfExplorePanel
+                        key={currentQuestion?.id}
+                        pdfUrl={pdfUrl!}
+                        pageNumber={currentQuestion!.page_number!}
+                        bbox={currentQuestion!.bbox!}
                         onRendered={handleGraphRendered}
-                        className="max-w-full h-auto"
+                        className="max-w-full"
                       />
-                    ) : (() => {
-                      const tableHtml = getTableHtmlForPanel(leftPanelContent!);
-                      return tableHtml.trim() ? (
-                        <TableImageView
-                          tableHtml={tableHtml}
-                          onRendered={handleTableRendered}
-                          className="overflow-auto max-w-full"
+                    </>
+                  ) : (
+                    <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                      {usableStoredImgSrc ? (
+                        <SafeStorageImage
+                          src={usableStoredImgSrc}
+                          alt="Table"
+                          onUnusable={() => markImageUnusable(usableStoredImgSrc)}
+                        />
+                      ) : (() => {
+                        const tableHtml = getTableHtmlForPanel(leftPanelContent!);
+                        return tableHtml.trim() ? (
+                          <TableImageView
+                            tableHtml={tableHtml}
+                            onRendered={handleTableRendered}
+                            className="overflow-auto max-w-full"
+                          />
+                        ) : (
+                          <div
+                            className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
+                            style={{ minWidth: 200 }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeTableHtml(leftPanelContent!) }}
+                          />
+                        );
+                      })()}
+                    </ZoomableImagePanel>
+                  )
+                ) : showGraphPanel ? (
+                  canExplorePdf ? (
+                    <>
+                      {graphExploreContextBlock}
+                      <PdfExplorePanel
+                        key={currentQuestion?.id}
+                        pdfUrl={pdfUrl!}
+                        pageNumber={currentQuestion!.page_number!}
+                        bbox={currentQuestion!.bbox!}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full"
+                      />
+                    </>
+                  ) : (
+                    <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                      {usableStoredImgSrc ? (
+                        <SafeStorageImage
+                          src={usableStoredImgSrc}
+                          alt="Graph"
+                          onUnusable={() => markImageUnusable(usableStoredImgSrc)}
                         />
                       ) : (
-                        <div
-                          className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
-                          style={{ minWidth: 200 }}
-                          dangerouslySetInnerHTML={{ __html: sanitizeTableHtml(leftPanelContent!) }}
+                        <PdfPageView
+                          pdfUrl={pdfUrl}
+                          pageNumber={currentQuestion.page_number ?? 1}
+                          bbox={currentQuestion.bbox ?? undefined}
+                          onRendered={handleGraphRendered}
+                          className="max-w-full h-auto"
                         />
-                      );
-                    })()}
-                  </ZoomableImagePanel>
-                ) : showGraphPanel ? (
-                  <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
-                    {(currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]) ? (
-                      <img
-                        src={currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id] ?? ""}
-                        alt="Graph"
-                        className="max-w-full h-auto block object-contain"
-                        style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
-                      />
-                    ) : (
-                      <PdfPageView
-                        pdfUrl={pdfUrl}
-                        pageNumber={currentQuestion.page_number ?? 1}
-                        bbox={currentQuestion.bbox ?? undefined}
-                        onRendered={handleGraphRendered}
-                        className="max-w-full h-auto"
-                      />
-                    )}
-                  </ZoomableImagePanel>
+                      )}
+                    </ZoomableImagePanel>
+                  )
                 ) : leftPanelContent ? (
                   subject === "AP_CSA" ? (
                     <>
@@ -2262,25 +2390,24 @@ export default function ExamPage() {
                   ) : (isTableHtml(leftPanelContent) ||
                       isTableWithOptionLettersFormat(leftPanelContent) ||
                       looksLikeTableText(leftPanelContent)) ? (
-                    (currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""]) ? (
-                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
-                        <img
-                          src={currentQuestion?.image_url ?? questionIdToImageUrl[currentQuestion?.id ?? ""] ?? ""}
-                          alt="Table"
-                          className="max-w-full h-auto block object-contain"
-                          style={{ imageRendering: "crisp-edges" } as React.CSSProperties}
-                        />
-                      </ZoomableImagePanel>
-                    ) : pdfUrl &&
-                      currentQuestion?.page_number != null &&
-                      currentQuestion?.bbox != null ? (
-                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
-                        <PdfPageView
-                          pdfUrl={pdfUrl}
-                          pageNumber={currentQuestion.page_number}
-                          bbox={currentQuestion.bbox}
+                    canExplorePdf ? (
+                      <>
+                        {graphExploreContextBlock}
+                        <PdfExplorePanel
+                          key={currentQuestion?.id}
+                          pdfUrl={pdfUrl!}
+                          pageNumber={currentQuestion!.page_number!}
+                          bbox={currentQuestion!.bbox!}
                           onRendered={handleGraphRendered}
-                          className="max-w-full h-auto"
+                          className="max-w-full"
+                        />
+                      </>
+                    ) : usableStoredImgSrc ? (
+                      <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
+                        <SafeStorageImage
+                          src={usableStoredImgSrc}
+                          alt="Table"
+                          onUnusable={() => markImageUnusable(usableStoredImgSrc)}
                         />
                       </ZoomableImagePanel>
                     ) : (() => {
@@ -2302,7 +2429,19 @@ export default function ExamPage() {
                       );
                     })()
                   ) : isSvgContent(leftPanelContent) ? (
-                    pdfUrl && currentQuestion?.page_number != null ? (
+                    canExplorePdf ? (
+                      <>
+                        {graphExploreContextBlock}
+                        <PdfExplorePanel
+                          key={currentQuestion?.id}
+                          pdfUrl={pdfUrl!}
+                          pageNumber={currentQuestion!.page_number!}
+                          bbox={currentQuestion!.bbox!}
+                          onRendered={handleGraphRendered}
+                          className="max-w-full"
+                        />
+                      </>
+                    ) : pdfUrl && currentQuestion?.page_number != null ? (
                       <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                         <PdfPageView
                           pdfUrl={pdfUrl}
