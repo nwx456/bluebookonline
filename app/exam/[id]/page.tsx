@@ -312,18 +312,6 @@ function looksLikeTableText(text: string | null): boolean {
   return true;
 }
 
-/** Plain text suitable for graph panel context banner (not table/SVG). */
-function isPlainGraphContextPassage(text: string | null | undefined): text is string {
-  if (!text?.trim()) return false;
-  const t = text.trim();
-  return (
-    !isTableHtml(t) &&
-    !isTableWithOptionLettersFormat(t) &&
-    !looksLikeTableText(t) &&
-    !isSvgContent(t)
-  );
-}
-
 /** True if text looks like a single question stem (e.g. "Which of the following…?"); not table/SVG/list. */
 function looksLikeQuestionStem(text: string | null): boolean {
   if (!text?.trim()) return false;
@@ -1136,27 +1124,6 @@ export default function ExamPage() {
         looksLikeTableText(leftPanelContent) ||
         isSvgContent(leftPanelContent) ||
         (isEconomicsOrPassage && !looksLikeQuestionStem(leftPanelContent))));
-
-  const graphContextBannerText = useMemo(() => {
-    if (isCsa || !currentQuestion) return null;
-    const pass = currentQuestion.passage_text?.trim() || null;
-    const passOk = pass && isPlainGraphContextPassage(pass) ? pass : null;
-    const introFromStem = stemPartition.intro?.trim() || null;
-    if (introFromStem && passOk) {
-      if (passOk.startsWith(introFromStem)) return passOk;
-      const pfx = passOk.slice(0, Math.min(48, passOk.length));
-      if (pfx && introFromStem.startsWith(pfx)) return introFromStem;
-      return `${introFromStem}\n\n${passOk}`;
-    }
-    return introFromStem ?? passOk;
-  }, [isCsa, currentQuestion, stemPartition.intro]);
-
-  const graphExploreContextBlock =
-    graphContextBannerText?.trim() ? (
-      <p className="text-xs text-gray-600 mb-2 whitespace-pre-wrap leading-snug border-b border-gray-100 pb-2">
-        {graphContextBannerText}
-      </p>
-    ) : null;
 
   if (loading) {
     return (
@@ -2281,17 +2248,14 @@ export default function ExamPage() {
                 )}
                 {showTablePanel ? (
                   canExplorePdf ? (
-                    <>
-                      {graphExploreContextBlock}
-                      <PdfExplorePanel
-                        key={currentQuestion?.id}
-                        pdfUrl={pdfUrl!}
-                        pageNumber={currentQuestion!.page_number!}
-                        bbox={currentQuestion!.bbox!}
-                        onRendered={handleGraphRendered}
-                        className="max-w-full"
-                      />
-                    </>
+                    <PdfExplorePanel
+                      key={currentQuestion?.id}
+                      pdfUrl={pdfUrl!}
+                      pageNumber={currentQuestion!.page_number!}
+                      bbox={currentQuestion!.bbox!}
+                      onRendered={handleGraphRendered}
+                      className="max-w-full"
+                    />
                   ) : (
                     <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                       {usableStoredImgSrc ? (
@@ -2320,17 +2284,14 @@ export default function ExamPage() {
                   )
                 ) : showGraphPanel ? (
                   canExplorePdf ? (
-                    <>
-                      {graphExploreContextBlock}
-                      <PdfExplorePanel
-                        key={currentQuestion?.id}
-                        pdfUrl={pdfUrl!}
-                        pageNumber={currentQuestion!.page_number!}
-                        bbox={currentQuestion!.bbox!}
-                        onRendered={handleGraphRendered}
-                        className="max-w-full"
-                      />
-                    </>
+                    <PdfExplorePanel
+                      key={currentQuestion?.id}
+                      pdfUrl={pdfUrl!}
+                      pageNumber={currentQuestion!.page_number!}
+                      bbox={currentQuestion!.bbox!}
+                      onRendered={handleGraphRendered}
+                      className="max-w-full"
+                    />
                   ) : (
                     <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                       {usableStoredImgSrc ? (
@@ -2391,17 +2352,14 @@ export default function ExamPage() {
                       isTableWithOptionLettersFormat(leftPanelContent) ||
                       looksLikeTableText(leftPanelContent)) ? (
                     canExplorePdf ? (
-                      <>
-                        {graphExploreContextBlock}
-                        <PdfExplorePanel
-                          key={currentQuestion?.id}
-                          pdfUrl={pdfUrl!}
-                          pageNumber={currentQuestion!.page_number!}
-                          bbox={currentQuestion!.bbox!}
-                          onRendered={handleGraphRendered}
-                          className="max-w-full"
-                        />
-                      </>
+                      <PdfExplorePanel
+                        key={currentQuestion?.id}
+                        pdfUrl={pdfUrl!}
+                        pageNumber={currentQuestion!.page_number!}
+                        bbox={currentQuestion!.bbox!}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full"
+                      />
                     ) : usableStoredImgSrc ? (
                       <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                         <SafeStorageImage
@@ -2430,17 +2388,14 @@ export default function ExamPage() {
                     })()
                   ) : isSvgContent(leftPanelContent) ? (
                     canExplorePdf ? (
-                      <>
-                        {graphExploreContextBlock}
-                        <PdfExplorePanel
-                          key={currentQuestion?.id}
-                          pdfUrl={pdfUrl!}
-                          pageNumber={currentQuestion!.page_number!}
-                          bbox={currentQuestion!.bbox!}
-                          onRendered={handleGraphRendered}
-                          className="max-w-full"
-                        />
-                      </>
+                      <PdfExplorePanel
+                        key={currentQuestion?.id}
+                        pdfUrl={pdfUrl!}
+                        pageNumber={currentQuestion!.page_number!}
+                        bbox={currentQuestion!.bbox!}
+                        onRendered={handleGraphRendered}
+                        className="max-w-full"
+                      />
                     ) : pdfUrl && currentQuestion?.page_number != null ? (
                       <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
                         <PdfPageView
