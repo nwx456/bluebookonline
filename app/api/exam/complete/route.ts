@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const attemptId = (body.attemptId ?? body.attempt_id) as string | undefined;
+    const skipAiGrading = body.skipAiGrading === true || body.skip_ai_grading === true;
 
     if (!attemptId?.trim()) {
       return NextResponse.json({ error: "attemptId is required." }, { status: 400 });
@@ -74,95 +75,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No questions found." }, { status: 400 });
     }
 
-    const questionsNeedingAi = allQuestions.filter(
-      (q) => !q.correct_answer || String(q.correct_answer).trim() === ""
-    ) as (typeof allQuestions[0] & { correct_answer: null })[];
-
-    const apiKey = process.env.GEMINI_API_KEY;
     const aiAnswerMap = new Map<string, string>();
-    const batchHasGraph = questionsNeedingAi.some((q) => q.has_graph === true);
-    let pdfBase64: string | null = null;
-    if (batchHasGraph && upload?.storage_path) {
-      pdfBase64 = await downloadPdfAsBase64(supabase, attempt.upload_id, upload.storage_path);
-    }
 
-    if (questionsNeedingAi.length > 0 && apiKey?.trim()) {
-      for (let i = 0; i < questionsNeedingAi.length; i += BATCH_SIZE) {
-        const batch = questionsNeedingAi.slice(i, i + BATCH_SIZE);
-        const inputs: SolveQuestionInput[] = batch.map((q) => ({
-          id: q.id,
-          question_number: q.question_number,
-          question_text: q.question_text,
-          passage_text: q.passage_text,
-          precondition_text: q.precondition_text ?? null,
-          option_a: q.option_a,
-          option_b: q.option_b,
-          option_c: q.option_c,
-          option_d: q.option_d,
-          option_e: q.option_e,
-          page_number: q.page_number ?? null,
-          has_graph: q.has_graph ?? false,
-          bbox: q.bbox as { x: number; y: number; width: number; height: number } | null ?? null,
-        }));
+    if (!skipAiGrading) {
+      const questionsNeedingAi = allQuestions.filter(
+        (q) => !q.correct_answer || String(q.correct_answer).trim() === ""
+      ) as (typeof allQuestions[0] & { correct_answer: null })[];
 
-        const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
-        const runBatch = async (isRetry = false): Promise<boolean> => {
-          const contents = usePdf && pdfBase64
-            ? [
-                { text: prompt },
-                { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
-              ]
-            : prompt;
-          const { text } = await generateWithFallback({ apiKey, contents });
-          if (!text?.trim()) {
-            if (process.env.NODE_ENV === "development") {
-              console.warn("[exam/complete] Gemini returned empty response for batch", i);
+      const apiKey = process.env.GEMINI_API_KEY;
+      const batchHasGraph = questionsNeedingAi.some((q) => q.has_graph === true);
+      let pdfBase64: string | null = null;
+      if (batchHasGraph && upload?.storage_path) {
+        pdfBase64 = await downloadPdfAsBase64(supabase, attempt.upload_id, upload.storage_path);
+      }
+
+      if (questionsNeedingAi.length > 0 && apiKey?.trim()) {
+        for (let i = 0; i < questionsNeedingAi.length; i += BATCH_SIZE) {
+          const batch = questionsNeedingAi.slice(i, i + BATCH_SIZE);
+          const inputs: SolveQuestionInput[] = batch.map((q) => ({
+            id: q.id,
+            question_number: q.question_number,
+            question_text: q.question_text,
+            passage_text: q.passage_text,
+            precondition_text: q.precondition_text ?? null,
+            option_a: q.option_a,
+            option_b: q.option_b,
+            option_c: q.option_c,
+            option_d: q.option_d,
+            option_e: q.option_e,
+            page_number: q.page_number ?? null,
+            has_graph: q.has_graph ?? false,
+            bbox: q.bbox as { x: number; y: number; width: number; height: number } | null ?? null,
+          }));
+
+          const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
+          const runBatch = async (isRetry = false): Promise<boolean> => {
+            const contents = usePdf && pdfBase64
+              ? [
+                  { text: prompt },
+                  { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
+                ]
+              : prompt;
+            const { text } = await generateWithFallback({ apiKey, contents });
+            if (!text?.trim()) {
+              if (process.env.NODE_ENV === "development") {
+                console.warn("[exam/complete] Gemini returned empty response for batch", i);
+              }
+              return false;
             }
-            return false;
-          }
-          const answers = parseSolveResponse(text, batch.length);
-          const parsedCount = answers.filter((a) => a != null).length;
-          if (parsedCount === 0 && process.env.NODE_ENV === "development") {
-            console.warn("[exam/complete] parseSolveResponse got no valid answers. Raw:", text.slice(0, 300));
-          }
-          const allSame =
-            batch.length > 1 &&
-            parsedCount === batch.length &&
-            answers.every((a) => a === answers[0]);
-          if (allSame && !isRetry && process.env.NODE_ENV === "development") {
-            console.warn("[exam/complete] All answers same for batch - possible parse error, will retry. Raw:", text.slice(0, 300));
-          }
-          if (allSame) {
-            if (!isRetry) return true;
-            return false;
-          }
-          batch.forEach((q, j) => {
-            const ans = answers[j];
-            if (ans && VALID_ANSWERS.includes(ans as (typeof VALID_ANSWERS)[number])) {
-              aiAnswerMap.set(q.id, ans);
+            const answers = parseSolveResponse(text, batch.length);
+            const parsedCount = answers.filter((a) => a != null).length;
+            if (parsedCount === 0 && process.env.NODE_ENV === "development") {
+              console.warn("[exam/complete] parseSolveResponse got no valid answers. Raw:", text.slice(0, 300));
             }
-          });
-          return false;
-        };
-        try {
-          const shouldRetry = await runBatch();
-          if (shouldRetry) {
-            await runBatch(true);
-          }
-        } catch (err) {
-          console.error("Gemini solve batch error:", err);
+            const allSame =
+              batch.length > 1 &&
+              parsedCount === batch.length &&
+              answers.every((a) => a === answers[0]);
+            if (allSame && !isRetry && process.env.NODE_ENV === "development") {
+              console.warn("[exam/complete] All answers same for batch - possible parse error, will retry. Raw:", text.slice(0, 300));
+            }
+            if (allSame) {
+              if (!isRetry) return true;
+              return false;
+            }
+            batch.forEach((q, j) => {
+              const ans = answers[j];
+              if (ans && VALID_ANSWERS.includes(ans as (typeof VALID_ANSWERS)[number])) {
+                aiAnswerMap.set(q.id, ans);
+              }
+            });
+            return false;
+          };
           try {
-            await runBatch(true);
-          } catch (retryErr) {
-            console.error("Gemini solve batch retry error:", retryErr);
+            const shouldRetry = await runBatch();
+            if (shouldRetry) {
+              await runBatch(true);
+            }
+          } catch (err) {
+            console.error("Gemini solve batch error:", err);
+            try {
+              await runBatch(true);
+            } catch (retryErr) {
+              console.error("Gemini solve batch retry error:", retryErr);
+            }
           }
         }
       }
-    }
 
-    // AI cevaplarını questions tablosuna kalıcı yaz (tekrar AI çağrısı önlenir)
-    for (const [qId, ans] of aiAnswerMap) {
-      await supabase.from("questions").update({ correct_answer: ans }).eq("id", qId);
+      for (const [qId, ans] of aiAnswerMap) {
+        await supabase.from("questions").update({ correct_answer: ans }).eq("id", qId);
+      }
     }
 
     const { data: attemptAnswers } = await supabase
@@ -173,7 +176,9 @@ export async function POST(request: NextRequest) {
     const questionCorrectMap = new Map(
       allQuestions.map((q) => [
         q.id,
-        (q.correct_answer?.toString().trim().toUpperCase() || aiAnswerMap.get(q.id) || null) as string | null,
+        skipAiGrading
+          ? ((q.correct_answer?.toString().trim().toUpperCase() || null) as string | null)
+          : ((q.correct_answer?.toString().trim().toUpperCase() || aiAnswerMap.get(q.id) || null) as string | null),
       ])
     );
 
@@ -182,7 +187,7 @@ export async function POST(request: NextRequest) {
       const userAnswer = aa.user_answer?.toString().toUpperCase().trim() || null;
       const isCorrect =
         userAnswer !== null && correctAnswer !== null && userAnswer === correctAnswer;
-      const aiAnswer = aiAnswerMap.get(aa.question_id) ?? null;
+      const aiAnswer = skipAiGrading ? null : (aiAnswerMap.get(aa.question_id) ?? null);
 
       await supabase
         .from("attempt_answers")
@@ -196,7 +201,7 @@ export async function POST(request: NextRequest) {
     const answeredIds = new Set((attemptAnswers ?? []).map((a) => a.question_id));
     for (const q of allQuestions) {
       if (!answeredIds.has(q.id)) {
-        const aiAnswer = aiAnswerMap.get(q.id) ?? null;
+        const aiAnswer = skipAiGrading ? null : (aiAnswerMap.get(q.id) ?? null);
         await supabase.from("attempt_answers").insert({
           attempt_id: attemptId,
           question_id: q.id,
@@ -209,19 +214,37 @@ export async function POST(request: NextRequest) {
 
     const { data: finalAnswers } = await supabase
       .from("attempt_answers")
-      .select("user_answer, is_correct")
+      .select("question_id, user_answer, is_correct")
       .eq("attempt_id", attemptId);
 
     let correctCount = 0;
     let incorrectCount = 0;
     let unansweredCount = 0;
-    for (const a of finalAnswers ?? []) {
-      if (a.user_answer == null || a.user_answer === "") {
-        unansweredCount++;
-      } else if (a.is_correct) {
-        correctCount++;
-      } else {
-        incorrectCount++;
+    let notGradedCount = 0;
+
+    if (skipAiGrading) {
+      for (const a of finalAnswers ?? []) {
+        const key = questionCorrectMap.get(a.question_id) ?? null;
+        const user = a.user_answer?.toString().toUpperCase().trim() || null;
+        if (user === null || user === "") {
+          unansweredCount++;
+        } else if (key === null || key === "") {
+          notGradedCount++;
+        } else if (user === key) {
+          correctCount++;
+        } else {
+          incorrectCount++;
+        }
+      }
+    } else {
+      for (const a of finalAnswers ?? []) {
+        if (a.user_answer == null || a.user_answer === "") {
+          unansweredCount++;
+        } else if (a.is_correct) {
+          correctCount++;
+        } else {
+          incorrectCount++;
+        }
       }
     }
 
@@ -229,19 +252,34 @@ export async function POST(request: NextRequest) {
     const completedAt = new Date();
     const timeSpentSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
 
-    await supabase
+    const gradedAnswered = correctCount + incorrectCount;
+    const percentage =
+      skipAiGrading
+        ? gradedAnswered > 0
+          ? Math.round((correctCount / gradedAnswered) * 100)
+          : 0
+        : allQuestions.length > 0
+          ? Math.round((correctCount / allQuestions.length) * 100)
+          : 0;
+
+    const attemptUpdateBase = {
+      completed_at: completedAt.toISOString(),
+      time_spent_seconds: timeSpentSeconds,
+      correct_count: correctCount,
+      incorrect_count: incorrectCount,
+      unanswered_count: unansweredCount,
+    };
+
+    const { error: attemptUpdateError } = await supabase
       .from("attempts")
-      .update({
-        completed_at: completedAt.toISOString(),
-        time_spent_seconds: timeSpentSeconds,
-        correct_count: correctCount,
-        incorrect_count: incorrectCount,
-        unanswered_count: unansweredCount,
-      })
+      .update({ ...attemptUpdateBase, skip_ai_grading: skipAiGrading })
       .eq("id", attemptId);
 
+    if (attemptUpdateError) {
+      await supabase.from("attempts").update(attemptUpdateBase).eq("id", attemptId);
+    }
+
     const totalQuestions = allQuestions.length;
-    const percentage = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
     const { data: questionsWithAnswers } = await supabase
       .from("questions")
@@ -272,6 +310,8 @@ export async function POST(request: NextRequest) {
       correctCount,
       incorrectCount,
       unansweredCount,
+      notGradedCount,
+      skipAiGrading,
       percentage,
       timeSpentSeconds,
       breakdown,

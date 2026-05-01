@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Upload,
   FileText,
@@ -20,6 +20,10 @@ import {
 } from "lucide-react";
 import { HeaderNav } from "@/components/HeaderNav";
 import { cn, generateId } from "@/lib/utils";
+import {
+  MAX_PDF_UPLOAD_BYTES,
+  MAX_PDF_UPLOAD_MB,
+} from "@/lib/pdf-upload-limits";
 import { createClient } from "@/lib/supabase/client";
 import {
   SUBJECT_KEYS,
@@ -56,8 +60,11 @@ interface RecentAttempt {
   completedAt: string;
   correctCount: number;
   incorrectCount: number;
+  unansweredCount?: number;
+  notGradedCount?: number;
+  skipAiGrading?: boolean;
   totalQuestions: number;
-  percentage: number;
+  percentage: number | null;
 }
 
 interface AttemptQuestion {
@@ -88,6 +95,7 @@ interface ExpandedAttemptData {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [subject, setSubject] = useState<SubjectValue | "">("");
   const [hasVisualsInPdf, setHasVisualsInPdf] = useState<boolean | null>(null);
   const [questionCount, setQuestionCount] = useState<string>("");
@@ -123,8 +131,11 @@ export default function DashboardPage() {
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
   const isCode = subject !== "" && isCodeSubject(subject as SubjectKey);
+  const pdfTooLarge =
+    selectedFile !== null && selectedFile.size > MAX_PDF_UPLOAD_BYTES;
   const canAnalyze =
     selectedFile !== null &&
+    !pdfTooLarge &&
     isQuestionCountValid &&
     subject !== "" &&
     (isCode || hasVisualsInPdf !== null);
@@ -178,13 +189,13 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || pathname !== "/dashboard") return;
     fetch("/api/exams/recent", { headers: { Authorization: `Bearer ${accessToken}` } })
       .then((r) => r.json())
       .then((res) => {
         if (res.attempts) setRecentAttempts(res.attempts);
       });
-  }, [accessToken]);
+  }, [accessToken, pathname]);
 
   useEffect(() => {
     if (!unpublishTarget) {
@@ -367,7 +378,8 @@ export default function DashboardPage() {
       (f) => f.type === "application/pdf"
     );
     if (files.length) {
-      setSelectedFile(files[0]);
+      const file = files[0];
+      setSelectedFile(file);
       setUploadError(null);
     }
   }, []);
@@ -375,7 +387,8 @@ export default function DashboardPage() {
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length) {
-      setSelectedFile(files[0]);
+      const file = files[0];
+      setSelectedFile(file);
       setUploadError(null);
     }
     e.target.value = "";
@@ -459,7 +472,12 @@ export default function DashboardPage() {
 
   const wrongAnswersFromAttempt = expandedAttemptData
     ? expandedAttemptData.result.breakdown.filter(
-        (b) => !b.isCorrect && b.userAnswer != null && String(b.userAnswer).trim() !== ""
+        (b) =>
+          b.correctAnswer != null &&
+          String(b.correctAnswer).trim() !== "" &&
+          !b.isCorrect &&
+          b.userAnswer != null &&
+          String(b.userAnswer).trim() !== ""
       )
     : [];
 
@@ -527,12 +545,17 @@ export default function DashboardPage() {
                     </p>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 mt-0.5">
                       <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
-                        {a.percentage}%
+                        {a.percentage != null ? `${a.percentage}%` : "—"}
                       </span>
-                      <span className="text-[11px] text-gray-600 tabular-nums">
-                        {a.correctCount}/{a.totalQuestions} correct
+                      <span className="text-[11px] text-gray-600 tabular-nums leading-snug">
+                        {a.skipAiGrading
+                          ? `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.notGradedCount ?? 0} not graded · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`
+                          : `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`}
                       </span>
                     </div>
+                    {a.skipAiGrading ? (
+                      <p className="text-[10px] text-amber-700 font-medium">No AI grading</p>
+                    ) : null}
                     <p className="text-[10px] text-gray-400">
                       {new Date(a.completedAt).toLocaleDateString("en-US", {
                         month: "short",
@@ -551,10 +574,10 @@ export default function DashboardPage() {
                       View
                     </button>
                     <Link
-                      href={`/exam/${a.uploadId}`}
+                      href={`/exam/${a.uploadId}?attempt=${a.id}`}
                       className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
                     >
-                      Open
+                      Results
                     </Link>
                     <button
                       type="button"
@@ -797,6 +820,14 @@ export default function DashboardPage() {
                   <AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
                   <span>Only PDF format is accepted.</span>
                 </div>
+                <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                  <span>
+                    <strong className="font-semibold">Size limit:</strong> Files larger than{" "}
+                    {MAX_PDF_UPLOAD_MB} MB are not accepted. Maximum file size is{" "}
+                    {MAX_PDF_UPLOAD_MB} MB.
+                  </span>
+                </div>
                 {selectedFile && (
                   <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-white border border-gray-200 px-4 py-2 max-w-md mx-auto">
                     <FileText className="h-4 w-4 text-blue-600" />
@@ -816,6 +847,15 @@ export default function DashboardPage() {
                     >
                       <X className="h-4 w-4" />
                     </button>
+                  </div>
+                )}
+                {pdfTooLarge && (
+                  <div
+                    className="mt-3 mx-auto max-w-md rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 text-left"
+                    role="alert"
+                  >
+                    This file is too large to upload. PDFs must be at most{" "}
+                    {MAX_PDF_UPLOAD_MB} MB. Try compressing the file or removing extra pages.
                   </div>
                 )}
               </div>
@@ -970,6 +1010,9 @@ export default function DashboardPage() {
                     <li>Use clear scans for better question extraction.</li>
                     <li>Check &quot;My PDF contains images, tables, or graphs&quot; if your exam has visuals.</li>
                     <li>Only PDF format is accepted.</li>
+                    <li>
+                      PDF size must be at most {MAX_PDF_UPLOAD_MB} MB; larger files are rejected.
+                    </li>
                   </ul>
                 </div>
               </div>

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const { data: attempt, error } = await supabase
       .from("attempts")
       .insert({
-        user_email: userEmail.trim(),
+        user_email: userEmail.trim().toLowerCase(),
         upload_id: uploadId,
         total_questions: totalQuestions,
       })

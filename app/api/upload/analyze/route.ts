@@ -4,9 +4,12 @@ import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { generateWithFallback } from "@/lib/gemini-client";
 import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
+import {
+  MAX_PDF_UPLOAD_BYTES,
+  MAX_PDF_UPLOAD_MB,
+} from "@/lib/pdf-upload-limits";
 
-const MAX_FILE_SIZE_MB = 50;
-const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const MAX_FILE_BYTES = MAX_PDF_UPLOAD_BYTES;
 
 /** Expected shape of one question from Gemini (matches lib/gemini-prompts.ts OUTPUT_SCHEMA) */
 interface GeminiQuestion {
@@ -201,7 +204,9 @@ export async function POST(request: NextRequest) {
     }
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
-        { error: `PDF must be under ${MAX_FILE_SIZE_MB} MB.` },
+        {
+          error: `PDF must be at most ${MAX_PDF_UPLOAD_MB} MB. Try compressing the file or removing extra pages to reduce the size.`,
+        },
         { status: 400 }
       );
     }

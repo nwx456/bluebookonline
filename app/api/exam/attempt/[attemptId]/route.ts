@@ -48,11 +48,44 @@ export async function GET(
 
     const supabase = createServerSupabaseAdmin();
 
-    const { data: attempt, error: attemptError } = await supabase
+    const SELECT_ATTEMPT_WITH_SKIP =
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading";
+    const SELECT_ATTEMPT_BASE =
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions";
+
+    type AttemptHeader = {
+      id: string;
+      upload_id: string;
+      user_email: string;
+      completed_at: string | null;
+      correct_count: number | null;
+      incorrect_count: number | null;
+      unanswered_count: number | null;
+      time_spent_seconds: number | null;
+      total_questions: number | null;
+      skip_ai_grading?: boolean | null;
+    };
+
+    const first = await supabase
       .from("attempts")
-      .select("id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions")
+      .select(SELECT_ATTEMPT_WITH_SKIP)
       .eq("id", attemptId)
       .single();
+
+    let attempt = first.data as AttemptHeader | null | undefined;
+    let attemptError = first.error;
+
+    let hasSkipAiColumn = true;
+    if (attemptError) {
+      const retry = await supabase
+        .from("attempts")
+        .select(SELECT_ATTEMPT_BASE)
+        .eq("id", attemptId)
+        .single();
+      attempt = retry.data as AttemptHeader | null | undefined;
+      attemptError = retry.error;
+      hasSkipAiColumn = false;
+    }
 
     if (attemptError || !attempt) {
       return NextResponse.json({ error: "Attempt not found." }, { status: 404 });
@@ -116,8 +149,20 @@ export async function GET(
 
     const totalQuestions = attempt.total_questions ?? questions?.length ?? 0;
     const correctCount = attempt.correct_count ?? 0;
-    const percentage =
-      totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const incorrectCount = attempt.incorrect_count ?? 0;
+    const unansweredCount = attempt.unanswered_count ?? 0;
+    const notGradedCount = Math.max(0, totalQuestions - correctCount - incorrectCount - unansweredCount);
+    const skipAiGrading = hasSkipAiColumn
+      ? (attempt as { skip_ai_grading?: boolean }).skip_ai_grading === true
+      : notGradedCount > 0;
+    const gradedAnswered = correctCount + incorrectCount;
+    const percentage = skipAiGrading
+      ? gradedAnswered > 0
+        ? Math.round((correctCount / gradedAnswered) * 100)
+        : 0
+      : totalQuestions > 0
+        ? Math.round((correctCount / totalQuestions) * 100)
+        : 0;
 
     return NextResponse.json({
       upload: {
@@ -130,8 +175,10 @@ export async function GET(
       result: {
         total: totalQuestions,
         correctCount,
-        incorrectCount: attempt.incorrect_count ?? 0,
-        unansweredCount: attempt.unanswered_count ?? 0,
+        incorrectCount,
+        unansweredCount,
+        notGradedCount,
+        skipAiGrading,
         percentage,
         timeSpentSeconds: attempt.time_spent_seconds ?? 0,
         breakdown: questionsWithAnswers,

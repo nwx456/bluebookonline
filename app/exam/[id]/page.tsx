@@ -623,11 +623,14 @@ export default function ExamPage() {
     correctCount: number;
     incorrectCount: number;
     unansweredCount: number;
+    notGradedCount: number;
+    skipAiGrading: boolean;
     percentage: number;
     timeSpentSeconds: number;
     breakdown: { questionNumber: number; userAnswer: string | null; correctAnswer: string | null; isCorrect: boolean }[];
   } | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [completingSkipAi, setCompletingSkipAi] = useState(false);
   const [selectedResultQuestion, setSelectedResultQuestion] = useState<number | null>(null);
   const [resultViewMode, setResultViewMode] = useState<"explanation" | "question">("explanation");
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
@@ -702,6 +705,8 @@ export default function ExamPage() {
               correctCount: data.result?.correctCount ?? 0,
               incorrectCount: data.result?.incorrectCount ?? 0,
               unansweredCount: data.result?.unansweredCount ?? 0,
+              notGradedCount: data.result?.notGradedCount ?? 0,
+              skipAiGrading: data.result?.skipAiGrading ?? false,
               percentage: data.result?.percentage ?? 0,
               timeSpentSeconds: data.result?.timeSpentSeconds ?? 0,
               breakdown: data.result?.breakdown ?? [],
@@ -910,39 +915,46 @@ export default function ExamPage() {
     [highlightMode]
   );
 
-  const completeExam = useCallback(async () => {
-    if (!attemptId || completing) return;
-    setCompleting(true);
-    try {
-      await Promise.all(
-        Object.entries(answers).map(([qId, ans]) =>
-          saveAnswer(qId, ans, markedForReview.has(qId))
-        )
-      );
-      const res = await fetch("/api/exam/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attemptId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Failed to complete exam");
-      setExamResult({
-        total: data.total ?? 0,
-        correctCount: data.correctCount ?? 0,
-        incorrectCount: data.incorrectCount ?? 0,
-        unansweredCount: data.unansweredCount ?? 0,
-        percentage: data.percentage ?? 0,
-        timeSpentSeconds: data.timeSpentSeconds ?? 0,
-        breakdown: data.breakdown ?? [],
-      });
-      setExamCompleted(true);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to complete exam. Please try again.");
-    } finally {
-      setCompleting(false);
-    }
-  }, [attemptId, completing, answers, saveAnswer, markedForReview]);
+  const completeExam = useCallback(
+    async (skipAiGrading: boolean) => {
+      if (!attemptId || completing) return;
+      setCompleting(true);
+      setCompletingSkipAi(skipAiGrading);
+      try {
+        await Promise.all(
+          Object.entries(answers).map(([qId, ans]) =>
+            saveAnswer(qId, ans, markedForReview.has(qId))
+          )
+        );
+        const res = await fetch("/api/exam/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attemptId, skipAiGrading }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Failed to complete exam");
+        setExamResult({
+          total: data.total ?? 0,
+          correctCount: data.correctCount ?? 0,
+          incorrectCount: data.incorrectCount ?? 0,
+          unansweredCount: data.unansweredCount ?? 0,
+          notGradedCount: data.notGradedCount ?? 0,
+          skipAiGrading: data.skipAiGrading === true,
+          percentage: data.percentage ?? 0,
+          timeSpentSeconds: data.timeSpentSeconds ?? 0,
+          breakdown: data.breakdown ?? [],
+        });
+        setExamCompleted(true);
+      } catch (e) {
+        console.error(e);
+        alert("Failed to complete exam. Please try again.");
+      } finally {
+        setCompleting(false);
+        setCompletingSkipAi(false);
+      }
+    },
+    [attemptId, completing, answers, saveAnswer, markedForReview]
+  );
 
   const handleExplainClick = useCallback(
     async (questionNumber: number) => {
@@ -953,6 +965,14 @@ export default function ExamPage() {
       setResultViewMode("explanation");
       setResultExplanationLoading(true);
       setResultExplanation(null);
+      const correct = row?.correctAnswer?.toString().trim() ?? "";
+      if (!correct) {
+        setResultExplanation(
+          "Solution explanation is not available for this question because there is no confirmed correct answer yet."
+        );
+        setResultExplanationLoading(false);
+        return;
+      }
       try {
         const opts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e].filter(
           (o): o is string => o != null && o.trim() !== ""
@@ -964,7 +984,7 @@ export default function ExamPage() {
             questionText: q.question_text,
             passageText: q.passage_text ?? "",
             options: opts,
-            correctAnswer: row?.correctAnswer ?? "A",
+            correctAnswer: correct,
             subject: upload.subject,
           }),
         });
@@ -1215,7 +1235,15 @@ export default function ExamPage() {
     const r = examResult;
     const m = Math.floor(r.timeSpentSeconds / 60);
     const s = r.timeSpentSeconds % 60;
-    const scoreLabel = r.percentage >= 70 ? "Well done" : r.percentage >= 50 ? "Good effort" : "Keep practicing";
+    const gradedAnswered = r.correctCount + r.incorrectCount;
+    const headlineIsScore = !(r.skipAiGrading && gradedAnswered === 0);
+    const scoreLabel = !headlineIsScore
+      ? "Your responses"
+      : r.percentage >= 70
+        ? "Well done"
+        : r.percentage >= 50
+          ? "Good effort"
+          : "Keep practicing";
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
         <header className="flex-shrink-0 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 px-6 py-4">
@@ -1241,8 +1269,15 @@ export default function ExamPage() {
             <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50 to-white p-8 mb-6 shadow-sm">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
                 <div className="flex flex-col items-center">
-                  <div className="text-5xl sm:text-6xl font-bold text-blue-600">{r.percentage}%</div>
+                  <div className="text-5xl sm:text-6xl font-bold text-blue-600">
+                    {headlineIsScore ? `${r.percentage}%` : "—"}
+                  </div>
                   <p className="text-sm font-medium text-gray-600 mt-1">{scoreLabel}</p>
+                  {r.skipAiGrading && r.notGradedCount > 0 ? (
+                    <p className="text-xs text-amber-800 text-center mt-2 max-w-xs">
+                      Some questions were not scored (no answer key in the exam data).
+                    </p>
+                  ) : null}
                 </div>
                 <div className="h-16 w-px bg-gray-200 hidden sm:block" />
                 <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1253,7 +1288,7 @@ export default function ExamPage() {
             </div>
 
             {/* Stats cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className={cn("grid grid-cols-2 gap-4 mb-6", r.notGradedCount > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
               <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
                 <CheckCircle className="h-8 w-8 mx-auto text-green-600 mb-1" />
                 <p className="text-2xl font-bold text-green-700">{r.correctCount}</p>
@@ -1269,6 +1304,13 @@ export default function ExamPage() {
                 <p className="text-2xl font-bold text-gray-600">{r.unansweredCount}</p>
                 <p className="text-xs font-medium text-gray-500">Unanswered</p>
               </div>
+              {r.notGradedCount > 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+                  <CircleDashed className="h-8 w-8 mx-auto text-amber-600 mb-1" />
+                  <p className="text-2xl font-bold text-amber-800">{r.notGradedCount}</p>
+                  <p className="text-xs font-medium text-amber-700">Not graded</p>
+                </div>
+              ) : null}
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
                 <BarChart3 className="h-8 w-8 mx-auto text-blue-600 mb-1" />
                 <p className="text-2xl font-bold text-blue-700">{r.total}</p>
@@ -1276,8 +1318,25 @@ export default function ExamPage() {
               </div>
             </div>
 
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <strong>Note:</strong> Results may not be 100% accurate. AI-generated answers and explanations are for reference only.
+            <div
+              className={cn(
+                "mb-4 rounded-lg border px-4 py-3 text-sm",
+                r.skipAiGrading
+                  ? "border-slate-200 bg-slate-50 text-slate-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              )}
+            >
+              {r.skipAiGrading ? (
+                <>
+                  <strong>Note:</strong> You finished without AI grading. Only questions with an answer key in the
+                  exam could be scored automatically.
+                </>
+              ) : (
+                <>
+                  <strong>Note:</strong> Results may not be 100% accurate. AI-generated answers and explanations are
+                  for reference only.
+                </>
+              )}
             </div>
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-gray-50 px-4 py-4 border-b border-gray-200">
@@ -1296,7 +1355,17 @@ export default function ExamPage() {
                   </thead>
                   <tbody>
                     {r.breakdown.map((row) => {
-                      const status = row.userAnswer == null || row.userAnswer === "" ? "unanswered" : row.isCorrect ? "correct" : "incorrect";
+                      const hasUser =
+                        row.userAnswer != null && String(row.userAnswer).trim() !== "";
+                      const hasKey =
+                        row.correctAnswer != null && String(row.correctAnswer).trim() !== "";
+                      const status = !hasUser
+                        ? "unanswered"
+                        : !hasKey
+                          ? "not_graded"
+                          : row.isCorrect
+                            ? "correct"
+                            : "incorrect";
                       return (
                         <tr
                           key={row.questionNumber}
@@ -1310,13 +1379,22 @@ export default function ExamPage() {
                           <td className="px-4 py-3">{row.userAnswer ?? "—"}</td>
                           <td className="px-4 py-3">{row.correctAnswer ?? "—"}</td>
                           <td className="px-4 py-3">
-                            <span className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                              status === "correct" && "bg-green-100 text-green-800",
-                              status === "incorrect" && "bg-red-100 text-red-800",
-                              status === "unanswered" && "bg-gray-100 text-gray-600"
-                            )}>
-                              {status === "correct" ? "Correct" : status === "incorrect" ? "Incorrect" : "Unanswered"}
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                                status === "correct" && "bg-green-100 text-green-800",
+                                status === "incorrect" && "bg-red-100 text-red-800",
+                                status === "unanswered" && "bg-gray-100 text-gray-600",
+                                status === "not_graded" && "bg-amber-100 text-amber-900"
+                              )}
+                            >
+                              {status === "correct"
+                                ? "Correct"
+                                : status === "incorrect"
+                                  ? "Incorrect"
+                                  : status === "unanswered"
+                                    ? "Unanswered"
+                                    : "Not graded"}
                             </span>
                           </td>
                         </tr>
@@ -2529,13 +2607,7 @@ export default function ExamPage() {
             {currentIndex === questions.length - 1 && (
               <button
                 type="button"
-                onClick={() => {
-                  if (markedForReview.size > 0) {
-                    setShowEndExamConfirm(true);
-                  } else if (window.confirm("Are you sure you want to end the exam?")) {
-                    completeExam();
-                  }
-                }}
+                onClick={() => setShowEndExamConfirm(true)}
                 disabled={completing}
                 className={cn(
                   "rounded-xl px-4 py-2 text-sm font-medium",
@@ -2544,14 +2616,19 @@ export default function ExamPage() {
                     : "bg-green-600 text-white hover:bg-green-700"
                 )}
               >
-                {completing ? "Calculating results…" : "End Exam"}
+                {completing
+                  ? completingSkipAi
+                    ? "Submitting…"
+                    : "Calculating results…"
+                  : "End Exam"}
               </button>
             )}
           </div>
         </div>
         {currentIndex === questions.length - 1 && (
           <p className="text-xs text-gray-500 text-center mt-2">
-            This process may take a while.
+            You can grade missing keys with AI (may take several minutes) or submit without AI to view your answers
+            only.
           </p>
         )}
       </footer>
@@ -2565,43 +2642,72 @@ export default function ExamPage() {
       )}
       {showEndExamConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="mx-4 max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <p className="mb-4 text-sm text-gray-700">
-              You marked these questions for review. Are you sure you want to end the exam?
-            </p>
-            <p className="mb-4 text-xs text-gray-500">
-              This process may take a while.
-            </p>
-            <div className="mb-4 flex flex-wrap gap-2">
-              {questions
-                .filter((q) => markedForReview.has(q.id))
-                .map((q) => (
-                  <span
-                    key={q.id}
-                    className="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm font-medium"
-                  >
-                    {q.question_number}
-                  </span>
-                ))}
+          <div className="mx-4 max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Finish exam?</h2>
+            {markedForReview.size > 0 ? (
+              <>
+                <p className="mb-3 text-sm text-gray-700">
+                  You marked some questions for review. You can still finish when you are ready.
+                </p>
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {questions
+                    .filter((q) => markedForReview.has(q.id))
+                    .map((q) => (
+                      <span
+                        key={q.id}
+                        className="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm font-medium"
+                      >
+                        {q.question_number}
+                      </span>
+                    ))}
+                </div>
+              </>
+            ) : (
+              <p className="mb-4 text-sm text-gray-700">Choose how you want to complete this attempt.</p>
+            )}
+            <p className="mb-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Scoring</p>
+            <div className="flex flex-col gap-3 mb-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEndExamConfirm(false);
+                    void completeExam(false);
+                  }}
+                  disabled={completing}
+                  className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Grade with AI
+                </button>
+                <p className="mt-2 text-xs text-gray-600">
+                  Uses AI to estimate answers for questions missing a key. This may take several minutes.
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEndExamConfirm(false);
+                    void completeExam(true);
+                  }}
+                  disabled={completing}
+                  className="w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Submit without AI
+                </button>
+                <p className="mt-2 text-xs text-gray-600">
+                  Closes the exam and shows your responses. Items without an answer key in the exam will appear as not
+                  graded.
+                </p>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowEndExamConfirm(false)}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowEndExamConfirm(false);
-                  completeExam();
-                }}
-                disabled={completing}
-                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                Yes, End Exam
               </button>
             </div>
           </div>
