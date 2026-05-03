@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 
@@ -53,15 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     const ids = uploadList.map((u) => u.id);
-    const { data: counts } = await supabase
-      .from("questions")
-      .select("upload_id")
-      .in("upload_id", ids);
-    const countByUpload: Record<string, number> = {};
-    for (const c of counts ?? []) {
-      const u = c.upload_id as string;
-      countByUpload[u] = (countByUpload[u] ?? 0) + 1;
-    }
+    const countByUpload = await countQuestionsByUploadIds(supabase, ids);
 
     const result = uploadList.map((u) => ({
       id: u.id,

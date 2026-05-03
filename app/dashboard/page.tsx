@@ -24,6 +24,7 @@ import {
   MAX_PDF_UPLOAD_BYTES,
   MAX_PDF_UPLOAD_MB,
 } from "@/lib/pdf-upload-limits";
+import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { createClient } from "@/lib/supabase/client";
 import {
   SUBJECT_KEYS,
@@ -165,14 +166,11 @@ export default function DashboardPage() {
             return;
           }
           const ids = rows.map((r) => r.id);
-          const { data: counts } = await supabase
-            .from("questions")
-            .select("upload_id")
-            .in("upload_id", ids);
-          const countByUpload: Record<string, number> = {};
-          for (const c of counts ?? []) {
-            const u = c.upload_id as string;
-            countByUpload[u] = (countByUpload[u] ?? 0) + 1;
+          let countByUpload: Record<string, number> = {};
+          try {
+            countByUpload = await countQuestionsByUploadIds(supabase, ids);
+          } catch {
+            countByUpload = {};
           }
           setUploads(
             rows.map((row) => ({
