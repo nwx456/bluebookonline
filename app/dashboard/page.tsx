@@ -26,6 +26,7 @@ import {
 } from "@/lib/pdf-upload-limits";
 import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { createClient } from "@/lib/supabase/client";
+import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import {
   SUBJECT_KEYS,
   SUBJECT_LABELS,
@@ -144,16 +145,21 @@ export default function DashboardPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setCheckingAuth(false);
       if (!session) {
+        setCheckingAuth(false);
         router.replace("/login");
         return;
       }
       const email = session.user.email ?? "";
+      if (isAdminBroadcastEmail(email)) {
+        router.replace("/admin/mail");
+        return;
+      }
       setUserEmail(email);
       setAccessToken(session.access_token ?? null);
       const uname = (session.user?.user_metadata?.username as string)?.trim();
       setUserDisplayName(uname || email?.split("@")[0] || "Account");
+      setCheckingAuth(false);
       supabase
         .from("pdf_uploads")
         .select("id, filename, subject, created_at, is_published")

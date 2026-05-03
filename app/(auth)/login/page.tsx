@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
 function LoginFormInner() {
   const [email, setEmail] = useState("");
@@ -41,7 +42,10 @@ function LoginFormInner() {
           refresh_token: data.session.refresh_token,
         });
       }
-      router.push("/dashboard");
+      const normalizedEmail = email.trim().toLowerCase();
+      router.push(
+        isAdminBroadcastEmail(normalizedEmail) ? "/admin/mail" : "/dashboard"
+      );
       router.refresh();
     } catch {
       setError("Connection error. Please try again.");
