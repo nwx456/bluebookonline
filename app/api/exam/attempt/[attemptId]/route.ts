@@ -119,7 +119,8 @@ export async function GET(
           .from("questions")
           .select("*")
           .eq("upload_id", uploadId)
-          .order("question_number", { ascending: true }),
+          .order("question_number", { ascending: true })
+          .order("id", { ascending: true }),
         supabase
           .from("attempt_answers")
           .select("question_id, user_answer, ai_answer, is_correct")

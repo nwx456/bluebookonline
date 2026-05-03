@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
       .from("questions")
       .select("id")
       .eq("upload_id", uploadId)
-      .order("question_number", { ascending: true });
+      .order("question_number", { ascending: true })
+      .order("id", { ascending: true });
 
     const totalQuestions = questions?.length ?? 0;
     if (totalQuestions === 0) {

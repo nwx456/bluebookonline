@@ -731,7 +731,8 @@ export default function ExamPage() {
         .from("questions")
         .select("*")
         .eq("upload_id", id)
-        .order("question_number", { ascending: true }),
+        .order("question_number", { ascending: true })
+        .order("id", { ascending: true }),
     ]).then(([uploadRes, questionsRes]) => {
       setLoading(false);
       if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);

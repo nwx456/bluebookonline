@@ -117,7 +117,9 @@ export async function GET(request: NextRequest) {
       const { data: questions } = await supabase
         .from("questions")
         .select("id, question_number, correct_answer, question_text, option_a, option_b, option_c, option_d, option_e")
-        .in("id", questionIds);
+        .in("id", questionIds)
+        .order("question_number", { ascending: true })
+        .order("id", { ascending: true });
 
       const questionMap = new Map(
         (questions ?? []).map((q) => [

@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
       .from("questions")
       .select("id, question_number, question_text, passage_text, precondition_text, option_a, option_b, option_c, option_d, option_e, correct_answer, page_number, has_graph, bbox")
       .eq("upload_id", attempt.upload_id)
-      .order("question_number", { ascending: true });
+      .order("question_number", { ascending: true })
+      .order("id", { ascending: true });
 
     if (!allQuestions?.length) {
       return NextResponse.json({ error: "No questions found." }, { status: 400 });
@@ -285,7 +286,8 @@ export async function POST(request: NextRequest) {
       .from("questions")
       .select("id, question_number, correct_answer")
       .eq("upload_id", attempt.upload_id)
-      .order("question_number", { ascending: true });
+      .order("question_number", { ascending: true })
+      .order("id", { ascending: true });
 
     const { data: answersWithAi } = await supabase
       .from("attempt_answers")
