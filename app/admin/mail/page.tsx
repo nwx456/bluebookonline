@@ -3,12 +3,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Loader2, Mail } from "lucide-react";
+import { BarChart3, BookOpen, Loader2, Mail } from "lucide-react";
 import { HeaderNav } from "@/components/HeaderNav";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
 type Recipient = { email: string; username: string };
+
+type AdminStats = {
+  registeredUsers: number;
+  pendingRegistrations: number;
+  pdfUploadsTotal: number;
+  pdfPublished: number;
+  pdfUnpublished: number;
+  questionsTotal: number;
+  questionsWithGraph: number;
+  attemptsTotal: number;
+  attemptsCompleted: number;
+  attemptsInProgress: number;
+  attemptAnswersTotal: number;
+  pdfBySubject: { subject: string; label: string; pdfCount: number }[];
+};
 
 export default function AdminMailPage() {
   const router = useRouter();
@@ -23,6 +38,9 @@ export default function AdminMailPage() {
   const [sendLoading, setSendLoading] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,6 +92,46 @@ export default function AdminMailPage() {
     if (!accessToken || checking) return;
     loadRecipients(accessToken);
   }, [accessToken, checking, loadRecipients]);
+
+  const loadStats = useCallback(async (token: string) => {
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const res = await fetch("/api/admin/stats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatsError(typeof data.error === "string" ? data.error : "Could not load statistics.");
+        setStats(null);
+        return;
+      }
+      setStats({
+        registeredUsers: Number(data.registeredUsers) || 0,
+        pendingRegistrations: Number(data.pendingRegistrations) || 0,
+        pdfUploadsTotal: Number(data.pdfUploadsTotal) || 0,
+        pdfPublished: Number(data.pdfPublished) || 0,
+        pdfUnpublished: Number(data.pdfUnpublished) || 0,
+        questionsTotal: Number(data.questionsTotal) || 0,
+        questionsWithGraph: Number(data.questionsWithGraph) || 0,
+        attemptsTotal: Number(data.attemptsTotal) || 0,
+        attemptsCompleted: Number(data.attemptsCompleted) || 0,
+        attemptsInProgress: Number(data.attemptsInProgress) || 0,
+        attemptAnswersTotal: Number(data.attemptAnswersTotal) || 0,
+        pdfBySubject: Array.isArray(data.pdfBySubject) ? data.pdfBySubject : [],
+      });
+    } catch {
+      setStatsError("Connection error.");
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken || checking) return;
+    loadStats(accessToken);
+  }, [accessToken, checking, loadStats]);
 
   const allSelected = useMemo(
     () => recipients.length > 0 && selected.size === recipients.length,
@@ -323,6 +381,99 @@ export default function AdminMailPage() {
               )}
             </button>
           </div>
+        </div>
+
+        <div className="rounded-md border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Site statistics</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => accessToken && loadStats(accessToken)}
+              disabled={statsLoading || !accessToken}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Refresh stats
+            </button>
+          </div>
+
+          {statsError && (
+            <p className="mt-3 text-sm text-red-600" role="alert">
+              {statsError}
+            </p>
+          )}
+
+          {statsLoading && !stats ? (
+            <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading statistics…
+            </div>
+          ) : stats ? (
+            <>
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                {[
+                  { label: "Registered users", value: stats.registeredUsers },
+                  { label: "Pending signups", value: stats.pendingRegistrations },
+                  { label: "PDF uploads", value: stats.pdfUploadsTotal },
+                  { label: "Published PDFs", value: stats.pdfPublished },
+                  { label: "Unpublished PDFs", value: stats.pdfUnpublished },
+                  { label: "Questions", value: stats.questionsTotal },
+                  { label: "Questions with graph", value: stats.questionsWithGraph },
+                  { label: "Exam attempts", value: stats.attemptsTotal },
+                  { label: "Completed attempts", value: stats.attemptsCompleted },
+                  { label: "In-progress attempts", value: stats.attemptsInProgress },
+                  { label: "Attempt answers", value: stats.attemptAnswersTotal },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-md border border-gray-100 bg-gray-50/80 px-3 py-3"
+                  >
+                    <div className="text-xs font-medium text-gray-500">{item.label}</div>
+                    <div className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+                      {item.value.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8">
+                <h3 className="text-sm font-semibold text-gray-800">PDFs by subject</h3>
+                {stats.pdfBySubject.length === 0 ? (
+                  <p className="mt-2 text-sm text-gray-500">No uploads grouped by subject yet.</p>
+                ) : (
+                  <div className="mt-3 max-h-56 overflow-auto rounded-md border border-gray-100">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="sticky top-0 bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="px-3 py-2 font-medium" scope="col">
+                            Subject
+                          </th>
+                          <th className="px-3 py-2 font-medium text-right" scope="col">
+                            PDFs
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {stats.pdfBySubject.map((row) => (
+                          <tr key={row.subject} className="bg-white">
+                            <td className="px-3 py-2 text-gray-900">
+                              <span className="font-mono text-xs text-gray-500">{row.subject}</span>
+                              <span className="ml-2 text-gray-700">{row.label}</span>
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-gray-900">
+                              {row.pdfCount.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : null}
         </div>
       </main>
     </div>
