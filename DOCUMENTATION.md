@@ -31,6 +31,18 @@ Next.js API Routes
     └── Anthropic Claude Sonnet (opsiyonel fallback)
 ```
 
+### E-posta (transactional + admin toplu)
+
+- **Kod:** `lib/mail` birleşik gönderim; `lib/nodemailer.ts` OTP ve kişisel broadcast şablonlarını dışa aktarır.
+- **Sağlayıcı:** `MAIL_PROVIDER` ile `resend` | `smtp` | `gmail` veya otomatik seçim (önce `RESEND_API_KEY`, sonra `SMTP_HOST`, sonra Gmail).
+- **Kimden adres:** `MAIL_FROM` (tam RFC), veya `MAIL_FROM_NAME` + `MAIL_FROM_EMAIL` / `GMAIL_USER`.
+- **Resend:** `RESEND_API_KEY` + panelde domain doğrulama; `MAIL_FROM_EMAIL` doğrulanmış domainden olmalı.
+- **SMTP:** `SMTP_HOST`, `SMTP_PORT` (varsayılan 587), `SMTP_USER`, `SMTP_PASS`, isteğe bağlı `SMTP_SECURE=true` (465).
+- **Admin toplu gönderim:** `docs/schema_mail_ops.sql` ile `admin_mail_log` ve `outbound_email_jobs` tablolarını oluşturun.
+- **Hız limiti (isteğe bağlı):** `ADMIN_MAIL_DAILY_RECIPIENT_CAP`, `ADMIN_MAIL_HOURLY_RECIPIENT_CAP` (0 = kapalı).
+- **Kuyruk:** `ADMIN_MAIL_JOB_THRESHOLD` (varsayılan 50) üzeri alıcıda job kuyruğu + `202`; worker: `POST /api/internal/mail-worker` header `x-mail-worker-secret: MAIL_WORKER_SECRET`. Üretimde `NEXT_PUBLIC_BASE_URL` ve `MAIL_WORKER_SECRET` ile `after()` kısmi işler; uzun kuyruk için periyodik Cron ile aynı endpoint çağrılabilir.
+- **Env özeti:** `RESEND_API_KEY`, `SMTP_*`, `GMAIL_*`, `MAIL_PROVIDER`, `MAIL_FROM*`, `ADMIN_MAIL_*`, `MAIL_WORKER_SECRET`, `MAIL_WORKER_BATCH_SIZE`.
+
 ---
 
 ## Desteklenen AP Dersleri (24 ders)

@@ -38,6 +38,10 @@ export default function AdminMailPage() {
   const [sendLoading, setSendLoading] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [testOnly, setTestOnly] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [adminSessionEmail, setAdminSessionEmail] = useState("");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -55,6 +59,7 @@ export default function AdminMailPage() {
         return;
       }
       setAccessToken(session.access_token ?? null);
+      setAdminSessionEmail(session.user.email?.trim().toLowerCase() ?? "");
       setChecking(false);
     });
   }, [router]);
@@ -133,6 +138,55 @@ export default function AdminMailPage() {
     loadStats(accessToken);
   }, [accessToken, checking, loadStats]);
 
+  useEffect(() => {
+    if (!activeJobId || !accessToken) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/mail/jobs/${activeJobId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (stopped || !res.ok) return;
+        const job = data.job as
+          | {
+              status?: string;
+              sent?: number;
+              failed?: number;
+              skipped?: number;
+              cursor_index?: number;
+              total_recipients?: number;
+              first_error?: string | null;
+            }
+          | undefined;
+        if (!job?.status) return;
+        if (job.status === "done" || job.status === "failed") {
+          const parts: string[] = [
+            `Job ${job.status}. Sent: ${job.sent ?? 0}`,
+            `Failed: ${job.failed ?? 0}`,
+            `Skipped (not in DB): ${job.skipped ?? 0}`,
+          ];
+          if (job.first_error) parts.push(`First error: ${job.first_error}`);
+          setSendResult(parts.join(". ") + ".");
+          setActiveJobId(null);
+        } else {
+          setSendResult(
+            `Queued… ${job.status}. Progress: ${job.sent ?? 0} sent, ` +
+              `${job.cursor_index ?? 0} / ${job.total_recipients ?? "?"} processed.`
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const id = window.setInterval(poll, 2000);
+    poll();
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [activeJobId, accessToken]);
+
   const allSelected = useMemo(
     () => recipients.length > 0 && selected.size === recipients.length,
     [recipients.length, selected.size]
@@ -159,8 +213,10 @@ export default function AdminMailPage() {
     if (!accessToken) return;
     setSendError(null);
     setSendResult(null);
-    if (selected.size === 0) {
-      setSendError("Select at least one recipient.");
+    setActiveJobId(null);
+
+    if (!testOnly && selected.size === 0) {
+      setSendError("Select at least one recipient (or enable test send).");
       return;
     }
     if (!subject.trim()) {
@@ -182,7 +238,9 @@ export default function AdminMailPage() {
         body: JSON.stringify({
           subject: subject.trim(),
           body: body.trim(),
-          recipientEmails: [...selected],
+          recipientEmails: testOnly ? [] : [...selected],
+          testOnly,
+          testTo: testOnly && testTo.trim() ? testTo.trim().toLowerCase() : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -190,7 +248,19 @@ export default function AdminMailPage() {
         setSendError(typeof data.error === "string" ? data.error : "Send failed.");
         return;
       }
+      if (res.status === 202 && data.jobId) {
+        setActiveJobId(String(data.jobId));
+        setSendResult(
+          `Queued broadcast (job ${String(data.jobId).slice(0, 8)}…). ` +
+            `${typeof data.skipped === "number" ? `Skipped addresses: ${data.skipped}. ` : ""}` +
+            "Progress updates every few seconds."
+        );
+        return;
+      }
       const parts: string[] = [];
+      if (data.test) {
+        parts.push("Test send completed");
+      }
       parts.push(`Sent: ${data.sent ?? 0}`);
       if (typeof data.failed === "number" && data.failed > 0) {
         parts.push(`Failed: ${data.failed}`);
@@ -270,6 +340,32 @@ export default function AdminMailPage() {
                 className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-sans text-sm"
                 placeholder="Your message (appears after Hello username,)"
               />
+            </div>
+            <div className="rounded-md border border-amber-100 bg-amber-50/80 px-3 py-3 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={testOnly}
+                  onChange={(e) => setTestOnly(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                <span className="text-sm font-medium text-gray-800">Test send only (one email)</span>
+              </label>
+              {testOnly && (
+                <div>
+                  <label htmlFor="test-to" className="block text-xs font-medium text-gray-600">
+                    Send test to (optional, defaults to your admin address)
+                  </label>
+                  <input
+                    id="test-to"
+                    type="email"
+                    value={testTo}
+                    onChange={(e) => setTestTo(e.target.value)}
+                    placeholder={adminSessionEmail || "you@example.com"}
+                    className="mt-1 w-full max-w-md rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -365,7 +461,11 @@ export default function AdminMailPage() {
             <button
               type="button"
               onClick={handleSend}
-              disabled={sendLoading || listLoading || recipients.length === 0}
+              disabled={
+                sendLoading ||
+                listLoading ||
+                (!testOnly && (recipients.length === 0 || selected.size === 0))
+              }
               className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               {sendLoading ? (

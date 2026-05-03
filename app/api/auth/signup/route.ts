@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateOtp } from "@/lib/otp-store";
 import { sendOtpEmail } from "@/lib/nodemailer";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { getMailConfigError } from "@/lib/mail";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[a-z0-9]{4,20}$/;
@@ -66,12 +67,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const gmailUser = (process.env.GMAIL_USER ?? "").trim();
-    const gmailPass = (process.env.GMAIL_APP_PASSWORD ?? "").trim();
-    if (!gmailUser || !gmailPass) {
-      console.error("Signup: GMAIL_USER or GMAIL_APP_PASSWORD missing or empty in .env.local");
+    const mailErr = getMailConfigError();
+    if (mailErr) {
+      console.error("Signup: mail not configured:", mailErr);
       return NextResponse.json(
-        { error: "GMAIL_USER and GMAIL_APP_PASSWORD must be set in .env.local for sending the 4-digit code (use Gmail App Password). Then restart the dev server." },
+        {
+          error:
+            "Email verification is not configured on the server. Set RESEND_API_KEY (recommended), or SMTP_HOST + credentials, or GMAIL_USER + GMAIL_APP_PASSWORD in .env.local. See DOCUMENTATION.md.",
+        },
         { status: 500 }
       );
     }

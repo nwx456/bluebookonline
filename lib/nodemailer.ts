@@ -1,31 +1,4 @@
-import nodemailer from "nodemailer";
-
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-function getTransporter() {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-    throw new Error(
-      "GMAIL_USER and GMAIL_APP_PASSWORD must be set in .env.local (use Gmail App Password)."
-    );
-  }
-
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml, sendMail } from "@/lib/mail";
 
 /**
  * Personalized broadcast from admin tooling. Plain text uses DB username as-is;
@@ -38,7 +11,6 @@ export async function sendBroadcastMessage(params: {
   messageBody: string;
 }): Promise<void> {
   const { to, subject, username, messageBody } = params;
-  const transporter = getTransporter();
   const text = `Hello ${username},\n\n${messageBody}`;
   const safeName = escapeHtml(username);
   const safeBody = escapeHtml(messageBody.replace(/\r\n/g, "\n"))
@@ -50,8 +22,7 @@ export async function sendBroadcastMessage(params: {
         <p>${safeBody}</p>
       </div>
     `;
-  await transporter.sendMail({
-    from: `"Bluebook Online" <${GMAIL_USER}>`,
+  await sendMail({
     to,
     subject,
     text,
@@ -60,9 +31,7 @@ export async function sendBroadcastMessage(params: {
 }
 
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
-  const transporter = getTransporter();
-  await transporter.sendMail({
-    from: `"Bluebook Online" <${GMAIL_USER}>`,
+  await sendMail({
     to,
     subject: "Bluebook Online – Your verification code",
     text: `Your verification code: ${code}. This code is valid for 10 minutes.`,
