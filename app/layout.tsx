@@ -10,6 +10,9 @@ const inter = Inter({
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
 
+const adsenseClient =
+  process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT ?? "ca-pub-4827369932089836";
+
 const defaultTitle = "Bluebook Online – AP Exam Practice Platform";
 const defaultDescription =
   "Practice AP exams online with the real Bluebook experience. Upload PDFs, solve questions, get instant AI scoring. Free for AP CSA, AP CSP, AP Economics, AP Calculus and more. For students worldwide.";
@@ -71,6 +74,9 @@ export const metadata: Metadata = {
       process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ??
       "2Vq7KT7ix17kMhqkmgZZnhff-iOpm9ptGvn4w9bPkQk",
   },
+  other: {
+    "google-adsense-account": adsenseClient,
+  },
 };
 
 export default function RootLayout({
@@ -94,9 +100,9 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <Script
           async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4827369932089836"
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
           crossOrigin="anonymous"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
         />
         <script
           type="application/ld+json"
