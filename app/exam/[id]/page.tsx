@@ -31,6 +31,7 @@ import {
   BarChart3,
   BookOpen,
   LayoutDashboard,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -580,6 +581,8 @@ export default function ExamPage() {
   const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
   const reviewAttemptId = searchParams.get("attempt") ?? "";
+  const resumeAttemptId = searchParams.get("resume") ?? "";
+  const loadAttemptId = resumeAttemptId || reviewAttemptId;
   const reviewQuestionNum = searchParams.get("question");
   const reviewQuestion = reviewQuestionNum ? parseInt(reviewQuestionNum, 10) : null;
   const [upload, setUpload] = useState<PdfUpload | null>(null);
@@ -637,6 +640,7 @@ export default function ExamPage() {
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
   const [showEndExamConfirm, setShowEndExamConfirm] = useState(false);
+  const [savingExit, setSavingExit] = useState(false);
   const [highlights, setHighlights] = useState<
     Record<string, Array<{ start: number; end: number; color: string }>>
   >({});
@@ -677,14 +681,14 @@ export default function ExamPage() {
       setLoading(false);
       return;
     }
-    if (reviewAttemptId) {
+    if (loadAttemptId) {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session?.access_token) {
           setLoading(false);
           return;
         }
-        fetch(`/api/exam/attempt/${reviewAttemptId}`, {
+        fetch(`/api/exam/attempt/${loadAttemptId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
           .then((r) => r.json())
@@ -697,22 +701,43 @@ export default function ExamPage() {
               setLoading(false);
               return;
             }
-            setUpload(data.upload as PdfUpload);
-            setQuestions((data.questions ?? []) as Question[]);
-            setExamCompleted(true);
-            setExamResult({
-              total: data.result?.total ?? 0,
-              correctCount: data.result?.correctCount ?? 0,
-              incorrectCount: data.result?.incorrectCount ?? 0,
-              unansweredCount: data.result?.unansweredCount ?? 0,
-              notGradedCount: data.result?.notGradedCount ?? 0,
-              skipAiGrading: data.result?.skipAiGrading ?? false,
-              percentage: data.result?.percentage ?? 0,
-              timeSpentSeconds: data.result?.timeSpentSeconds ?? 0,
-              breakdown: data.result?.breakdown ?? [],
-            });
-            if (reviewQuestion != null && !Number.isNaN(reviewQuestion)) {
-              setSelectedResultQuestion(reviewQuestion);
+            if (data.resume) {
+              setUpload(data.upload as PdfUpload);
+              setQuestions((data.questions ?? []) as Question[]);
+              setAttemptId(data.attemptId ?? loadAttemptId);
+              const ans: Record<string, string> = {};
+              const marked = new Set<string>();
+              for (const row of data.savedAnswers ?? []) {
+                if (row.userAnswer != null && String(row.userAnswer).trim() !== "") {
+                  ans[row.questionId] = String(row.userAnswer).trim();
+                }
+                if (row.isFlagged) marked.add(row.questionId);
+              }
+              setAnswers(ans);
+              setMarkedForReview(marked);
+              setElapsedSeconds(data.timeSpentSeconds ?? 0);
+              setExamCompleted(false);
+              setLoading(false);
+              return;
+            }
+            if (data.result) {
+              setUpload(data.upload as PdfUpload);
+              setQuestions((data.questions ?? []) as Question[]);
+              setExamCompleted(true);
+              setExamResult({
+                total: data.result?.total ?? 0,
+                correctCount: data.result?.correctCount ?? 0,
+                incorrectCount: data.result?.incorrectCount ?? 0,
+                unansweredCount: data.result?.unansweredCount ?? 0,
+                notGradedCount: data.result?.notGradedCount ?? 0,
+                skipAiGrading: data.result?.skipAiGrading ?? false,
+                percentage: data.result?.percentage ?? 0,
+                timeSpentSeconds: data.result?.timeSpentSeconds ?? 0,
+                breakdown: data.result?.breakdown ?? [],
+              });
+              if (reviewQuestion != null && !Number.isNaN(reviewQuestion)) {
+                setSelectedResultQuestion(reviewQuestion);
+              }
             }
             setLoading(false);
           })
@@ -738,7 +763,7 @@ export default function ExamPage() {
       if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);
       if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
     });
-  }, [id, reviewAttemptId, reviewQuestion]);
+  }, [id, loadAttemptId, reviewQuestion]);
 
   useEffect(() => {
     if (!id || !upload?.storage_path) {
@@ -915,6 +940,48 @@ export default function ExamPage() {
     },
     [highlightMode]
   );
+
+  const saveAndExit = useCallback(async () => {
+    if (!attemptId || savingExit || examCompleted) return;
+    setSavingExit(true);
+    try {
+      await Promise.all(
+        questions.map((q) =>
+          saveAnswer(q.id, answers[q.id] ?? "", markedForReview.has(q.id))
+        )
+      );
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await fetch(`/api/exam/attempt/${attemptId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ timeSpentSeconds: elapsedSeconds }),
+        });
+      }
+      router.push("/dashboard");
+    } catch (e) {
+      console.error(e);
+      alert("Could not save your progress. Please try again.");
+    } finally {
+      setSavingExit(false);
+    }
+  }, [
+    attemptId,
+    savingExit,
+    examCompleted,
+    questions,
+    answers,
+    saveAnswer,
+    markedForReview,
+    elapsedSeconds,
+    router,
+  ]);
 
   const completeExam = useCallback(
     async (skipAiGrading: boolean) => {
@@ -2151,6 +2218,15 @@ export default function ExamPage() {
             )}
           </div>
           <div className="flex items-center gap-2 flex-1 justify-end min-w-0 relative">
+            <button
+              type="button"
+              onClick={() => void saveAndExit()}
+              disabled={savingExit}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-400 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 shrink-0"
+            >
+              <Save className="h-4 w-4 shrink-0" />
+              {savingExit ? "Saving…" : "Save & exit"}
+            </button>
             <div className="flex items-center gap-1 bg-[#E5E7EB] rounded-lg px-2 py-1.5">
               <button
                 type="button"

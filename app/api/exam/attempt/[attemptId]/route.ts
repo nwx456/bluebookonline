@@ -99,38 +99,56 @@ export async function GET(
       );
     }
 
-    if (!attempt.completed_at) {
-      return NextResponse.json(
-        { error: "Attempt is not completed." },
-        { status: 400 }
-      );
-    }
-
     const uploadId = attempt.upload_id;
 
-    const [{ data: upload }, { data: questions }, { data: attemptAnswers }] =
-      await Promise.all([
-        supabase
-          .from("pdf_uploads")
-          .select("id, subject, filename, storage_path")
-          .eq("id", uploadId)
-          .single(),
-        supabase
-          .from("questions")
-          .select("*")
-          .eq("upload_id", uploadId)
-          .order("question_number", { ascending: true })
-          .order("id", { ascending: true }),
-        supabase
-          .from("attempt_answers")
-          .select("question_id, user_answer, ai_answer, is_correct")
-          .eq("attempt_id", attemptId),
-      ]);
+    const [{ data: upload }, { data: questions }] = await Promise.all([
+      supabase
+        .from("pdf_uploads")
+        .select("id, subject, filename, storage_path")
+        .eq("id", uploadId)
+        .single(),
+      supabase
+        .from("questions")
+        .select("*")
+        .eq("upload_id", uploadId)
+        .order("question_number", { ascending: true })
+        .order("id", { ascending: true }),
+    ]);
 
     if (!upload) {
       return NextResponse.json({ error: "Exam not found." }, { status: 404 });
     }
 
+    if (!attempt.completed_at) {
+      const { data: attemptAnswers } = await supabase
+        .from("attempt_answers")
+        .select("question_id, user_answer, is_flagged")
+        .eq("attempt_id", attemptId);
+      type InProgRow = { question_id: string; user_answer: string | null; is_flagged: boolean | null };
+      const rows = (attemptAnswers ?? []) as unknown as InProgRow[];
+      return NextResponse.json({
+        resume: true,
+        attemptId: attempt.id,
+        timeSpentSeconds: attempt.time_spent_seconds ?? 0,
+        upload: {
+          id: upload.id,
+          subject: upload.subject,
+          filename: upload.filename,
+          storage_path: upload.storage_path,
+        },
+        questions: questions ?? [],
+        savedAnswers: rows.map((a) => ({
+          questionId: a.question_id,
+          userAnswer: a.user_answer ?? null,
+          isFlagged: a.is_flagged === true,
+        })),
+      });
+    }
+
+    const { data: attemptAnswers } = await supabase
+      .from("attempt_answers")
+      .select("question_id, user_answer, ai_answer, is_correct")
+      .eq("attempt_id", attemptId);
     const answerByQ = new Map(
       (attemptAnswers ?? []).map((a) => [a.question_id, a])
     );
@@ -187,6 +205,97 @@ export async function GET(
     });
   } catch (err) {
     console.error("Attempt fetch error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Request failed." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/exam/attempt/[attemptId]
+ * Save elapsed time for an in-progress attempt only.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ attemptId: string }> }
+) {
+  try {
+    const { attemptId } = await params;
+    if (!attemptId?.trim()) {
+      return NextResponse.json(
+        { error: "Attempt ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const { user, error: authError } = await getAuthUser(request);
+    if (authError || !user?.email) {
+      return NextResponse.json(
+        { error: authError ?? "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    const userEmail = user.email.trim().toLowerCase();
+
+    const body = await request.json().catch(() => ({}));
+    const raw =
+      (body.timeSpentSeconds ?? body.time_spent_seconds) as number | string | undefined;
+    const timeSpentSeconds =
+      typeof raw === "number" && Number.isFinite(raw) && raw >= 0
+        ? Math.floor(raw)
+        : typeof raw === "string" && /^\d+$/.test(raw.trim())
+          ? parseInt(raw.trim(), 10)
+          : null;
+    if (timeSpentSeconds === null) {
+      return NextResponse.json(
+        { error: "timeSpentSeconds must be a non-negative number." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createServerSupabaseAdmin();
+    const { data: attempt, error: attemptError } = await supabase
+      .from("attempts")
+      .select("id, user_email, completed_at")
+      .eq("id", attemptId)
+      .single();
+
+    if (attemptError || !attempt) {
+      return NextResponse.json({ error: "Attempt not found." }, { status: 404 });
+    }
+
+    const attemptUser = (attempt.user_email as string)?.trim().toLowerCase();
+    if (attemptUser !== userEmail) {
+      return NextResponse.json(
+        { error: "You can only update your own attempts." },
+        { status: 403 }
+      );
+    }
+
+    if (attempt.completed_at) {
+      return NextResponse.json(
+        { error: "Cannot update time on a completed attempt." },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("attempts")
+      .update({ time_spent_seconds: timeSpentSeconds })
+      .eq("id", attemptId);
+
+    if (updateError) {
+      console.error("attempt PATCH error:", updateError);
+      return NextResponse.json(
+        { error: "Failed to save progress." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Attempt PATCH error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Request failed." },
       { status: 500 }

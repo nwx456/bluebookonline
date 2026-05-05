@@ -69,6 +69,15 @@ interface RecentAttempt {
   percentage: number | null;
 }
 
+interface InProgressAttempt {
+  id: string;
+  uploadId: string;
+  filename: string;
+  subject: string;
+  startedAt: string;
+  timeSpentSeconds: number;
+}
+
 interface AttemptQuestion {
   id: string;
   question_number: number;
@@ -121,6 +130,8 @@ export default function DashboardPage() {
   const [userDisplayName, setUserDisplayName] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [inProgressAttempts, setInProgressAttempts] = useState<InProgressAttempt[]>([]);
+  const [deletingInProgressId, setDeletingInProgressId] = useState<string | null>(null);
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
   const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
   const [expandedAttemptData, setExpandedAttemptData] = useState<ExpandedAttemptData | null>(null);
@@ -199,6 +210,11 @@ export default function DashboardPage() {
       .then((res) => {
         if (res.attempts) setRecentAttempts(res.attempts);
       });
+    fetch("/api/exams/in-progress", { headers: { Authorization: `Bearer ${accessToken}` } })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.attempts) setInProgressAttempts(res.attempts);
+      });
   }, [accessToken, pathname]);
 
   useEffect(() => {
@@ -238,6 +254,35 @@ export default function DashboardPage() {
       })
       .finally(() => setExpandedAttemptLoading(false));
   }, [expandedAttemptId, accessToken]);
+
+  const handleDiscardInProgress = useCallback(
+    async (attemptId: string) => {
+      if (!accessToken) return;
+      if (
+        !confirm(
+          "Discard this in-progress exam? Saved answers for this attempt will be removed. The PDF is not deleted."
+        )
+      ) {
+        return;
+      }
+      setDeletingInProgressId(attemptId);
+      try {
+        const res = await fetch(`/api/exam/attempt/${attemptId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert((data.error as string) ?? "Failed to discard.");
+          return;
+        }
+        setInProgressAttempts((prev) => prev.filter((x) => x.id !== attemptId));
+      } finally {
+        setDeletingInProgressId(null);
+      }
+    },
+    [accessToken]
+  );
 
   const handleDeleteAttempt = useCallback(
     async (attemptId: string) => {
@@ -519,6 +564,66 @@ export default function DashboardPage() {
             Upload your AP exam PDF to get started. The AI will extract questions automatically.
           </p>
         </div>
+
+        {inProgressAttempts.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <FileText className="h-5 w-5 text-amber-600" />
+              Continuing exams
+            </h2>
+            <p className="text-xs text-gray-500 mb-3">
+              Resume where you left off, or discard an attempt to remove it from this list.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {inProgressAttempts.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-lg border border-amber-200 bg-amber-50/40 p-2.5 flex flex-col gap-2 shadow-sm"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <p
+                      className="text-xs font-medium text-gray-900 line-clamp-2 leading-snug"
+                      title={a.filename}
+                    >
+                      {a.filename}
+                    </p>
+                    <p className="text-[10px] text-gray-500 truncate">
+                      {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      Started{" "}
+                      {new Date(a.startedAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-1 pt-1.5 border-t border-amber-100">
+                    <Link
+                      href={`/exam/${a.uploadId}?resume=${a.id}`}
+                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                    >
+                      <Play className="h-3 w-3" />
+                      Continue
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={deletingInProgressId === a.id}
+                      onClick={() => void handleDiscardInProgress(a.id)}
+                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      aria-label="Discard in-progress exam"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {recentAttempts.length > 0 && (
           <section className="mb-8">
