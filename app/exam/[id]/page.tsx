@@ -32,6 +32,8 @@ import {
   BookOpen,
   LayoutDashboard,
   Save,
+  Pause,
+  Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -598,6 +600,7 @@ export default function ExamPage() {
   const [starting, setStarting] = useState(false);
   const [preStartUnlockRemaining, setPreStartUnlockRemaining] = useState(PRE_START_UNLOCK_SECONDS);
   const [timerVisible, setTimerVisible] = useState(true);
+  const [timerPaused, setTimerPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [leftPanelPercent, setLeftPanelPercent] = useState(50);
   const [directionsOpen, setDirectionsOpen] = useState(false);
@@ -833,10 +836,10 @@ export default function ExamPage() {
   );
 
   useEffect(() => {
-    if (!attemptId) return;
+    if (!attemptId || timerPaused || examCompleted) return;
     const t = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [attemptId]);
+  }, [attemptId, timerPaused, examCompleted]);
 
   const handleResize = useCallback((e: MouseEvent) => {
     if (!isDraggingRef.current) return;
@@ -2194,10 +2197,21 @@ export default function ExamPage() {
               </div>
             </div>
           </div>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+          <div className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
             {timerVisible && (
               <div className="text-center">
-                <p className="text-lg font-mono text-gray-900">{formatTimer(elapsedSeconds)}</p>
+                <div className="flex flex-row items-center justify-center gap-2">
+                  <p className="text-lg font-mono text-gray-900">{formatTimer(elapsedSeconds)}</p>
+                  <button
+                    type="button"
+                    onClick={() => setTimerPaused((p) => !p)}
+                    className="rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:bg-gray-50"
+                    title={timerPaused ? "Resume timer" : "Pause timer"}
+                    aria-label={timerPaused ? "Resume timer" : "Pause timer"}
+                  >
+                    {timerPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => setTimerVisible(false)}
