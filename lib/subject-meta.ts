@@ -1,6 +1,6 @@
 import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 
-export type SubjectCategory = "math" | "science" | "history" | "english" | "social" | "cs" | "economics";
+export type SubjectCategory = "math" | "science" | "history" | "english" | "social" | "cs" | "economics" | "sat";
 
 export type ExamMode = "fully-digital" | "hybrid-digital";
 
@@ -1821,6 +1821,149 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
     ],
     examDate2026: "Tue, May 12, 2026 (8 AM Local)",
   },
+  SAT_RW: {
+    key: "SAT_RW",
+    slug: "sat-reading-writing",
+    shortName: "Reading & Writing",
+    fullName: "SAT Reading & Writing",
+    category: "sat",
+    examFormat: {
+      mcqCount: 54,
+      durationMin: 64,
+      sections: "2 modules x 27 questions; 32 min each. Adaptive (Module 2 difficulty depends on Module 1 performance).",
+      totalDurationMin: 64,
+      examMode: "fully-digital",
+      calculatorPolicy: "No calculator (R&W).",
+      referenceMaterials: "Built-in Bluebook tools: highlight, annotate, mark for review.",
+      sectionsDetail: [
+        { label: "Module 1: Reading & Writing", questionCount: 27, durationMin: 32, weightPct: 50 },
+        { label: "Module 2: Reading & Writing (adaptive)", questionCount: 27, durationMin: 32, weightPct: 50 },
+      ],
+    },
+    topics: [
+      "Information and Ideas",
+      "Craft and Structure",
+      "Expression of Ideas",
+      "Standard English Conventions",
+      "Vocabulary in context",
+      "Evidence-based reading",
+    ],
+    description:
+      "Practice SAT Reading & Writing with the real Digital SAT experience. Upload PDF practice tests and solve module 1 + module 2 questions with instant AI scoring.",
+    intro:
+      "The Digital SAT Reading & Writing section is 64 minutes total: two 32-minute adaptive modules of 27 questions each. Module 2 difficulty depends on your Module 1 performance. Questions cover Information & Ideas, Craft & Structure, Expression of Ideas, and Standard English Conventions.",
+    faqs: [
+      {
+        q: "How long is the Digital SAT Reading & Writing section?",
+        a: "64 minutes total: 2 modules of 32 minutes each, with 27 questions per module.",
+      },
+      {
+        q: "Is Reading & Writing adaptive?",
+        a: "Yes. Module 2 difficulty is determined by your Module 1 performance — strong performers see harder Module 2 questions, others see easier ones.",
+      },
+      {
+        q: "Are there essay questions on the SAT?",
+        a: "No. The Digital SAT is entirely multiple choice (4 options A-D) for Reading & Writing.",
+      },
+    ],
+  },
+  SAT_MATH: {
+    key: "SAT_MATH",
+    slug: "sat-math",
+    shortName: "Math",
+    fullName: "SAT Math",
+    category: "sat",
+    examFormat: {
+      mcqCount: 44,
+      durationMin: 70,
+      sections: "2 modules x 22 questions; 35 min each. ~75% MCQ + ~25% grid-in (Student-Produced Response). Adaptive.",
+      totalDurationMin: 70,
+      examMode: "fully-digital",
+      calculatorPolicy: "Built-in Desmos graphing calculator throughout. Personal calculator also allowed.",
+      referenceMaterials: "Math reference sheet (geometry formulas) provided in Bluebook.",
+      sectionsDetail: [
+        { label: "Module 1: Math", questionCount: 22, durationMin: 35, weightPct: 50 },
+        { label: "Module 2: Math (adaptive)", questionCount: 22, durationMin: 35, weightPct: 50 },
+      ],
+    },
+    topics: [
+      "Algebra",
+      "Advanced Math",
+      "Problem-Solving and Data Analysis",
+      "Geometry and Trigonometry",
+      "Student-produced response (grid-in)",
+    ],
+    description:
+      "Practice SAT Math with the real Digital SAT experience. Built-in Desmos calculator, grid-in questions, and module 1 + module 2 flow with instant AI scoring.",
+    intro:
+      "The Digital SAT Math section is 70 minutes total: two 35-minute adaptive modules of 22 questions each. Calculator is allowed throughout (built-in Desmos graphing calculator). About 75% of questions are multiple choice (A-D); the remaining ~25% are Student-Produced Response (grid-in) where you type the numeric answer.",
+    faqs: [
+      {
+        q: "How long is the Digital SAT Math section?",
+        a: "70 minutes total: 2 modules of 35 minutes each, with 22 questions per module.",
+      },
+      {
+        q: "Can I use a calculator on SAT Math?",
+        a: "Yes — on every question. The Digital SAT includes a built-in Desmos graphing calculator and also lets you bring your own approved calculator.",
+      },
+      {
+        q: "What are grid-in questions?",
+        a: "Student-Produced Response questions ask you to type a numeric answer (fraction or decimal) instead of choosing A/B/C/D. About 25% of SAT Math questions are grid-in.",
+      },
+    ],
+  },
+  SAT_FULL_TEST: {
+    key: "SAT_FULL_TEST",
+    slug: "sat-full-test",
+    shortName: "Full Test",
+    fullName: "SAT Full Test (Digital)",
+    category: "sat",
+    examFormat: {
+      mcqCount: 98,
+      durationMin: 134,
+      sections: "R&W (2 modules x 27Q, 32 min each) + Math (2 modules x 22Q, 35 min each). Total ~2h14m.",
+      totalDurationMin: 134,
+      examMode: "fully-digital",
+      calculatorPolicy: "Math: built-in Desmos calculator throughout. R&W: no calculator.",
+      referenceMaterials: "Math reference sheet provided. Bluebook tools: highlight, annotate, mark for review.",
+      sectionsDetail: [
+        { label: "Section 1, Module 1: Reading & Writing", questionCount: 27, durationMin: 32, weightPct: 25 },
+        { label: "Section 1, Module 2: Reading & Writing (adaptive)", questionCount: 27, durationMin: 32, weightPct: 25 },
+        { label: "Section 2, Module 1: Math", questionCount: 22, durationMin: 35, weightPct: 25 },
+        { label: "Section 2, Module 2: Math (adaptive)", questionCount: 22, durationMin: 35, weightPct: 25 },
+      ],
+    },
+    topics: [
+      "Full Digital SAT simulation",
+      "Reading & Writing (2 modules)",
+      "Math (2 modules)",
+      "Adaptive Module 2 routing",
+      "Scaled scoring 400-1600",
+      "Grid-in support",
+    ],
+    description:
+      "Take a full Digital SAT practice test online. Reading & Writing + Math, two adaptive modules each, built-in Desmos for Math, scaled scoring 400-1600.",
+    intro:
+      "The Digital SAT Full Test is approximately 2 hours 14 minutes total: 2 modules of Reading & Writing followed by 2 modules of Math. Each section uses Module 2 adaptive routing where the second module's difficulty depends on your Module 1 performance. The final score is reported as Reading & Writing (200-800) + Math (200-800) = Total (400-1600).",
+    faqs: [
+      {
+        q: "How long is the full Digital SAT?",
+        a: "About 2 hours 14 minutes (134 minutes): 64 min Reading & Writing + 70 min Math. A 10-minute break between sections is typical on the official exam.",
+      },
+      {
+        q: "What is the SAT score range?",
+        a: "Each section (R&W and Math) is scored 200-800. Total score is the sum: 400-1600.",
+      },
+      {
+        q: "Is the SAT really shorter than it used to be?",
+        a: "Yes. The Digital SAT is about 1 hour shorter than the legacy paper SAT and is fully adaptive.",
+      },
+      {
+        q: "Can I take breaks during the SAT?",
+        a: "Yes — a 10-minute break is offered between Reading & Writing and Math sections.",
+      },
+    ],
+  },
 };
 
 export const SUBJECT_BY_SLUG: Record<string, SubjectMeta> = Object.fromEntries(
@@ -1841,4 +1984,5 @@ export const CATEGORY_LABELS: Record<SubjectCategory, string> = {
   social: "Social Sciences",
   cs: "Computer Science",
   economics: "Economics",
+  sat: "SAT",
 };

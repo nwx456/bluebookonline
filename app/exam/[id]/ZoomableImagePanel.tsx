@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useContext, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { GraphZoomContext } from "./GraphZoomContext";
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3] as const;
 const DEFAULT_ZOOM_INDEX = 2;
@@ -157,6 +158,26 @@ export default function ZoomableImagePanel({
   }, []);
 
   const showTransformZoom = measuredSize && measuredSize.w > 0 && measuredSize.h > 0;
+  const graphZoomCtx = useContext(GraphZoomContext);
+  const useHeaderToolbar = graphZoomCtx != null;
+
+  const zoomControls = useMemo(
+    () => ({
+      zoomIn,
+      zoomOut,
+      reset: resetZoom,
+      label: `${Math.round(zoom * 100)}%`,
+      canZoomIn: zoomIndex < ZOOM_STEPS.length - 1,
+      canZoomOut: zoomIndex > 0,
+    }),
+    [zoomIn, zoomOut, resetZoom, zoom, zoomIndex]
+  );
+
+  useEffect(() => {
+    if (!graphZoomCtx) return;
+    graphZoomCtx.registerControls(zoomControls);
+    return () => graphZoomCtx.registerControls(null);
+  }, [graphZoomCtx, zoomControls]);
 
   return (
     <div
@@ -201,6 +222,7 @@ export default function ZoomableImagePanel({
             {children}
           </div>
         )}
+        {!useHeaderToolbar && (
         <div
           data-no-pan
           className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded border border-gray-300 bg-white/95 shadow-sm cursor-default"
@@ -233,6 +255,7 @@ export default function ZoomableImagePanel({
             +
           </button>
         </div>
+        )}
       </div>
     </div>
   );

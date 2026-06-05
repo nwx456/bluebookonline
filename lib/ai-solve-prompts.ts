@@ -30,6 +30,9 @@ const SUBJECT_SOLVE_CONFIG: Record<SubjectKey, { passageLabel: string; reasoning
   AP_CALCULUS_AB: { passageLabel: "Graph/Reference data", reasoningHint: "calculus concepts and mathematical reasoning" },
   AP_CALCULUS_BC: { passageLabel: "Graph/Reference data", reasoningHint: "calculus concepts and mathematical reasoning" },
   AP_PRECALCULUS: { passageLabel: "Graph/Reference data", reasoningHint: "precalculus concepts and mathematical reasoning" },
+  SAT_RW: { passageLabel: "Passage", reasoningHint: "Digital SAT R&W: grammar, rhetoric, evidence, vocabulary in context" },
+  SAT_MATH: { passageLabel: "Reference data/figure", reasoningHint: "Digital SAT Math: algebra, problem-solving, advanced math; for grid-in return the numeric answer (e.g. 3/2 or 0.5)" },
+  SAT_FULL_TEST: { passageLabel: "Reference data/passage", reasoningHint: "Digital SAT: R&W passages or Math figures; for grid-in return the numeric answer (e.g. 3/2 or 0.5)" },
 };
 
 export interface SolveQuestionInput {
@@ -46,6 +49,7 @@ export interface SolveQuestionInput {
   page_number?: number | null;
   has_graph?: boolean;
   bbox?: { x: number; y: number; width: number; height: number } | null;
+  question_type?: "mcq" | "grid_in" | null;
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
@@ -61,6 +65,14 @@ Return ONLY a JSON array of single uppercase letters in the same order as the qu
 Example: ["A","C","B","D"] means: question 1 -> A, question 2 -> C, question 3 -> B, question 4 -> D.
 Each element must be exactly one of: "A", "B", "C", "D", "E".
 CRITICAL: Solve each question independently. Return varied answers—different questions typically have different correct answers (A, B, C, D, or E). Returning the same letter for ALL questions is almost always wrong and indicates a failure to solve. Pick the best answer for each question.
+Do not include markdown, explanation, or any other text.`;
+
+const OUTPUT_INSTRUCTION_SAT = `
+Return ONLY a JSON array, one entry per question, in the same order.
+- For multiple-choice (MCQ) questions: an uppercase letter "A", "B", "C", or "D" (SAT never has E).
+- For grid-in (Student-Produced Response) questions: a numeric string. Use fractions ("3/2") OR decimals ("1.5"); no spaces, no units.
+Example: ["A","3/2","C","0.25","B"]
+CRITICAL: Solve each question independently. Returning the same answer for ALL questions is almost always wrong. Pick the best answer per question.
 Do not include markdown, explanation, or any other text.`;
 
 /** CSA/CSP: code + question + precondition + options */
@@ -95,17 +107,24 @@ function formatQuestionBlock(
   withPdfHint: boolean,
   passageLabel = "Graph/Table/Reference data"
 ): string {
-  const opts = buildOptions(q);
+  const isGridIn = q.question_type === "grid_in";
+  const opts = isGridIn ? [] : buildOptions(q);
   const passage = (q.passage_text ?? "").trim();
   const pageHint = withPdfHint && q.has_graph && q.page_number != null
     ? ` (Page ${q.page_number} – graph/table is on this page in the attached PDF)`
     : "";
+  const optionsBlock = isGridIn
+    ? `Answer format: GRID-IN (Student-Produced Response). Provide a numeric answer as a string (e.g. "3/2", "0.5", "-2"). No A/B/C/D.`
+    : `Options:\n${opts.join("\n")}`;
   return `
 --- Question ${i + 1}${pageHint} ---
 ${passage ? `${passageLabel}:\n${passage}\n\n` : ""}Question: ${q.question_text.trim()}
 
-Options:
-${opts.join("\n")}`;
+${optionsBlock}`;
+}
+
+function isSatSolveSubject(subject: SubjectKey): boolean {
+  return subject === "SAT_RW" || subject === "SAT_MATH" || subject === "SAT_FULL_TEST";
 }
 
 function buildGenericSolvePrompt(
@@ -120,11 +139,17 @@ function buildGenericSolvePrompt(
   const pdfLine = usePdf
     ? `The PDF document is attached. For questions that reference a graph, table, or diagram, look at the specified page (1-based) in the PDF. `
     : "";
-  return `You are an expert in ${expertLabel}. ${pdfLine}Solve each multiple-choice question. Use the ${passageLabel.toLowerCase()} when provided. Apply ${reasoningHint} to pick the correct answer.
+  const isSat = isSatSolveSubject(subject);
+  const hasGridIn = questions.some((q) => q.question_type === "grid_in");
+  const outputInstruction = isSat ? OUTPUT_INSTRUCTION_SAT : OUTPUT_INSTRUCTION;
+  const gridInHint = hasGridIn
+    ? ` Some questions are grid-in (Student-Produced Response): respond with a numeric string instead of a letter (e.g. "3/2" or "0.5").`
+    : "";
+  return `You are an expert in ${expertLabel}. ${pdfLine}Solve each question. Use the ${passageLabel.toLowerCase()} when provided. Apply ${reasoningHint} to pick the correct answer.${gridInHint}
 
 ${blocks.join("\n")}
 
-${OUTPUT_INSTRUCTION}`;
+${outputInstruction}`;
 }
 
 export function buildSolvePrompt(subject: SubjectKey, questions: SolveQuestionInput[]): string {
@@ -159,6 +184,19 @@ function normalizeAnswer(s: string): string | null {
   return valid.includes(t) ? t : null;
 }
 
+/** Loose numeric/letter normalizer used for SAT (mixes MCQ letters and grid-in numerics). */
+function normalizeAnswerLoose(s: string): string | null {
+  const raw = String(s ?? "").trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (["A", "B", "C", "D", "E"].includes(upper)) return upper;
+  // numeric / fraction (allow leading -, digits, optional . or / )
+  if (/^-?[\d./]+$/.test(raw) && /\d/.test(raw)) {
+    return raw;
+  }
+  return null;
+}
+
 /** Parse Gemini response into array of A/B/C/D/E. Handles JSON, numbered lists, comma-separated, Q1: A format. */
 export function parseSolveResponse(text: string, expectedCount: number): (string | null)[] {
   const valid = ["A", "B", "C", "D", "E"];
@@ -169,7 +207,9 @@ export function parseSolveResponse(text: string, expectedCount: number): (string
     try {
       const arr = JSON.parse(jsonMatch[0]) as unknown;
       if (Array.isArray(arr)) {
-        return arr.slice(0, expectedCount).map((a) => normalizeAnswer(String(a ?? "")));
+        return arr
+          .slice(0, expectedCount)
+          .map((a) => normalizeAnswerLoose(String(a ?? "")));
       }
     } catch {
       // fallback
@@ -207,4 +247,40 @@ export function parseSolveResponse(text: string, expectedCount: number): (string
 
   // anyLetter fallback removed: too risky - can match A/B/C/D/E from prompt text (e.g. "Choose A, B, C, or D")
   return new Array(expectedCount).fill(null);
+}
+
+/**
+ * Check if a free-form numeric grid-in answer matches the accepted set.
+ * Compares as: (a) exact string after trim, (b) numeric value within 1e-6
+ * tolerance after evaluating fractions like "3/2" -> 1.5.
+ */
+export function gridInAnswerMatches(
+  userAnswer: string | null | undefined,
+  acceptedAnswers: string[] | null | undefined
+): boolean {
+  if (!userAnswer || !acceptedAnswers || acceptedAnswers.length === 0) return false;
+  const u = userAnswer.trim();
+  if (!u) return false;
+  for (const candidate of acceptedAnswers) {
+    if (typeof candidate !== "string") continue;
+    const c = candidate.trim();
+    if (!c) continue;
+    if (u === c) return true;
+    const uVal = parseNumericMaybeFraction(u);
+    const cVal = parseNumericMaybeFraction(c);
+    if (uVal != null && cVal != null && Math.abs(uVal - cVal) < 1e-6) return true;
+  }
+  return false;
+}
+
+function parseNumericMaybeFraction(s: string): number | null {
+  const t = s.trim();
+  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+  const m = t.match(/^(-?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+  if (m) {
+    const num = Number(m[1]);
+    const den = Number(m[2]);
+    if (Number.isFinite(num) && Number.isFinite(den) && den !== 0) return num / den;
+  }
+  return null;
 }

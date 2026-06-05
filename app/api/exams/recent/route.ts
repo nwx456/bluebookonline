@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         .order("completed_at", { ascending: false })
         .limit(3);
 
-    let { data: attempts, error: attemptsError } = await buildRecentQuery(SELECT_WITH_SKIP_AI);
+    const { data: attempts, error: attemptsError } = await buildRecentQuery(SELECT_WITH_SKIP_AI);
 
     let hasSkipAiColumn = true;
     let attemptList: RecentAttemptRow[] = [];
@@ -92,11 +92,19 @@ export async function GET(request: NextRequest) {
     const uploadIds = [...new Set(attemptList.map((a) => a.upload_id))];
     const { data: uploads } = await supabase
       .from("pdf_uploads")
-      .select("id, filename, subject")
+      .select("id, filename, subject, exam_program")
       .in("id", uploadIds);
 
     const uploadMap = new Map(
-      (uploads ?? []).map((u) => [u.id, { filename: u.filename ?? "PDF", subject: u.subject ?? "AP_CSA" }])
+      (uploads ?? []).map((u) => [
+        u.id,
+        {
+          filename: u.filename ?? "PDF",
+          subject: u.subject ?? "AP_CSA",
+          examProgram:
+            (u as { exam_program?: string | null }).exam_program === "SAT" ? "SAT" : "AP",
+        },
+      ])
     );
 
     const result = attemptList.map((a) => {
@@ -122,6 +130,7 @@ export async function GET(request: NextRequest) {
         uploadId: a.upload_id,
         filename: upload?.filename ?? "PDF",
         subject: upload?.subject ?? "AP_CSA",
+        examProgram: upload?.examProgram ?? "AP",
         completedAt: a.completed_at,
         correctCount: correct,
         incorrectCount: incorrect,

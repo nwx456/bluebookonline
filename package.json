@@ -8,7 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "node scripts/copy-pdf-worker.js",
-    "clear-graphs": "node --env-file=.env.local scripts/clear-exam-graphs.mjs"
+    "clear-graphs": "node --env-file=.env.local scripts/clear-exam-graphs.mjs",
+    "test:sat-normalizer": "npx tsx --test lib/sat-module-normalizer.test.mjs",
+    "test:sat-display": "npx tsx --test lib/sat-question-display.test.mjs",
+    "test:sat-ingest": "npx tsx --test lib/sat-ingest-postprocess.test.mjs",
+    "test:passage-display": "npx tsx --test lib/passage-display.test.mjs",
+    "test:upload-progress": "npx tsx --test lib/upload-analyze-progress.test.mjs",
+    "test:sat-smoke": "node --env-file=.env scripts/sat-module-flow-smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

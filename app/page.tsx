@@ -1,22 +1,30 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { HeaderNav } from "@/components/HeaderNav";
+import { SiteHeader } from "@/components/SiteHeader";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload, AlertTriangle, Search, LayoutDashboard, Brain, Share2, PanelLeft, LayoutTemplate, Navigation, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
 import { SUBJECT_META } from "@/lib/subject-meta";
+import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
+import { appendProgramToHref, useProgram } from "@/lib/use-program";
 
-const SUBJECTS = [
-  { value: "", label: "All subjects" },
-  ...SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] })),
-];
+const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");
+const SAT_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "SAT");
 
-const HOME_FAQ_JSON_LD = {
+function buildSubjects(program: ExamProgram) {
+  const keys = program === "SAT" ? SAT_SUBJECT_KEYS : AP_SUBJECT_KEYS;
+  return [
+    { value: "", label: "All subjects" },
+    ...keys.map((v) => ({ value: v, label: SUBJECT_LABELS[v] })),
+  ];
+}
+
+const HOME_FAQ_JSON_LD_AP = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
@@ -25,7 +33,7 @@ const HOME_FAQ_JSON_LD = {
       name: "What is Bluebook Online?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.",
+        text: "A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP and SAT exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.",
       },
     },
     {
@@ -55,6 +63,45 @@ const HOME_FAQ_JSON_LD = {
   ],
 };
 
+const HOME_FAQ_JSON_LD_SAT = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is Bluebook Online SAT practice?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "A free Digital SAT practice platform mimicking the real Bluebook experience. Upload SAT PDFs (Reading & Writing, Math, or a full test) and solve adaptive modules with grid-in support and a built-in Desmos calculator.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How long is the Digital SAT?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Approximately 2 hours 14 minutes: Reading & Writing (2 modules x 32 min, 27 questions each) followed by Math (2 modules x 35 min, 22 questions each).",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does this support grid-in questions?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. SAT Math grid-in (Student-Produced Response) questions are fully supported with a numeric input box and AI-graded answer checking.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is there a built-in calculator?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. SAT Math modules embed the official Desmos graphing calculator, available throughout the section just like the real Digital SAT.",
+      },
+    },
+  ],
+};
+
 interface PublishedExam {
   id: string;
   filename: string;
@@ -65,7 +112,18 @@ interface PublishedExam {
 }
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
+  );
+}
+
+function HomeInner() {
   const router = useRouter();
+  const { program } = useProgram();
+  const isSat = program === "SAT";
+
   const [exams, setExams] = useState<PublishedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -78,6 +136,17 @@ export default function Home() {
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [interfaceGuideOpen, setInterfaceGuideOpen] = useState(false);
+
+  const SUBJECTS = buildSubjects(program);
+  const programKeys = isSat ? SAT_SUBJECT_KEYS : AP_SUBJECT_KEYS;
+
+  // Reset subject filter whenever the active program changes (e.g. the user
+  // toggles AP/SAT in the global HeaderNav).
+  useEffect(() => {
+    setSubjectFilter("");
+  }, [program]);
+
+  const examsHref = appendProgramToHref("/exams", program);
 
   useEffect(() => {
     setMounted(true);
@@ -98,9 +167,10 @@ export default function Home() {
   const fetchExams = useCallback(async () => {
     setLoading(true);
     try {
-      const url = subjectFilter
-        ? `/api/exams/published?subject=${encodeURIComponent(subjectFilter)}`
-        : "/api/exams/published";
+      const params = new URLSearchParams();
+      params.set("program", program);
+      if (subjectFilter) params.set("subject", subjectFilter);
+      const url = `/api/exams/published?${params.toString()}`;
       const res = await fetch(url);
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -113,7 +183,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [subjectFilter]);
+  }, [subjectFilter, program]);
 
   useEffect(() => {
     fetchExams();
@@ -136,42 +206,47 @@ export default function Home() {
     return now.getTime() - d.getTime() < 3 * 24 * 60 * 60 * 1000;
   };
 
+  const heroTitle =
+    program === "SAT"
+      ? "Free Digital SAT Practice with the Bluebook Experience"
+      : "Free AP Exam Practice with the Bluebook Experience";
+  const heroSubtitle =
+    program === "SAT"
+      ? "Practice Digital SAT (Reading & Writing + Math) with AI-scored modules. Upload your own PDF or solve community-published full tests."
+      : `Practice ${AP_SUBJECT_KEYS.length} AP subjects with AI-scored digital exams. Upload your own PDF or solve community-published mock tests.`;
+  const heroDescription =
+    program === "SAT"
+      ? "Bluebook Online mimics the real Digital SAT Bluebook interface. Adaptive Module 2 routing, built-in Desmos graphing calculator on Math, grid-in support, and scaled scoring (400–1600). Free for students worldwide."
+      : "Bluebook Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.";
+  const heroLinkLabel =
+    program === "SAT" ? "Browse SAT practice tests →" : "Browse all 24 AP practice tests →";
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(HOME_FAQ_JSON_LD) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(program === "SAT" ? HOME_FAQ_JSON_LD_SAT : HOME_FAQ_JSON_LD_AP),
+        }}
       />
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-8">
         <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-6 py-10 shadow-sm border border-gray-100">
           <div className="flex items-center justify-center gap-3">
             <BookOpen className="h-12 w-12 text-blue-600 shrink-0" />
             <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
-              Free AP Exam Practice with the Bluebook Experience
+              {heroTitle}
             </h1>
           </div>
-          <p className="mt-2 text-gray-600">
-            Practice {SUBJECT_KEYS.length} AP subjects with AI-scored digital exams. Upload your own PDF or solve community-published mock tests.
-          </p>
-          <p className="mt-4 max-w-2xl mx-auto text-sm text-gray-500">
-            Bluebook Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.
-          </p>
+          <p className="mt-2 text-gray-600">{heroSubtitle}</p>
+          <p className="mt-4 max-w-2xl mx-auto text-sm text-gray-500">{heroDescription}</p>
           <div className="mt-4">
             <Link
-              href="/exams"
+              href={examsHref}
               className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
             >
-              Browse all 24 AP practice tests &rarr;
+              {heroLinkLabel}
             </Link>
           </div>
           {configError ? (
@@ -228,7 +303,15 @@ export default function Home() {
                 <div className="flex gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 mb-6">
                   <LayoutTemplate className="h-5 w-5 shrink-0 text-indigo-600 mt-0.5" />
                   <p className="text-sm text-gray-700">
-                    This is a general overview. The layout can vary by subject. For example, AP CSA shows code; Economics or Psychology may show graphs, tables, or passages. If the display looks wrong or unclear, use <strong>Show page</strong> to view the original question in the PDF.
+                    {isSat ? (
+                      <>
+                        This is a general overview. SAT Reading &amp; Writing shows a passage on the left and a single question on the right; SAT Math shows a figure, equation, or table (or just a question stem). If the display looks wrong, use <strong>Show page</strong> to view the original question in the PDF.
+                      </>
+                    ) : (
+                      <>
+                        This is a general overview. The layout can vary by subject. For example, AP CSA shows code; Economics or Psychology may show graphs, tables, or passages. If the display looks wrong or unclear, use <strong>Show page</strong> to view the original question in the PDF.
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50 mb-6">
@@ -246,22 +329,42 @@ export default function Home() {
                     </div>
                     <ul className="space-y-1.5 text-gray-600">
                       <li><strong>Bluebook</strong> – Application branding and link to home.</li>
-                      <li><strong>Section I / Directions</strong> – Current section and dropdown for instructions.</li>
+                      {isSat ? (
+                        <li><strong>Module title / Directions</strong> – Active SAT module (e.g. R&amp;W Module 1) and dropdown for instructions.</li>
+                      ) : (
+                        <li><strong>Section I / Directions</strong> – Current section and dropdown for instructions.</li>
+                      )}
                       <li><strong>Timer & Hide</strong> – Countdown for remaining time; Hide to conceal the timer.</li>
                       <li><strong>Highlights & Notes</strong> – Highlight text or add personal notes.</li>
-                      <li><strong>Reference</strong> – Access reference materials or documentation.</li>
+                      {isSat ? (
+                        <li><strong>Desmos calculator</strong> – Built-in graphing calculator on SAT Math modules.</li>
+                      ) : (
+                        <li><strong>Reference</strong> – Access reference materials or documentation.</li>
+                      )}
                     </ul>
                   </div>
                   <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <PanelLeft className="h-5 w-5 text-emerald-600" />
-                      <h3 className="font-semibold text-gray-900">Left Panel – Graphs, Code & Context</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        {isSat ? "Left Panel – Passage, Figures & Context" : "Left Panel – Graphs, Code & Context"}
+                      </h3>
                     </div>
                     <ul className="space-y-1.5 text-gray-600">
-                      <li><strong>Purpose</strong> – Shows graphs, tables, code, or passages depending on the subject. Economics may show supply/demand curves; AP CSA shows code; Psychology may show passages.</li>
-                      <li><strong>Code segment</strong> – For AP CSA: introduces the code block to analyze.</li>
-                      <li><strong>Graphs & tables</strong> – For subjects with visuals: displays charts, diagrams, or data tables.</li>
-                      <li><strong>Show page</strong> – Opens the original PDF at the relevant page so you can verify the question as it appears in the source. Use this when the on-screen display looks wrong or unclear. You can scroll through all pages.</li>
+                      {isSat ? (
+                        <>
+                          <li><strong>Purpose</strong> – Shows the SAT passage, table, figure, or equation for the current question. R&amp;W shows the source text; Math shows diagrams or data.</li>
+                          <li><strong>Highlights</strong> – Highlight key sentences in the passage just like the real Bluebook.</li>
+                          <li><strong>Show page</strong> – Opens the original PDF at the relevant page when you want to verify the question as printed.</li>
+                        </>
+                      ) : (
+                        <>
+                          <li><strong>Purpose</strong> – Shows graphs, tables, code, or passages depending on the subject. Economics may show supply/demand curves; AP CSA shows code; Psychology may show passages.</li>
+                          <li><strong>Code segment</strong> – For AP CSA: introduces the code block to analyze.</li>
+                          <li><strong>Graphs & tables</strong> – For subjects with visuals: displays charts, diagrams, or data tables.</li>
+                          <li><strong>Show page</strong> – Opens the original PDF at the relevant page so you can verify the question as it appears in the source. Use this when the on-screen display looks wrong or unclear. You can scroll through all pages.</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                   <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
@@ -272,8 +375,17 @@ export default function Home() {
                     <ul className="space-y-1.5 text-gray-600">
                       <li><strong>Question number</strong> – Current question position (e.g. 4).</li>
                       <li><strong>Mark for Review</strong> – Flag the question to revisit before submitting.</li>
-                      <li><strong>AP badge</strong> – Indicates Advanced Placement level or category.</li>
-                      <li><strong>Multiple-choice options (A–E)</strong> – Select the correct answer; click the option to choose.</li>
+                      {isSat ? (
+                        <>
+                          <li><strong>SAT badge</strong> – Indicates which SAT section and module you are in.</li>
+                          <li><strong>Answers</strong> – Pick A–D for multiple-choice or enter a numeric value for grid-in (Student-Produced Response).</li>
+                        </>
+                      ) : (
+                        <>
+                          <li><strong>AP badge</strong> – Indicates Advanced Placement level or category.</li>
+                          <li><strong>Multiple-choice options (A–E)</strong> – Select the correct answer; click the option to choose.</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                   <div className="rounded-lg border-2 border-violet-200 bg-violet-50 p-4">
@@ -286,7 +398,11 @@ export default function Home() {
                       <li><strong>Question X of Y</strong> – Current position in the exam; click to open the question grid.</li>
                       <li><strong>Back</strong> – Go to the previous question.</li>
                       <li><strong>Next</strong> – Go to the next question.</li>
-                      <li><strong>End Exam</strong> – Submit the exam and see your score (on the last question).</li>
+                      {isSat ? (
+                        <li><strong>Submit Module / End Exam</strong> – Finish the current SAT module to move on, or submit the full test at the end of Math Module 2 to see your scaled score (400–1600).</li>
+                      ) : (
+                        <li><strong>End Exam</strong> – Submit the exam and see your score (on the last question).</li>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -324,7 +440,15 @@ export default function Home() {
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-1">Browse</h3>
                       <p className="text-sm text-gray-600 leading-relaxed">
-                        View all published exams on this page. Use the subject dropdown to filter by AP subject (e.g. AP Psychology, AP Calculus). Click Solve on any exam to start.
+                        {isSat ? (
+                          <>
+                            View all published exams on this page. Use the subject dropdown to filter by SAT section (Reading &amp; Writing, Math, or Full Test). Click Solve on any exam to start.
+                          </>
+                        ) : (
+                          <>
+                            View all published exams on this page. Use the subject dropdown to filter by AP subject (e.g. AP Psychology, AP Calculus). Click Solve on any exam to start.
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -336,10 +460,21 @@ export default function Home() {
                         <Link href="/dashboard" className="text-blue-600 font-medium hover:underline">Go to Dashboard</Link> and upload your PDF. Follow these steps:
                       </p>
                       <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600 font-medium">
-                        <li className="pl-1">Select the AP subject from the dropdown.</li>
-                        <li className="pl-1">Enter the question count.</li>
-                        <li className="pl-1">If your PDF has images, tables, or graphs, check the box.</li>
-                        <li className="pl-1">Drag and drop or click to choose the file. The system will extract questions automatically.</li>
+                        {isSat ? (
+                          <>
+                            <li className="pl-1">Pick the SAT subject (Reading &amp; Writing, Math, or Full Test).</li>
+                            <li className="pl-1">For Full Test: choose adaptive mode (non-adaptive, six-module, or pool) and optional M1 cutoffs.</li>
+                            <li className="pl-1">For single-module uploads: enter the question count.</li>
+                            <li className="pl-1">Drag and drop or click to choose the PDF. The AI will detect MCQ vs grid-in automatically.</li>
+                          </>
+                        ) : (
+                          <>
+                            <li className="pl-1">Select the AP subject from the dropdown.</li>
+                            <li className="pl-1">Enter the question count.</li>
+                            <li className="pl-1">If your PDF has images, tables, or graphs, check the box.</li>
+                            <li className="pl-1">Drag and drop or click to choose the file. The system will extract questions automatically.</li>
+                          </>
+                        )}
                       </ol>
                     </div>
                   </div>
@@ -348,7 +483,15 @@ export default function Home() {
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-1">Solve</h3>
                       <p className="text-sm text-gray-600 leading-relaxed">
-                        Answer each question by selecting A, B, C, D, or E. Use Mark for Review to flag questions you want to revisit. Navigate with Previous/Next or the question grid. When finished, click End Exam to submit and see your score. The exam interface mimics the real Bluebook digital testing experience.
+                        {isSat ? (
+                          <>
+                            Pick A–D for multiple-choice or type a numeric value for grid-in questions. Use Mark for Review to flag tough questions and the question grid to jump between them. Finish a module to advance to the next (R&amp;W M1 → M2 → Math M1 → M2). Submit at the end to see your scaled score (400–1600). SAT Math has a built-in Desmos calculator.
+                          </>
+                        ) : (
+                          <>
+                            Answer each question by selecting A, B, C, D, or E. Use Mark for Review to flag questions you want to revisit. Navigate with Previous/Next or the question grid. When finished, click End Exam to submit and see your score. The exam interface mimics the real Bluebook digital testing experience.
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -410,11 +553,19 @@ export default function Home() {
                   </div>
                   <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                     <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                    <div>This is not an official College Board or AP exam platform. We mimic the Bluebook digital exam experience for practice; for educational use only.</div>
+                    <div>
+                      {isSat
+                        ? "This is not an official College Board, SAT, or Bluebook platform. We mimic the Digital SAT Bluebook experience for practice only."
+                        : "This is not an official College Board or AP exam platform. We mimic the Bluebook digital exam experience for practice; for educational use only."}
+                    </div>
                   </div>
                   <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                     <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
-                    <div>The timer is optional and does not reflect official AP exam timing. Use it as a rough guide.</div>
+                    <div>
+                      {isSat
+                        ? "The timer is optional and the displayed scaled score is an approximation. Real SAT scores depend on the College Board's adaptive routing and statistical equating."
+                        : "The timer is optional and does not reflect official AP exam timing. Use it as a rough guide."}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -440,23 +591,23 @@ export default function Home() {
             {subjectsOpen && (
               <div className="border-t border-gray-200 px-4 pb-4 pt-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {SUBJECT_KEYS.map((key) => (
+                  {programKeys.map((key) => (
                     <Link
                       key={key}
                       href={`/exams/${SUBJECT_META[key].slug}`}
                       className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
                     >
                       <BookOpen className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-                      {SUBJECT_LABELS[key].replace(/^AP /, "")}
+                      {SUBJECT_LABELS[key].replace(/^AP /, "").replace(/^SAT /, "")}
                     </Link>
                   ))}
                 </div>
                 <div className="mt-3 text-center">
                   <Link
-                    href="/exams"
+                    href={examsHref}
                     className="text-xs font-medium text-blue-600 hover:underline"
                   >
-                    View all AP practice tests &rarr;
+                    View all {isSat ? "SAT" : "AP"} practice tests &rarr;
                   </Link>
                 </div>
               </div>
@@ -482,30 +633,61 @@ export default function Home() {
             {faqOpen && (
               <div className="border-t border-gray-200 px-4 pb-4 pt-2">
                 <dl className="space-y-4">
-                  <div>
-                    <dt className="text-sm font-semibold text-gray-900">What is Bluebook Online?</dt>
-                    <dd className="mt-1 text-sm text-gray-600">
-                      A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-semibold text-gray-900">Is it free?</dt>
-                    <dd className="mt-1 text-sm text-gray-600">
-                      Yes. Bluebook Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-semibold text-gray-900">How does AI scoring work?</dt>
-                    <dd className="mt-1 text-sm text-gray-600">
-                      If your PDF has no answer key, AI generates one when you first complete the exam. The key is saved so future attempts skip AI and use the stored answers.
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-semibold text-gray-900">Can I use my own PDFs?</dt>
-                    <dd className="mt-1 text-sm text-gray-600">
-                      Yes. Sign in, go to Dashboard, and upload your AP exam PDF. The system extracts questions automatically. You can publish exams to share with others.
-                    </dd>
-                  </div>
+                  {program === "SAT" ? (
+                    <>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">What is Bluebook Online SAT practice?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          A free Digital SAT practice platform mimicking the real Bluebook experience. Upload SAT PDFs (Reading & Writing, Math, or a full test) and solve adaptive modules with grid-in support and a built-in Desmos calculator.
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">How long is the Digital SAT?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          Approximately 2 hours 14 minutes: Reading & Writing (2 modules × 32 min, 27 questions each) followed by Math (2 modules × 35 min, 22 questions each).
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">Does this support grid-in questions?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          Yes. SAT Math grid-in (Student-Produced Response) questions are fully supported with a numeric input box and AI-graded answer checking.
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">Is there a built-in calculator?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          Yes. SAT Math modules embed the official Desmos graphing calculator, available throughout the section just like the real Digital SAT.
+                        </dd>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">What is Bluebook Online?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">Is it free?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          Yes. Bluebook Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">How does AI scoring work?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          If your PDF has no answer key, AI generates one when you first complete the exam. The key is saved so future attempts skip AI and use the stored answers.
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm font-semibold text-gray-900">Can I use my own PDFs?</dt>
+                        <dd className="mt-1 text-sm text-gray-600">
+                          Yes. Sign in, go to Dashboard, and upload your AP exam PDF. The system extracts questions automatically. You can publish exams to share with others.
+                        </dd>
+                      </div>
+                    </>
+                  )}
                   <div className="pt-4 border-t border-gray-200">
                     <p className="text-sm text-gray-600">
                       <Link href="/about" className="font-medium text-blue-600 hover:underline">

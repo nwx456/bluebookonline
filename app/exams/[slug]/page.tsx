@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Clock, FileText, ListChecks, CalendarDays, Calculator, Newspaper } from "lucide-react";
-import { HeaderNav } from "@/components/HeaderNav";
+import { SiteHeader } from "@/components/SiteHeader";
 import { PublishedExamsList } from "@/components/exams/PublishedExamsList";
 import { SubjectHeroCta } from "@/components/exams/SubjectHeroCta";
 import {
@@ -54,12 +54,25 @@ export async function generateMetadata({
 
 export default async function SubjectLandingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ program?: string | string[] }>;
 }) {
   const { slug } = await params;
   const meta = SUBJECT_BY_SLUG[slug];
   if (!meta) notFound();
+
+  const isSat = meta.category === "sat";
+  const sp = (await searchParams) ?? {};
+  const programParamRaw = Array.isArray(sp.program) ? sp.program[0] : sp.program;
+  const programParam =
+    programParamRaw?.toLowerCase() === "sat" || isSat ? "sat" : "ap";
+  const programQuery = programParam === "sat" ? "?program=sat" : "";
+
+  const programLabel = isSat ? "Digital SAT" : "Advanced Placement";
+  const indexBreadcrumbLabel = isSat ? "Digital SAT Practice Tests" : "AP Practice Tests";
+  const indexHref = `/exams${programQuery}`;
 
   const related = getRelatedSubjects(meta, 4);
   const url = `${baseUrl}/exams/${meta.slug}`;
@@ -75,7 +88,7 @@ export default async function SubjectLandingPage({
       name: "Bluebook Online",
       sameAs: baseUrl,
     },
-    educationalLevel: "Advanced Placement",
+    educationalLevel: programLabel,
     learningResourceType: "Practice exam",
     inLanguage: "en",
   };
@@ -85,7 +98,7 @@ export default async function SubjectLandingPage({
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
-      { "@type": "ListItem", position: 2, name: "AP Practice Tests", item: `${baseUrl}/exams` },
+      { "@type": "ListItem", position: 2, name: indexBreadcrumbLabel, item: `${baseUrl}${indexHref}` },
       { "@type": "ListItem", position: 3, name: meta.fullName, item: url },
     ],
   };
@@ -115,31 +128,20 @@ export default async function SubjectLandingPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-          >
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-8">
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-gray-500">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
-              <Link href="/" className="hover:text-blue-600 hover:underline">
+              <Link href={`/${programQuery}`} className="hover:text-blue-600 hover:underline">
                 Home
               </Link>
             </li>
             <li aria-hidden>/</li>
             <li>
-              <Link href="/exams" className="hover:text-blue-600 hover:underline">
-                AP Practice Tests
+              <Link href={indexHref} className="hover:text-blue-600 hover:underline">
+                {indexBreadcrumbLabel}
               </Link>
             </li>
             <li aria-hidden>/</li>
@@ -153,7 +155,7 @@ export default async function SubjectLandingPage({
               {CATEGORY_LABELS[meta.category]}
             </span>
             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-              Advanced Placement
+              {programLabel}
             </span>
           </div>
           <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
@@ -161,9 +163,21 @@ export default async function SubjectLandingPage({
           </h1>
           <p className="mt-3 text-gray-600 leading-relaxed">{meta.intro}</p>
           <p className="mt-3 text-sm text-gray-500 leading-relaxed">
-            Practice {meta.fullName} multiple-choice questions in a digital interface modeled on the
-            real College Board Bluebook exam. Upload your own PDF or solve a published mock test, then
-            get instant AI scoring and detailed answer explanations. Free for all students.
+            {isSat ? (
+              <>
+                Practice {meta.fullName} in a digital interface modeled on the real College Board
+                Digital SAT Bluebook app. Upload your own PDF or solve a published mock test, with
+                instant AI scoring, grid-in support, and a built-in Desmos calculator on Math. Free
+                for all students.
+              </>
+            ) : (
+              <>
+                Practice {meta.fullName} multiple-choice questions in a digital interface modeled on
+                the real College Board Bluebook exam. Upload your own PDF or solve a published mock
+                test, then get instant AI scoring and detailed answer explanations. Free for all
+                students.
+              </>
+            )}
           </p>
           {meta.examDate2026 && (
             <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 border border-amber-200">
@@ -333,7 +347,27 @@ export default async function SubjectLandingPage({
               </ul>
             )}
             <p className="mt-3 text-xs text-gray-500">
-              Source: <a href="https://apstudents.collegeboard.org" className="underline hover:text-blue-600" rel="nofollow noopener" target="_blank">College Board AP Students</a> Course and Exam Description.
+              Source:{" "}
+              {isSat ? (
+                <a
+                  href="https://satsuite.collegeboard.org/sat"
+                  className="underline hover:text-blue-600"
+                  rel="nofollow noopener"
+                  target="_blank"
+                >
+                  College Board SAT Suite
+                </a>
+              ) : (
+                <a
+                  href="https://apstudents.collegeboard.org"
+                  className="underline hover:text-blue-600"
+                  rel="nofollow noopener"
+                  target="_blank"
+                >
+                  College Board AP Students
+                </a>
+              )}{" "}
+              {isSat ? "test specifications." : "Course and Exam Description."}
             </p>
           </div>
         </section>
@@ -384,13 +418,15 @@ export default async function SubjectLandingPage({
         {related.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Other {CATEGORY_LABELS[meta.category]} AP exams
+              {isSat
+                ? `Other ${CATEGORY_LABELS[meta.category]} sections`
+                : `Other ${CATEGORY_LABELS[meta.category]} AP exams`}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {related.map((r) => (
                 <Link
                   key={r.key}
-                  href={`/exams/${r.slug}`}
+                  href={`/exams/${r.slug}${programQuery}`}
                   className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all flex items-center gap-2 text-sm"
                 >
                   <BookOpen className="h-4 w-4 shrink-0 text-blue-600" />
@@ -400,10 +436,12 @@ export default async function SubjectLandingPage({
             </div>
             <div className="mt-4 text-center">
               <Link
-                href="/exams"
+                href={indexHref}
                 className="text-sm font-medium text-blue-600 hover:underline"
               >
-                Browse all 24 AP practice tests
+                {isSat
+                  ? "Browse all Digital SAT practice tests"
+                  : "Browse all 24 AP practice tests"}
               </Link>
             </div>
           </section>
@@ -413,15 +451,15 @@ export default async function SubjectLandingPage({
       <footer className="border-t border-gray-200 bg-white py-6">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link href="/" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={`/${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               Home
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={indexHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               All practice tests
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={`/about${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               About
             </Link>
             <span className="text-gray-300">|</span>

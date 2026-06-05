@@ -7,10 +7,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
   ChevronDown,
-  ChevronUp,
   Delete,
   Eraser,
-  Flag,
   Highlighter,
   Calculator,
   Maximize2,
@@ -19,7 +17,6 @@ import {
   Plus,
   RotateCcw,
   RotateCw,
-  Star,
   StickyNote,
   Superscript,
   Wrench,
@@ -32,13 +29,46 @@ import {
   BookOpen,
   LayoutDashboard,
   Save,
-  Pause,
-  Play,
 } from "lucide-react";
+import { ExamHeader } from "@/app/exam/ExamHeader";
+import { ExamFooter, ExamFooterQuestionNav } from "@/app/exam/ExamFooter";
+import { ExamQuestionChrome } from "@/app/exam/ExamQuestionChrome";
+import {
+  examContentSerifClass,
+  examUi,
+  formatDisplayUsername,
+  formatExamHeaderTitle,
+} from "@/app/exam/exam-ui-tokens";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/gemini-prompts";
 import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
+import { partitionSatStemAndPassage } from "@/lib/sat-ingest-postprocess";
+import { parseBulletPassage } from "@/lib/passage-display";
+import {
+  getExamProgram,
+  isSatFullTest,
+  isSatMath,
+  isSatSubject,
+  isSatRw,
+  requiresDesmos as satRequiresDesmos,
+  pickSatM2Variant,
+  SAT_MODULES,
+  type SatModuleId,
+  type SatSection,
+} from "@/lib/exam-program";
+import { gridInAnswerMatches } from "@/lib/ai-solve-prompts";
+import {
+  getModuleDisplayNumber,
+  getSatModuleGroups,
+  type SatModuleGroup,
+} from "@/lib/sat-question-display";
+import { GraphZoomProvider, GraphZoomHeaderToolbar } from "./GraphZoomContext";
+import { DesmosCalculator } from "@/components/DesmosCalculator";
+import {
+  SatModuleResultOverlay,
+  type ModuleScoreResult,
+} from "@/app/exam/SatModuleResultOverlay";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
@@ -136,7 +166,8 @@ const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; e
   },
 ];
 
-const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
+const UPLOAD_SELECT_FIELDS =
+  "id, subject, filename, storage_path, exam_program, sat_format, sat_adaptive_mode, sat_cutoff_rw, sat_cutoff_math";
 
 type SubjectValue = SubjectKey;
 
@@ -145,6 +176,11 @@ interface PdfUpload {
   subject: string | null;
   filename: string | null;
   storage_path?: string | null;
+  exam_program?: string | null;
+  sat_format?: string | null;
+  sat_adaptive_mode?: string | null;
+  sat_cutoff_rw?: number | null;
+  sat_cutoff_math?: number | null;
 }
 
 interface Question {
@@ -164,6 +200,79 @@ interface Question {
   page_number?: number | null;
   bbox?: { x: number; y: number; width: number; height: number } | null;
   image_url?: string | null;
+  question_type?: "mcq" | "grid_in" | null;
+  accepted_answers?: string[] | null;
+  sat_section?: "rw" | "math" | null;
+  sat_module?: number | null;
+  sat_module_variant?: "easy" | "hard" | null;
+  sat_difficulty?: "easy" | "medium" | "hard" | null;
+}
+
+const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
+
+function formatSatMarkedReviewLabel(
+  q: Question,
+  allQuestions: Question[],
+  isSatFullExam: boolean
+): string {
+  const num = getModuleDisplayNumber(allQuestions, q);
+  if (!isSatFullExam) return `Question ${num}`;
+  const moduleId = `${q.sat_section === "rw" ? "rw" : "math"}${q.sat_module}` as SatModuleId;
+  const short = SAT_MODULES.find((m) => m.id === moduleId)?.shortLabel ?? "Module";
+  return `${short} #${num}`;
+}
+
+function SatMarkedForReviewWarning({
+  items,
+  allQuestions,
+  isSatFullExam,
+}: {
+  items: Question[];
+  allQuestions: Question[];
+  isSatFullExam: boolean;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <p className="text-sm font-semibold text-amber-900">Review before you submit</p>
+      <p className="mt-1 text-sm text-amber-800">
+        You marked {items.length} question{items.length === 1 ? "" : "s"} for review. Check them
+        before continuing.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {items.map((q) => (
+          <span
+            key={q.id}
+            className="inline-block rounded border border-amber-200 bg-white px-2 py-1 text-sm font-medium text-amber-900"
+          >
+            {formatSatMarkedReviewLabel(q, allQuestions, isSatFullExam)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isSatM1AnswerCorrect(q: Question, userAnswer: string | undefined): boolean {
+  if (!userAnswer?.trim()) return false;
+  const correctRaw = q.correct_answer?.toString().trim() ?? "";
+  if (!correctRaw) return false;
+  if (q.question_type === "grid_in") {
+    const accepted =
+      Array.isArray(q.accepted_answers) && q.accepted_answers.length > 0
+        ? q.accepted_answers
+        : [correctRaw];
+    return gridInAnswerMatches(userAnswer.trim(), accepted);
+  }
+  return userAnswer.toUpperCase() === correctRaw.toUpperCase();
+}
+
+function questionMatchesSatModuleBase(
+  q: Question,
+  section: SatSection,
+  module: 1 | 2
+): boolean {
+  return q.sat_section === section && q.sat_module === module;
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
@@ -240,10 +349,93 @@ function getSelectionOffsets(container: Node): { start: number; end: number } | 
   return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
-function formatTimer(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+function HighlightableTextBlock({
+  blockId,
+  text,
+  highlightRanges,
+  className,
+  onApplyHighlight,
+}: {
+  blockId: string;
+  text: string;
+  highlightRanges: HighlightRange[];
+  className?: string;
+  onApplyHighlight: (blockId: string, start: number, end: number) => void;
+}) {
+  if (!text) return null;
+  return (
+    <div
+      className={cn(className, "select-text cursor-text")}
+      onMouseUp={(e) => {
+        const offsets = getSelectionOffsets(e.currentTarget);
+        if (offsets && offsets.start < offsets.end) {
+          onApplyHighlight(blockId, offsets.start, offsets.end);
+        }
+      }}
+    >
+      {renderTextWithHighlights(text, highlightRanges)}
+    </div>
+  );
+}
+
+function PassagePanelContent({
+  questionId,
+  text,
+  highlights,
+  className,
+  itemTextClass,
+  onApplyHighlight,
+}: {
+  questionId: string;
+  text: string;
+  highlights: Record<string, HighlightRange[]>;
+  className?: string;
+  itemTextClass?: string;
+  onApplyHighlight: (blockId: string, start: number, end: number) => void;
+}) {
+  const parsed = parseBulletPassage(text);
+  if (parsed.kind === "bullets") {
+    return (
+      <div className={className}>
+        {parsed.intro ? (
+          <HighlightableTextBlock
+            blockId={`${questionId}-passage-intro`}
+            text={parsed.intro}
+            highlightRanges={highlights[`${questionId}-passage-intro`] ?? []}
+            className={cn("mb-4 text-gray-800", itemTextClass)}
+            onApplyHighlight={onApplyHighlight}
+          />
+        ) : null}
+        <ul
+          className={cn(
+            "list-disc space-y-4 pl-5 text-gray-800 marker:text-gray-600",
+            itemTextClass
+          )}
+        >
+          {parsed.items.map((item, i) => (
+            <li key={i} className={cn("pl-0.5", itemTextClass)}>
+              <HighlightableTextBlock
+                blockId={`${questionId}-passage-b-${i}`}
+                text={item}
+                highlightRanges={highlights[`${questionId}-passage-b-${i}`] ?? []}
+                className={itemTextClass}
+                onApplyHighlight={onApplyHighlight}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <HighlightableTextBlock
+      blockId={`${questionId}-passage`}
+      text={parsed.text}
+      highlightRanges={highlights[`${questionId}-passage`] ?? []}
+      className={className}
+      onApplyHighlight={onApplyHighlight}
+    />
+  );
 }
 
 function isSvgContent(text: string | null): boolean {
@@ -634,11 +826,34 @@ export default function ExamPage() {
     percentage: number;
     timeSpentSeconds: number;
     breakdown: { questionNumber: number; userAnswer: string | null; correctAnswer: string | null; isCorrect: boolean }[];
+    examProgram?: "AP" | "SAT";
+    sat?: {
+      isFullTest: boolean;
+      rwScaled: number | null;
+      mathScaled: number | null;
+      totalScaled: number | null;
+      modules: Array<{
+        module: string;
+        section: "rw" | "math";
+        moduleNumber: 1 | 2;
+        correct: number;
+        total: number;
+      }>;
+    } | null;
   } | null>(null);
+  const [desmosOpen, setDesmosOpen] = useState(false);
+  // SAT module flow state (only used for SAT_FULL_TEST)
+  const [currentModuleId, setCurrentModuleId] = useState<SatModuleId | null>(null);
+  const [moduleTransitionShown, setModuleTransitionShown] = useState<SatModuleId | null>(null);
+  const [moduleTransitionError, setModuleTransitionError] = useState<string | null>(null);
+  const [showModuleScoreChoice, setShowModuleScoreChoice] = useState(false);
+  const [moduleScoreResult, setModuleScoreResult] = useState<ModuleScoreResult | null>(null);
+  const [scoringModule, setScoringModule] = useState(false);
+  const [resumeModuleIndex, setResumeModuleIndex] = useState<number | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completingSkipAi, setCompletingSkipAi] = useState(false);
   const [selectedResultQuestion, setSelectedResultQuestion] = useState<number | null>(null);
-  const [resultViewMode, setResultViewMode] = useState<"explanation" | "question">("explanation");
+  const [resultViewMode, setResultViewMode] = useState<"explanation" | "question">("question");
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
@@ -708,6 +923,9 @@ export default function ExamPage() {
               setUpload(data.upload as PdfUpload);
               setQuestions((data.questions ?? []) as Question[]);
               setAttemptId(data.attemptId ?? loadAttemptId);
+              if (typeof data.currentModuleIndex === "number" && Number.isFinite(data.currentModuleIndex)) {
+                setResumeModuleIndex(Math.max(0, Math.floor(data.currentModuleIndex)));
+              }
               const ans: Record<string, string> = {};
               const marked = new Set<string>();
               for (const row of data.savedAnswers ?? []) {
@@ -726,6 +944,7 @@ export default function ExamPage() {
             if (data.result) {
               setUpload(data.upload as PdfUpload);
               setQuestions((data.questions ?? []) as Question[]);
+              setAttemptId(data.attemptId ?? loadAttemptId);
               setExamCompleted(true);
               setExamResult({
                 total: data.result?.total ?? 0,
@@ -737,6 +956,8 @@ export default function ExamPage() {
                 percentage: data.result?.percentage ?? 0,
                 timeSpentSeconds: data.result?.timeSpentSeconds ?? 0,
                 breakdown: data.result?.breakdown ?? [],
+                examProgram: data.result?.examProgram,
+                sat: data.result?.sat ?? null,
               });
               if (reviewQuestion != null && !Number.isNaN(reviewQuestion)) {
                 setSelectedResultQuestion(reviewQuestion);
@@ -752,7 +973,7 @@ export default function ExamPage() {
     Promise.all([
       supabase
         .from("pdf_uploads")
-        .select("id, subject, filename, storage_path")
+        .select(UPLOAD_SELECT_FIELDS)
         .eq("id", id)
         .single(),
       supabase
@@ -819,7 +1040,7 @@ export default function ExamPage() {
   }, [id, userEmail, questions.length]);
 
   const saveAnswer = useCallback(
-    async (questionId: string, userAnswer: string, isFlagged: boolean) => {
+    async (questionId: string, userAnswer: string | null, isFlagged: boolean) => {
       if (!attemptId) return;
       await fetch("/api/exam/answer", {
         method: "POST",
@@ -827,7 +1048,7 @@ export default function ExamPage() {
         body: JSON.stringify({
           attemptId,
           questionId,
-          userAnswer: userAnswer || null,
+          userAnswer: userAnswer == null || userAnswer === "" ? null : userAnswer,
           isFlagged,
         }),
       });
@@ -997,10 +1218,49 @@ export default function ExamPage() {
             saveAnswer(qId, ans, markedForReview.has(qId))
           )
         );
+        let selectedRwM2Variant: "easy" | "hard" | null = null;
+        let selectedMathM2Variant: "easy" | "hard" | null = null;
+        const adaptiveMode = upload?.sat_adaptive_mode;
+        const satFullExam = isSatFullTest(upload?.subject);
+        if (adaptiveMode === "six_module" && satFullExam) {
+          let rwM1Correct = 0;
+          let mathM1Correct = 0;
+          let rwM1Total = 0;
+          let mathM1Total = 0;
+          for (const q of questions) {
+            if (q.sat_section === "rw" && q.sat_module === 1) {
+              rwM1Total++;
+              if (isSatM1AnswerCorrect(q, answers[q.id])) rwM1Correct++;
+            }
+            if (q.sat_section === "math" && q.sat_module === 1) {
+              mathM1Total++;
+              if (isSatM1AnswerCorrect(q, answers[q.id])) mathM1Correct++;
+            }
+          }
+          selectedRwM2Variant = pickSatM2Variant(
+            rwM1Correct,
+            rwM1Total,
+            upload?.sat_cutoff_rw ?? null
+          );
+          selectedMathM2Variant = pickSatM2Variant(
+            mathM1Correct,
+            mathM1Total,
+            upload?.sat_cutoff_math ?? null
+          );
+        }
         const res = await fetch("/api/exam/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ attemptId, skipAiGrading }),
+          body: JSON.stringify({
+            attemptId,
+            skipAiGrading,
+            ...(adaptiveMode === "six_module"
+              ? {
+                  selectedRwM2Variant,
+                  selectedMathM2Variant,
+                }
+              : {}),
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error ?? "Failed to complete exam");
@@ -1014,6 +1274,8 @@ export default function ExamPage() {
           percentage: data.percentage ?? 0,
           timeSpentSeconds: data.timeSpentSeconds ?? 0,
           breakdown: data.breakdown ?? [],
+          examProgram: data.examProgram,
+          sat: data.sat ?? null,
         });
         setExamCompleted(true);
       } catch (e) {
@@ -1024,10 +1286,17 @@ export default function ExamPage() {
         setCompletingSkipAi(false);
       }
     },
-    [attemptId, completing, answers, saveAnswer, markedForReview]
+    [attemptId, completing, answers, saveAnswer, markedForReview, questions, upload]
   );
 
-  const handleExplainClick = useCallback(
+  const handleResultRowClick = useCallback((questionNumber: number) => {
+    setSelectedResultQuestion(questionNumber);
+    setResultViewMode("question");
+    setResultExplanation(null);
+    setResultExplanationLoading(false);
+  }, []);
+
+  const loadResultExplanation = useCallback(
     async (questionNumber: number) => {
       const q = questions.find((qq) => qq.question_number === questionNumber);
       const row = examResult?.breakdown.find((b) => b.questionNumber === questionNumber);
@@ -1070,7 +1339,315 @@ export default function ExamPage() {
     [questions, upload, examResult]
   );
 
-  const currentQuestion = questions[currentIndex] ?? null;
+  const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
+  const subjectLabel = SUBJECT_LABELS[subject] ?? subject;
+  const isCsa = isCodeSubject(subject);
+  const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
+  const isMicro = subject === "AP_MICROECONOMICS";
+  const examProgram = getExamProgram(subject);
+  const isSat = examProgram === "SAT";
+  const isSatFull = isSatFullTest(subject);
+  const satResultGroups = useMemo(
+    () => (isSat ? getSatModuleGroups(questions, subject) : []),
+    [isSat, questions, subject]
+  );
+  const needsDesmos = satRequiresDesmos(subject);
+  const isCalculatorAllowed = !isSat && CALCULATOR_ALLOWED_SUBJECTS.has(subject);
+  const isCalculatorScientific =
+    isCalculatorAllowed &&
+    !["AP_MICROECONOMICS", "AP_MACROECONOMICS"].includes(subject);
+  const satAdaptiveMode =
+    (upload?.sat_adaptive_mode === "six_module" || upload?.sat_adaptive_mode === "pool" || upload?.sat_adaptive_mode === "none")
+      ? upload.sat_adaptive_mode
+      : "none";
+
+  // -----------------------------------------------------------------------
+  // SAT module flow: split the loaded questions into modules and present them
+  // one module at a time. AP and single-module SAT subjects use the full list.
+  // -----------------------------------------------------------------------
+  const initialSatModule = useMemo<SatModuleId | null>(() => {
+    if (!isSat) return null;
+    if (!isSatFull) {
+      const section: SatSection = isSatRw(subject) ? "rw" : "math";
+      return `${section}1` as SatModuleId;
+    }
+    return "rw1";
+  }, [isSat, isSatFull, subject]);
+
+  useEffect(() => {
+    if (!isSat) return;
+    setCurrentIndex(0);
+  }, [currentModuleId, isSat]);
+
+  const m1RwCorrectCount = useMemo(() => {
+    if (!isSatFull || satAdaptiveMode !== "six_module") return 0;
+    let count = 0;
+    for (const q of questions) {
+      if (q.sat_section === "rw" && q.sat_module === 1) {
+        if (isSatM1AnswerCorrect(q, answers[q.id])) count++;
+      }
+    }
+    return count;
+  }, [isSatFull, satAdaptiveMode, questions, answers]);
+  const m1MathCorrectCount = useMemo(() => {
+    if (!isSatFull || satAdaptiveMode !== "six_module") return 0;
+    let count = 0;
+    for (const q of questions) {
+      if (q.sat_section === "math" && q.sat_module === 1) {
+        if (isSatM1AnswerCorrect(q, answers[q.id])) count++;
+      }
+    }
+    return count;
+  }, [isSatFull, satAdaptiveMode, questions, answers]);
+
+  const rwM1Total = useMemo(
+    () => questions.filter((q) => q.sat_section === "rw" && q.sat_module === 1).length,
+    [questions]
+  );
+  const mathM1Total = useMemo(
+    () => questions.filter((q) => q.sat_section === "math" && q.sat_module === 1).length,
+    [questions]
+  );
+
+  const m2RwVariant = useMemo(
+    () =>
+      satAdaptiveMode === "six_module"
+        ? pickSatM2Variant(m1RwCorrectCount, rwM1Total, upload?.sat_cutoff_rw ?? null)
+        : null,
+    [satAdaptiveMode, m1RwCorrectCount, rwM1Total, upload?.sat_cutoff_rw]
+  );
+  const m2MathVariant = useMemo(
+    () =>
+      satAdaptiveMode === "six_module"
+        ? pickSatM2Variant(m1MathCorrectCount, mathM1Total, upload?.sat_cutoff_math ?? null)
+        : null,
+    [satAdaptiveMode, m1MathCorrectCount, mathM1Total, upload?.sat_cutoff_math]
+  );
+
+  const availableModules = useMemo(() => {
+    if (!isSatFull) return SAT_MODULES;
+    return SAT_MODULES.filter((mod) =>
+      questions.some((q) => questionMatchesSatModuleBase(q, mod.section, mod.module))
+    );
+  }, [isSatFull, questions]);
+
+  const matchesCurrentModule = useCallback(
+    (q: Question, modId: SatModuleId | null): boolean => {
+      if (!isSat) return true;
+      if (!modId) return true;
+      if (!isSatFull) return true;
+      const target = SAT_MODULES.find((m) => m.id === modId);
+      if (!target) return false;
+      if (q.sat_section !== target.section) return false;
+      if (q.sat_module !== target.module) return false;
+      if (target.module === 2 && satAdaptiveMode === "six_module") {
+        const variant = target.section === "rw" ? m2RwVariant : m2MathVariant;
+        if (q.sat_module_variant && variant && q.sat_module_variant !== variant) return false;
+      }
+      return true;
+    },
+    [isSat, isSatFull, satAdaptiveMode, m2RwVariant, m2MathVariant]
+  );
+
+  const moduleQuestions = useMemo(() => {
+    if (!isSat) return questions;
+    return questions.filter((q) => matchesCurrentModule(q, currentModuleId));
+  }, [isSat, questions, currentModuleId, matchesCurrentModule]);
+
+  const activeQuestions: Question[] = isSat ? moduleQuestions : questions;
+  const currentQuestion = activeQuestions[currentIndex] ?? null;
+  const displayQuestionNumber =
+    currentQuestion == null
+      ? 0
+      : isSat
+        ? currentIndex + 1
+        : currentQuestion.question_number;
+  const currentModuleDef = currentModuleId
+    ? SAT_MODULES.find((m) => m.id === currentModuleId)
+    : null;
+  const currentAvailIndex = currentModuleId
+    ? availableModules.findIndex((m) => m.id === currentModuleId)
+    : -1;
+  const nextModuleDef =
+    isSatFull && currentAvailIndex >= 0 && currentAvailIndex < availableModules.length - 1
+      ? availableModules[currentAvailIndex + 1]
+      : null;
+  const nextModuleQuestionCount = useMemo(() => {
+    if (!nextModuleDef) return 0;
+    return questions.filter((q) => matchesCurrentModule(q, nextModuleDef.id)).length;
+  }, [nextModuleDef, questions, matchesCurrentModule]);
+  const isLastSatModule =
+    !isSatFull || (currentAvailIndex >= 0 && currentAvailIndex === availableModules.length - 1);
+  const isOnLastQuestionOfModule =
+    activeQuestions.length > 0 && currentIndex >= activeQuestions.length - 1;
+  const isEmptySatModule = isSatFull && currentModuleId != null && activeQuestions.length === 0;
+
+  const satMarkedForReviewQuestions = useMemo(() => {
+    if (!isSat) return [];
+    return questions
+      .filter((q) => markedForReview.has(q.id))
+      .sort((a, b) => a.question_number - b.question_number);
+  }, [isSat, questions, markedForReview]);
+
+  const satCurrentModuleMarkedForReview = useMemo(() => {
+    if (!isSat) return [];
+    return activeQuestions.filter((q) => markedForReview.has(q.id));
+  }, [isSat, activeQuestions, markedForReview]);
+
+  useEffect(() => {
+    if (!isSatFull || questions.length === 0 || availableModules.length === 0) return;
+    if (resumeModuleIndex != null) {
+      const mod = availableModules[resumeModuleIndex] ?? availableModules[0];
+      if (mod) setCurrentModuleId(mod.id);
+      setResumeModuleIndex(null);
+      return;
+    }
+    if (currentModuleId == null && initialSatModule) {
+      const startMod =
+        availableModules.find((m) => m.id === initialSatModule) ?? availableModules[0];
+      if (startMod) setCurrentModuleId(startMod.id);
+    }
+  }, [
+    isSatFull,
+    questions.length,
+    availableModules,
+    resumeModuleIndex,
+    currentModuleId,
+    initialSatModule,
+  ]);
+
+  const persistAttemptProgress = useCallback(
+    async (opts?: { currentModuleIndex?: number }) => {
+      if (!attemptId) return;
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      await fetch(`/api/exam/attempt/${attemptId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          timeSpentSeconds: elapsedSeconds,
+          ...(opts?.currentModuleIndex != null
+            ? { currentModuleIndex: opts.currentModuleIndex }
+            : {}),
+        }),
+      }).catch(() => {});
+    },
+    [attemptId, elapsedSeconds]
+  );
+
+  const goToNextModule = useCallback(async () => {
+    if (!nextModuleDef) return;
+    if (nextModuleQuestionCount === 0) {
+      setModuleTransitionError(
+        `${nextModuleDef.label} modülünde soru bulunamadı. Dashboard'dan sınavı kontrol edin veya PDF'i yeniden yükleyin.`
+      );
+      return;
+    }
+    setModuleTransitionError(null);
+    const nextIndex = availableModules.findIndex((m) => m.id === nextModuleDef.id);
+    await persistAttemptProgress({
+      currentModuleIndex: nextIndex >= 0 ? nextIndex : undefined,
+    });
+    setModuleTransitionShown(null);
+    setShowModuleScoreChoice(false);
+    setModuleScoreResult(null);
+    setCurrentModuleId(nextModuleDef.id);
+  }, [
+    nextModuleDef,
+    nextModuleQuestionCount,
+    availableModules,
+    persistAttemptProgress,
+  ]);
+
+  const scoreModule = useCallback(
+    async (skipAiGrading: boolean) => {
+      const modId = moduleTransitionShown ?? currentModuleId;
+      if (!attemptId || !modId || scoringModule) return;
+      setScoringModule(true);
+      setModuleTransitionError(null);
+      try {
+        await Promise.all(
+          Object.entries(answers).map(([qId, ans]) =>
+            saveAnswer(qId, ans, markedForReview.has(qId))
+          )
+        );
+        const res = await fetch("/api/exam/score-module", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            attemptId,
+            moduleId: modId,
+            skipAiGrading,
+            ...(satAdaptiveMode === "six_module"
+              ? {
+                  selectedRwM2Variant: m2RwVariant,
+                  selectedMathM2Variant: m2MathVariant,
+                }
+              : {}),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? "Failed to score module");
+        setModuleScoreResult({
+          moduleId: (data.moduleId ?? modId) as SatModuleId,
+          moduleLabel: data.moduleLabel ?? modId,
+          correctCount: data.correctCount ?? 0,
+          incorrectCount: data.incorrectCount ?? 0,
+          unansweredCount: data.unansweredCount ?? 0,
+          notGradedCount: data.notGradedCount ?? 0,
+          skipAiGrading: data.skipAiGrading === true,
+          percentage: data.percentage ?? 0,
+          breakdown: data.breakdown ?? [],
+        });
+        setShowModuleScoreChoice(false);
+      } catch (e) {
+        console.error(e);
+        setModuleTransitionError(
+          e instanceof Error ? e.message : "Failed to score module. Please try again."
+        );
+      } finally {
+        setScoringModule(false);
+      }
+    },
+    [
+      moduleTransitionShown,
+      currentModuleId,
+      attemptId,
+      scoringModule,
+      answers,
+      saveAnswer,
+      markedForReview,
+      satAdaptiveMode,
+      m2RwVariant,
+      m2MathVariant,
+    ]
+  );
+
+  const moduleScoreGroup = useMemo(() => {
+    if (!moduleScoreResult) return null;
+    const def = SAT_MODULES.find((m) => m.id === moduleScoreResult.moduleId);
+    if (!def) return null;
+    const variant =
+      def.module === 2 && satAdaptiveMode === "six_module"
+        ? def.section === "rw"
+          ? m2RwVariant
+          : m2MathVariant
+        : null;
+    const targetId =
+      variant != null ? `${def.section}${def.module}-${variant}` : `${def.section}${def.module}`;
+    return (
+      satResultGroups.find((g) => g.id === targetId) ??
+      satResultGroups.find((g) => g.id === `${def.section}${def.module}`) ??
+      null
+    );
+  }, [moduleScoreResult, satResultGroups, satAdaptiveMode, m2RwVariant, m2MathVariant]);
+
   const storedImgSrcRaw = currentQuestion
     ? currentQuestion.image_url ?? questionIdToImageUrl[currentQuestion.id]
     : null;
@@ -1136,15 +1713,6 @@ export default function ExamPage() {
     },
     [id, currentQuestion?.id]
   );
-  const subject = (upload?.subject ?? "AP_CSA") as SubjectValue;
-  const subjectLabel = SUBJECT_LABELS[subject] ?? subject;
-  const isCsa = isCodeSubject(subject);
-  const isEconomics = subject === "AP_MICROECONOMICS" || subject === "AP_MACROECONOMICS";
-  const isMicro = subject === "AP_MICROECONOMICS";
-  const isCalculatorAllowed = CALCULATOR_ALLOWED_SUBJECTS.has(subject);
-  const isCalculatorScientific =
-    isCalculatorAllowed &&
-    !["AP_MICROECONOMICS", "AP_MACROECONOMICS"].includes(subject);
   const isCsaLegacyFallback =
     isCsa &&
     !currentQuestion?.passage_text?.trim() &&
@@ -1160,25 +1728,64 @@ export default function ExamPage() {
         : partitionStemAndSharedIntro(currentQuestion?.question_text ?? ""),
     [isCsa, currentQuestion?.question_text]
   );
-  const leftPanelContent = isCsaLegacyFallback
-    ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
-    : (currentQuestion?.passage_text ?? "");
+  const satSectionForQuestion: SatSection | null =
+    isSat && currentQuestion
+      ? currentQuestion.sat_section === "rw" || currentQuestion.sat_section === "math"
+        ? currentQuestion.sat_section
+        : isSatRw(subject)
+          ? "rw"
+          : "math"
+      : null;
   const isEconomicsOrPassage = !isCsa;
+  let mergedPassage = isCsaLegacyFallback
+    ? ""
+    : (currentQuestion?.passage_text?.trim() ?? "");
   let rawStem = isCsaLegacyFallback
     ? (csaSplit?.questionStem ?? "No question text.")
     : (currentQuestion?.question_text ?? "");
   if (!isCsa && stemPartition.intro?.trim()) {
     const s = stemPartition.stem?.trim();
     if (s) rawStem = s;
+    const intro = stemPartition.intro.trim();
+    mergedPassage = mergedPassage ? `${intro}\n\n${mergedPassage}` : intro;
   }
+  if (isSat && !isCsaLegacyFallback && satSectionForQuestion) {
+    const satPart = partitionSatStemAndPassage(rawStem, mergedPassage || null, satSectionForQuestion);
+    rawStem = satPart.stem;
+    mergedPassage = satPart.passage?.trim() ?? "";
+  }
+  const leftPanelContent = isCsaLegacyFallback
+    ? (csaSplit?.codePart ?? currentQuestion?.question_text ?? "")
+    : mergedPassage;
   if (
     !isCsaLegacyFallback &&
     isEconomicsOrPassage &&
-    currentQuestion?.passage_text?.trim() &&
+    mergedPassage &&
     rawStem
   ) {
-    rawStem = getStemOnlyIfListPresent(rawStem, currentQuestion.passage_text) || rawStem;
+    rawStem = getStemOnlyIfListPresent(rawStem, mergedPassage) || rawStem;
   }
+  const satPassageTextClass = cn(
+    "prose prose-2xl max-w-none text-[19.8px] text-gray-800 leading-relaxed whitespace-pre-wrap sm:text-[23.8px]",
+    examContentSerifClass
+  );
+  const apPassageTextClass = cn(
+    "prose prose-xl max-w-none whitespace-pre-wrap text-[18.8px] text-gray-800 sm:text-[22.8px]",
+    examContentSerifClass
+  );
+  const leftPassageItemTextClass = isSat
+    ? "text-[19.8px] sm:text-[23.8px] leading-relaxed"
+    : "text-[18.8px] sm:text-[22.8px] leading-relaxed";
+  const apStemTextClass = cn(
+    "text-[19px] sm:text-[21px] font-medium leading-snug",
+    examContentSerifClass
+  );
+  const apOptionTextClass = cn("text-[17px] leading-normal", examContentSerifClass);
+  const satStemTextClass = cn(
+    "text-lg sm:text-xl font-medium leading-snug",
+    examContentSerifClass
+  );
+  const satOptionTextClass = "text-lg leading-normal";
   const hasAnyOption =
     currentQuestion &&
     [
@@ -1205,16 +1812,34 @@ export default function ExamPage() {
     currentQuestion?.page_number != null &&
     currentQuestion?.has_graph !== false &&
     !showTablePanel;
+  const isSatMathSection =
+    isSat &&
+    (currentQuestion?.sat_section === "math" || isSatMath(subject));
+  const isSatRwSection =
+    isSat &&
+    (satSectionForQuestion === "rw" || isSatRw(subject));
+  const satRwLongPassage =
+    isSatRwSection && !!leftPanelContent?.trim() && leftPanelContent.trim().length >= 80;
   const hasMeaningfulLeftContent =
     showTablePanel ||
     showGraphPanel ||
+    satRwLongPassage ||
     (!!leftPanelContent?.trim() &&
       (subject === "AP_CSA" ||
         isTableHtml(leftPanelContent) ||
         isTableWithOptionLettersFormat(leftPanelContent) ||
         looksLikeTableText(leftPanelContent) ||
         isSvgContent(leftPanelContent) ||
-        (isEconomicsOrPassage && !looksLikeQuestionStem(leftPanelContent))));
+        (isEconomicsOrPassage &&
+          !looksLikeQuestionStem(leftPanelContent) &&
+          !(
+            isSatMathSection &&
+            currentQuestion?.has_graph &&
+            currentQuestion?.page_number != null
+          ))));
+
+  const showHeaderZoomToolbar =
+    !isCsa && (showGraphPanel || showTablePanel || canExplorePdf);
 
   if (loading) {
     return (
@@ -1358,6 +1983,70 @@ export default function ExamPage() {
               </div>
             </div>
 
+            {/* SAT scaled score cards */}
+            {r.sat && (r.sat.totalScaled != null || r.sat.rwScaled != null || r.sat.mathScaled != null) && (
+              <div className="mb-6">
+                <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/80 to-white p-6 shadow-sm">
+                  <p className="text-center text-xs font-semibold uppercase tracking-wider text-indigo-700">
+                    SAT Scaled Score
+                  </p>
+                  <div className="mt-2 text-center">
+                    <span className="text-5xl font-bold text-indigo-700">
+                      {r.sat.totalScaled ?? "—"}
+                    </span>
+                    <span className="text-2xl text-indigo-400 ml-2">/ 1600</span>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Reading & Writing</p>
+                      <p className="mt-1 text-3xl font-bold text-gray-900">
+                        {r.sat.rwScaled ?? "—"}
+                      </p>
+                      <p className="text-xs text-gray-500">/ 800</p>
+                    </div>
+                    <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
+                      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Math</p>
+                      <p className="mt-1 text-3xl font-bold text-gray-900">
+                        {r.sat.mathScaled ?? "—"}
+                      </p>
+                      <p className="text-xs text-gray-500">/ 800</p>
+                    </div>
+                  </div>
+                  {r.sat.modules.length > 0 && (
+                    <div className="mt-5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                        Module breakdown
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {r.sat.modules.map((m) => {
+                          const mod = SAT_MODULES.find((x) => x.id === m.module);
+                          return (
+                            <div
+                              key={m.module}
+                              className="rounded-lg border border-gray-200 bg-white p-3 text-center"
+                            >
+                              <p className="text-[11px] font-medium text-gray-600 leading-tight">
+                                {mod?.shortLabel ?? m.module}
+                              </p>
+                              <p className="mt-1 text-base font-semibold text-gray-900">
+                                {m.correct}/{m.total}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {m.total > 0 ? Math.round((m.correct / m.total) * 100) : 0}%
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <p className="mt-4 text-[11px] text-gray-500 leading-relaxed text-center">
+                    Scaled scores are an approximation of the College Board scoring algorithm. Actual SAT scores depend on the exam form&apos;s adaptive routing and statistical equating.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Stats cards */}
             <div className={cn("grid grid-cols-2 gap-4 mb-6", r.notGradedCount > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
               <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
@@ -1412,8 +2101,107 @@ export default function ExamPage() {
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-gray-50 px-4 py-4 border-b border-gray-200">
                 <h2 className="font-semibold text-gray-900">Question Details</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Click a row to view solution or show question</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {isSat
+                    ? "Expand a module, click a row to view the question, then load explanation if needed"
+                    : "Click a row to view solution or show question"}
+                </p>
               </div>
+              {isSat && satResultGroups.length > 0 ? (
+                <div className="divide-y divide-gray-200">
+                  {satResultGroups.map((group) => {
+                    const groupBreakdown = group.questions
+                      .map((gq) =>
+                        r.breakdown.find((b) => b.questionNumber === gq.question_number)
+                      )
+                      .filter((x): x is (typeof r.breakdown)[number] => !!x);
+                    const correctInGroup = groupBreakdown.filter((b) => b.isCorrect).length;
+                    return (
+                      <details key={group.id} className="group">
+                        <summary className="cursor-pointer bg-gray-50/80 px-4 py-3 font-medium text-gray-900 flex items-center justify-between list-none [&::-webkit-details-marker]:hidden">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-180" />
+                            <span className="truncate">{group.label}</span>
+                          </span>
+                          <span className="text-sm font-normal text-gray-500 shrink-0 ml-2">
+                            {correctInGroup}/{groupBreakdown.length} correct
+                          </span>
+                        </summary>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-200 bg-gray-50">
+                                <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                                <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
+                                <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
+                                <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.questions.map((gq) => {
+                                const row = r.breakdown.find(
+                                  (b) => b.questionNumber === gq.question_number
+                                );
+                                if (!row) return null;
+                                const hasUser =
+                                  row.userAnswer != null && String(row.userAnswer).trim() !== "";
+                                const hasKey =
+                                  row.correctAnswer != null &&
+                                  String(row.correctAnswer).trim() !== "";
+                                const status = !hasUser
+                                  ? "unanswered"
+                                  : !hasKey
+                                    ? "not_graded"
+                                    : row.isCorrect
+                                      ? "correct"
+                                      : "incorrect";
+                                const displayNum = getModuleDisplayNumber(group.questions, gq);
+                                return (
+                                  <tr
+                                    key={row.questionNumber}
+                                    onClick={() => handleResultRowClick(row.questionNumber)}
+                                    className={cn(
+                                      "border-b border-gray-100 cursor-pointer transition-colors",
+                                      selectedResultQuestion === row.questionNumber
+                                        ? "bg-blue-50"
+                                        : "hover:bg-gray-50"
+                                    )}
+                                  >
+                                    <td className="px-4 py-3 font-medium text-gray-900">
+                                      {displayNum}
+                                    </td>
+                                    <td className="px-4 py-3">{row.userAnswer ?? "—"}</td>
+                                    <td className="px-4 py-3">{row.correctAnswer ?? "—"}</td>
+                                    <td className="px-4 py-3">
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                                          status === "correct" && "bg-green-100 text-green-800",
+                                          status === "incorrect" && "bg-red-100 text-red-800",
+                                          status === "unanswered" && "bg-gray-100 text-gray-600",
+                                          status === "not_graded" && "bg-amber-100 text-amber-900"
+                                        )}
+                                      >
+                                        {status === "correct"
+                                          ? "Correct"
+                                          : status === "incorrect"
+                                            ? "Incorrect"
+                                            : status === "unanswered"
+                                              ? "Unanswered"
+                                              : "Not graded"}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1440,7 +2228,7 @@ export default function ExamPage() {
                       return (
                         <tr
                           key={row.questionNumber}
-                          onClick={() => handleExplainClick(row.questionNumber)}
+                          onClick={() => handleResultRowClick(row.questionNumber)}
                           className={cn(
                             "border-b border-gray-100 cursor-pointer transition-colors",
                             selectedResultQuestion === row.questionNumber ? "bg-blue-50" : "hover:bg-gray-50"
@@ -1474,25 +2262,18 @@ export default function ExamPage() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
             {selectedResultQuestion != null && (() => {
               const selectedQ = questions.find((q) => q.question_number === selectedResultQuestion);
+              const selectedDisplayNum =
+                selectedQ && isSat
+                  ? getModuleDisplayNumber(questions, selectedQ)
+                  : selectedQ?.question_number;
               return (
                 <div className="mt-6 rounded-xl border-2 border-blue-200 bg-white p-6 shadow-sm">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setResultViewMode("explanation")}
-                        className={cn(
-                          "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                          resultViewMode === "explanation"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        )}
-                      >
-                        Solution explanation
-                      </button>
                       <button
                         type="button"
                         onClick={() => setResultViewMode("question")}
@@ -1505,13 +2286,25 @@ export default function ExamPage() {
                       >
                         Show question
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => void loadResultExplanation(selectedResultQuestion)}
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                          resultViewMode === "explanation"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        )}
+                      >
+                        Solution explanation
+                      </button>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedResultQuestion(null);
                         setResultExplanation(null);
-                        setResultViewMode("explanation");
+                        setResultViewMode("question");
                       }}
                       className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
                     >
@@ -1528,7 +2321,7 @@ export default function ExamPage() {
                   ) : selectedQ ? (
                     <div className="space-y-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
-                        {selectedQ.question_number}
+                        {selectedDisplayNum ?? 0}
                       </div>
                       {selectedQ.passage_text?.trim() ? (
                         <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
@@ -1606,28 +2399,71 @@ export default function ExamPage() {
     { key: "E" as const, text: currentQuestion?.option_e },
   ].filter((o) => o.text != null && o.text.trim() !== "");
 
-  const questionBlockContent = (
-    <>
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
-          {currentQuestion?.question_number ?? 0}
-        </div>
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={currentQuestion ? markedForReview.has(currentQuestion.id) : false}
-            onChange={() => currentQuestion && toggleMarkForReview(currentQuestion.id)}
-            className="rounded border-gray-300"
-          />
-          <Flag className="h-4 w-4" />
-          Mark for Review
-        </label>
-        <div className="ml-auto flex items-center justify-center rounded bg-blue-600 px-2 py-1 text-white text-xs font-medium">
-          AP
-        </div>
+  const emptyModulePanel = (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center space-y-4">
+      <h2 className="text-lg font-semibold text-gray-900">
+        {currentModuleDef?.label ?? "This module"} has no questions
+      </h2>
+      <p className="text-sm text-gray-600">
+        This module could not be loaded from the uploaded PDF. You can go back to the previous module,
+        skip to the next available module, or return to the dashboard.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {currentAvailIndex > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const prev = availableModules[currentAvailIndex - 1];
+              if (prev) setCurrentModuleId(prev.id);
+            }}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Previous module
+          </button>
+        )}
+        {nextModuleDef && nextModuleQuestionCount > 0 && (
+          <button
+            type="button"
+            onClick={() => void goToNextModule()}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Skip to {nextModuleDef.shortLabel}
+          </button>
+        )}
+        <Link
+          href="/dashboard?program=sat"
+          className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Dashboard
+        </Link>
       </div>
+    </div>
+  );
+
+  const examHeaderTitle = formatExamHeaderTitle(
+    isSat,
+    subject,
+    currentModuleDef ?? null,
+    currentModuleId
+  );
+  const displayUsername = formatDisplayUsername(userName, userEmail);
+
+  const questionBlockContent = isEmptySatModule ? (
+    emptyModulePanel
+  ) : (
+    <>
+      <ExamQuestionChrome
+        displayQuestionNumber={displayQuestionNumber}
+        markedForReview={currentQuestion ? markedForReview.has(currentQuestion.id) : false}
+        onToggleMarkForReview={() =>
+          currentQuestion && toggleMarkForReview(currentQuestion.id)
+        }
+      />
       <p
-        className="text-gray-900 font-medium select-text cursor-text"
+        className={cn(
+          "text-gray-900 select-text cursor-text",
+          isSat ? satStemTextClass : apStemTextClass
+        )}
         onMouseUp={(e) => {
           const offsets = getSelectionOffsets(e.currentTarget);
           if (offsets && offsets.start < offsets.end && currentQuestion) {
@@ -1640,6 +2476,22 @@ export default function ExamPage() {
           highlights[currentQuestion?.id ? `${currentQuestion.id}-stem` : ""] ?? []
         )}
       </p>
+      {currentQuestion?.question_type === "grid_in" ? (
+        <SatGridInInput
+          key={currentQuestion.id}
+          large={isSat}
+          value={answers[currentQuestion.id] ?? ""}
+          onCommit={(v) => {
+            if (!currentQuestion) return;
+            setAnswers((prev) => ({ ...prev, [currentQuestion.id]: v }));
+            saveAnswer(
+              currentQuestion.id,
+              v === "" ? null : v,
+              markedForReview.has(currentQuestion.id)
+            );
+          }}
+        />
+      ) : (
       <div className="space-y-2">
         {options.map(({ key, text }) => {
           const isSelected = currentQuestion && answers[currentQuestion.id] === key;
@@ -1674,10 +2526,9 @@ export default function ExamPage() {
                 }
               }}
               className={cn(
-                "relative w-full flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-left text-sm transition-colors cursor-pointer",
-                isSelected
-                  ? "border-blue-600 bg-blue-600/5 text-gray-900"
-                  : "border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800",
+                "relative w-full flex cursor-pointer items-start gap-3 rounded-lg px-4 py-3 text-left transition-colors",
+                isSat ? satOptionTextClass : apOptionTextClass,
+                isSelected ? examUi.optionSelected : cn(examUi.optionBorder, "bg-white hover:border-gray-400 hover:bg-gray-50 text-gray-800"),
                 isEliminated && "bg-gray-100"
               )}
             >
@@ -1690,7 +2541,7 @@ export default function ExamPage() {
               <div
                 className={cn(
                   "relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 font-medium mt-0.5 transition-colors",
-                  isSelected ? "border-blue-600 bg-blue-50 text-blue-600" : "border-gray-400 bg-transparent"
+                  isSelected ? examUi.optionLetterSelected : "border-gray-400 bg-transparent"
                 )}
               >
                 {key}
@@ -1732,30 +2583,24 @@ export default function ExamPage() {
                   }
                 }}
                 className={cn(
-                  "relative z-10 flex flex-shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-300",
-                  isEliminated
-                    ? "flex-col gap-0.5 bg-gray-100 p-1.5 text-gray-500 hover:bg-gray-200"
-                    : "h-6 w-6 bg-white text-gray-500 hover:bg-gray-50"
+                  "relative z-10 flex flex-shrink-0 cursor-pointer items-center justify-center hover:bg-gray-50",
+                  examUi.eliminateCircle,
+                  isEliminated && examUi.eliminateCircleActive
                 )}
                 aria-label={isEliminated ? "Undo elimination" : "Eliminate option"}
               >
-                {isEliminated ? (
-                  <>
-                    <RotateCcw className="h-4 w-4" />
-                    <span className="text-xs">Undo</span>
-                  </>
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
+                <span className={cn(isEliminated && "line-through")}>{key}</span>
               </span>
             </div>
           );
         })}
       </div>
+      )}
     </>
   );
 
   return (
+    <GraphZoomProvider>
     <div className="min-h-screen flex flex-col bg-white">
       {/* Java Quick Reference Drawer - CSA only */}
       {isCsa && (
@@ -2168,70 +3013,31 @@ export default function ExamPage() {
         </>
       )}
 
-      {/* Header */}
-      <header className="flex-shrink-0 border-b border-gray-200 bg-[#E5E7EB] text-gray-900">
-        <div className="relative flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-gray-700 hover:underline">
-              <span className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white">
-                <Star className="h-5 w-5 text-blue-600 fill-blue-600" />
-              </span>
-              Bluebook
-            </Link>
-            <div>
-              <p className="text-xl font-bold text-gray-900">Section I</p>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setDirectionsOpen((o) => !o)}
-                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Directions <ChevronDown className="h-4 w-4" />
-                </button>
-                {directionsOpen && (
-                  <div className="absolute left-0 top-full mt-1 w-64 rounded border border-gray-200 bg-white p-3 text-left text-sm text-gray-800 shadow-lg z-10">
-                    Answer the multiple-choice questions. You can mark questions for review and
-                    navigate with Back/Next.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center">
-            {timerVisible && (
-              <div className="text-center">
-                <div className="flex flex-row items-center justify-center gap-2">
-                  <p className="text-lg font-mono text-gray-900">{formatTimer(elapsedSeconds)}</p>
-                  <button
-                    type="button"
-                    onClick={() => setTimerPaused((p) => !p)}
-                    className="rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:bg-gray-50"
-                    title={timerPaused ? "Resume timer" : "Pause timer"}
-                    aria-label={timerPaused ? "Resume timer" : "Pause timer"}
-                  >
-                    {timerPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTimerVisible(false)}
-                  className="mt-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                >
-                  Hide
-                </button>
-              </div>
-            )}
-            {!timerVisible && (
-              <button
-                type="button"
-                onClick={() => setTimerVisible(true)}
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Show timer
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-1 justify-end min-w-0 relative">
+      <ExamHeader
+        headerTitle={examHeaderTitle}
+        directionsOpen={directionsOpen}
+        onToggleDirections={() => setDirectionsOpen((o) => !o)}
+        directionsContent={
+          isSat ? (
+            <>
+              Answer all questions in this module. You can mark questions for review and navigate with
+              Back/Next. {isSatFull ? 'Click "Submit Module" when you finish to move on.' : null}
+            </>
+          ) : (
+            <>
+              Answer the multiple-choice questions. You can mark questions for review and navigate with
+              Back/Next.
+            </>
+          )
+        }
+        timerVisible={timerVisible}
+        timerPaused={timerPaused}
+        elapsedSeconds={elapsedSeconds}
+        onToggleTimerPause={() => setTimerPaused((p) => !p)}
+        onHideTimer={() => setTimerVisible(false)}
+        onShowTimer={() => setTimerVisible(true)}
+        toolbar={
+          <>
             <button
               type="button"
               onClick={() => void saveAndExit()}
@@ -2241,11 +3047,11 @@ export default function ExamPage() {
               <Save className="h-4 w-4 shrink-0" />
               {savingExit ? "Saving…" : "Save & exit"}
             </button>
-            <div className="flex items-center gap-1 bg-[#E5E7EB] rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
               <button
                 type="button"
                 onClick={() => setHighlightToolbarOpen((o) => !o)}
-                className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors bg-[#E5E7EB] text-gray-600 hover:text-gray-900"
+                className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5 text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
                 title="Highlights & Notes"
               >
                 <div className="flex items-center gap-1">
@@ -2323,7 +3129,7 @@ export default function ExamPage() {
               <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-gray-300 bg-white z-50 overflow-hidden">
                 <div className="flex items-center justify-between bg-amber-300 px-3 py-2">
                   <span className="font-bold text-gray-900">
-                    {currentQuestion ? `Q${currentQuestion.question_number}` : "Note"}
+                    {currentQuestion ? `Q${displayQuestionNumber}` : "Note"}
                   </span>
                   <button
                     type="button"
@@ -2370,51 +3176,51 @@ export default function ExamPage() {
                 <Calculator className="h-4 w-4" /> Calculator
               </button>
             ) : null}
-            <button type="button" className="p-1 rounded hover:bg-gray-100">
+            {needsDesmos && (currentModuleDef?.section === "math" || (!isSatFull && isSatMath(subject))) ? (
+              <button
+                type="button"
+                onClick={() => setDesmosOpen((o) => !o)}
+                className={cn(
+                  "flex items-center gap-1 text-sm hover:text-gray-900",
+                  desmosOpen ? "text-blue-700 font-medium" : "text-gray-600"
+                )}
+              >
+                <Calculator className="h-4 w-4" /> Desmos
+              </button>
+            ) : null}
+            <button type="button" className="rounded p-1 hover:bg-gray-100">
               <MoreHorizontal className="h-5 w-5" />
             </button>
-          </div>
-        </div>
-        {isCsa && (
-          <div className="bg-[#f8d7da] border border-dashed border-red-300 px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium text-white">
-            <Calculator className="h-4 w-4" />
-            NO CALCULATOR ALLOWED
-          </div>
-        )}
-      </header>
+          </>
+        }
+      />
 
       {/* Main: split when left content exists, else single centered column */}
-      <main className={cn("flex-1 flex overflow-hidden min-h-0", hasMeaningfulLeftContent && "bg-gray-100")}>
+      <main className="flex min-h-0 flex-1 overflow-hidden bg-white">
         {hasMeaningfulLeftContent ? (
           <>
             {/* Left panel */}
             <div
-              className={cn(
-                "flex-shrink-0 overflow-auto border-r bg-white min-w-0 min-h-0",
-                isCsa && leftPanelContent?.trim()
-                  ? "border-2 border-amber-400"
-                  : "border-r border-gray-200"
-              )}
+              className="min-h-0 min-w-0 flex-shrink-0 overflow-auto border-r border-gray-300 bg-white"
               style={{ width: `${leftPanelPercent}%` }}
             >
               <div className="p-4 h-full relative min-w-0">
-                {pdfUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setFullPageModalOpen(true)}
-                      className="absolute bottom-2 left-2 rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
-                      aria-label="Show page"
-                    >
-                      <Maximize2 className="mr-1 inline h-3.5 w-3.5" />
-                      Show page
-                    </button>
+                {(pdfUrl || showHeaderZoomToolbar) && (
+                    <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
+                      {pdfUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFullPageModalOpen(true)}
+                          className="rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                          aria-label="Show page"
+                        >
+                          <Maximize2 className="mr-1 inline h-3.5 w-3.5" />
+                          Show page
+                        </button>
+                      )}
+                      <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
+                    </div>
                   )}
-                {isCsa && leftPanelContent?.trim() && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 rounded border border-dashed border-red-300 bg-[#f8d7da] px-2 py-1 text-xs font-medium text-white">
-                    <Calculator className="h-3.5 w-3.5" />
-                    NO CALCULATOR ALLOWED
-                  </div>
-                )}
                 {showTablePanel ? (
                   canExplorePdf ? (
                     <PdfExplorePanel
@@ -2489,16 +3295,30 @@ export default function ExamPage() {
                           <>
                             {referenceList && (
                               <>
-                                <p className="text-sm font-medium text-gray-900 mb-2">Consider the following.</p>
-                                <div className="text-sm text-gray-900 whitespace-pre-wrap mb-4 rounded-md border border-gray-200 bg-gray-50 p-4">
-                                  {referenceList}
-                                </div>
+                                <p className="text-[17px] font-medium text-gray-900 mb-2">Consider the following.</p>
+                                <HighlightableTextBlock
+                                  blockId={
+                                    currentQuestion
+                                      ? `${currentQuestion.id}-passage-ref`
+                                      : "passage-ref"
+                                  }
+                                  text={referenceList}
+                                  highlightRanges={
+                                    highlights[
+                                      currentQuestion
+                                        ? `${currentQuestion.id}-passage-ref`
+                                        : "passage-ref"
+                                    ] ?? []
+                                  }
+                                  className="text-[17px] text-gray-900 whitespace-pre-wrap mb-4 rounded-md border border-gray-200 bg-gray-50 p-4"
+                                  onApplyHighlight={applyHighlightSelection}
+                                />
                               </>
                             )}
                             {codePart && (
                               <>
-                                <p className="text-sm font-medium text-gray-900 mb-2">Consider the following code segment.</p>
-                                <pre className="text-sm font-mono bg-gray-100 text-gray-900 p-4 rounded-md overflow-auto whitespace-pre border border-gray-200">
+                                <p className="text-[17px] font-medium text-gray-900 mb-2">Consider the following code segment.</p>
+                                <pre className="text-[17px] font-mono bg-gray-100 text-gray-900 p-4 rounded-md overflow-auto whitespace-pre border border-gray-200">
                                   <code>{codePart}</code>
                                 </pre>
                               </>
@@ -2511,7 +3331,7 @@ export default function ExamPage() {
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                             Precondition
                           </p>
-                          <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-auto">
+                          <pre className="text-[17px] font-mono text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-auto">
                             {currentQuestion.precondition_text}
                           </pre>
                         </div>
@@ -2578,13 +3398,24 @@ export default function ExamPage() {
                     ) : (
                       <p className="text-sm text-gray-500">No graph or table for this question.</p>
                     )
+                  ) : isSat &&
+                    currentQuestion?.has_graph &&
+                    currentQuestion?.page_number != null ? (
+                    <p className="text-sm text-gray-500">Loading figure…</p>
                   ) : isEconomicsOrPassage && looksLikeQuestionStem(leftPanelContent) ? (
                     <p className="text-sm text-gray-500">No graph or table for this question.</p>
-                  ) : (
-                    <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
-                      {leftPanelContent}
-                    </div>
-                  )
+                  ) : currentQuestion ? (
+                    <PassagePanelContent
+                      questionId={currentQuestion.id}
+                      text={leftPanelContent}
+                      highlights={highlights}
+                      className={cn(
+                        isSat ? satPassageTextClass : apPassageTextClass
+                      )}
+                      itemTextClass={leftPassageItemTextClass}
+                      onApplyHighlight={applyHighlightSelection}
+                    />
+                  ) : null
                 ) : (
                   <p className="text-sm text-gray-500">
                     {isCsa ? "No code for this question." : "No passage for this question."}
@@ -2617,17 +3448,20 @@ export default function ExamPage() {
         ) : (
           <div className="flex-1 overflow-auto flex flex-col items-center min-h-0">
             <div className="w-full max-w-2xl p-6 py-8 flex flex-col gap-4">
-              {pdfUrl && (
-                <div className="flex justify-end -mt-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setFullPageModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
-                    aria-label="Show page"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                    Show page
-                  </button>
+              {(pdfUrl || showHeaderZoomToolbar) && (
+                <div className="flex justify-end items-center gap-1.5 -mt-2 mb-2">
+                  {pdfUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFullPageModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                      aria-label="Show page"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      Show page
+                    </button>
+                  )}
+                  <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
                 </div>
               )}
               {questionBlockContent}
@@ -2636,23 +3470,20 @@ export default function ExamPage() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-200 bg-[#E5E7EB] px-4 py-3 text-gray-900">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-700">{userName || userEmail || "User"}</p>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setQuestionListOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-300"
-            >
-              Question {currentIndex + 1} of {questions.length}
-              <ChevronUp className="h-4 w-4" />
-            </button>
-            {questionListOpen && (
-              <div className="absolute bottom-full left-0 mb-1 max-h-48 w-64 overflow-auto rounded border border-gray-200 bg-white py-2 text-gray-800 shadow-lg z-20">
-                <div className="grid grid-cols-5 gap-1 p-2">
-                  {questions.map((q, i) => (
+      <ExamFooter
+        displayUsername={displayUsername}
+        centerContent={
+          isEmptySatModule ? (
+            <p className="text-sm font-medium text-amber-800">No questions in this module</p>
+          ) : (
+            <ExamFooterQuestionNav
+              currentIndex={currentIndex}
+              totalQuestions={activeQuestions.length}
+              questionListOpen={questionListOpen}
+              onToggleQuestionList={() => setQuestionListOpen((o) => !o)}
+              questionGrid={
+                <div className="grid grid-cols-5 gap-1.5">
+                  {activeQuestions.map((q, i) => (
                     <button
                       key={q.id}
                       type="button"
@@ -2661,9 +3492,9 @@ export default function ExamPage() {
                         setQuestionListOpen(false);
                       }}
                       className={cn(
-                        "h-8 w-8 rounded text-sm font-medium",
+                        "h-9 w-9 rounded-md text-sm font-medium",
                         i === currentIndex
-                          ? "bg-blue-600 text-white"
+                          ? examUi.questionGridCurrent
                           : answers[q.id]
                             ? "bg-gray-200 text-gray-800"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -2673,56 +3504,110 @@ export default function ExamPage() {
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-              disabled={currentIndex === 0}
-              className="rounded-xl bg-[#36454F] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d3748] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))
               }
-              disabled={currentIndex >= questions.length - 1}
-              className="rounded-xl bg-[#2563eb] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-            {currentIndex === questions.length - 1 && (
-              <button
-                type="button"
-                onClick={() => setShowEndExamConfirm(true)}
-                disabled={completing}
-                className={cn(
-                  "rounded-xl px-4 py-2 text-sm font-medium",
-                  completing
-                    ? "bg-gray-400 text-white cursor-not-allowed"
-                    : "bg-green-600 text-white hover:bg-green-700"
+            />
+          )
+        }
+        actions={
+          <>
+            {isEmptySatModule ? (
+              <>
+                {nextModuleDef && nextModuleQuestionCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void goToNextModule()}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Skip to {nextModuleDef.shortLabel}
+                  </button>
                 )}
-              >
-                {completing
-                  ? completingSkipAi
-                    ? "Submitting…"
-                    : "Calculating results…"
-                  : "End Exam"}
-              </button>
+                {isLastSatModule && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEndExamConfirm(true)}
+                    disabled={completing}
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-sm font-medium",
+                      completing
+                        ? "bg-gray-400 text-white cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    )}
+                  >
+                    {completing ? "Submitting…" : "Finish & Score"}
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  disabled={currentIndex === 0}
+                  className={cn(
+                    "rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50",
+                    examUi.backGray
+                  )}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentIndex((i) => Math.min(activeQuestions.length - 1, i + 1))
+                  }
+                  disabled={currentIndex >= activeQuestions.length - 1}
+                  className={cn(
+                    "rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50",
+                    examUi.nextBlue
+                  )}
+                >
+                  Next
+                </button>
+                {isOnLastQuestionOfModule && isSatFull && !isLastSatModule && (
+                  <button
+                    type="button"
+                    onClick={() => setModuleTransitionShown(currentModuleId)}
+                    className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Submit Module
+                  </button>
+                )}
+                {isOnLastQuestionOfModule && (!isSatFull || isLastSatModule) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowEndExamConfirm(true)}
+                    disabled={completing}
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-sm font-medium",
+                      completing
+                        ? "bg-gray-400 text-white cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    )}
+                  >
+                    {completing
+                      ? completingSkipAi
+                        ? "Submitting…"
+                        : "Calculating results…"
+                      : isSatFull ? "Finish & Score" : "End Exam"}
+                  </button>
+                )}
+              </>
             )}
-          </div>
-        </div>
-        {currentIndex === questions.length - 1 && (
-          <p className="text-xs text-gray-500 text-center mt-2">
-            You can grade missing keys with AI (may take several minutes) or submit without AI to view your answers
-            only.
-          </p>
-        )}
-      </footer>
+          </>
+        }
+      />
+      {isOnLastQuestionOfModule && (!isSatFull || isLastSatModule) && (
+        <p
+          className={cn(
+            "px-4 py-2 text-center text-xs text-gray-500",
+            examUi.footerBg,
+            examUi.chromeBorderTop
+          )}
+        >
+          You can grade missing keys with AI (may take several minutes) or submit without AI to view your answers
+          only.
+        </p>
+      )}
       {pdfUrl && (
         <FullPageModal
           open={fullPageModalOpen}
@@ -2731,31 +3616,159 @@ export default function ExamPage() {
           pageNumber={currentQuestion?.page_number ?? currentQuestion?.question_number ?? 1}
         />
       )}
+      {needsDesmos && (
+        <DesmosCalculator open={desmosOpen} onClose={() => setDesmosOpen(false)} />
+      )}
+      {moduleTransitionShown && nextModuleDef && !moduleScoreResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="max-w-md w-full rounded-xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Module complete</h2>
+            {isSat ? (
+              <SatMarkedForReviewWarning
+                items={satCurrentModuleMarkedForReview}
+                allQuestions={questions}
+                isSatFullExam={isSatFull}
+              />
+            ) : null}
+            <p className="text-sm text-gray-600 mb-4">
+              You finished {currentModuleDef?.label ?? "this module"}. The next module is{" "}
+              <span className="font-medium text-gray-900">{nextModuleDef.label}</span>{" "}
+              ({nextModuleQuestionCount} questions, suggested {nextModuleDef.durationMin} min).
+            </p>
+            {moduleTransitionError && (
+              <p className="text-sm text-red-600 mb-3">{moduleTransitionError}</p>
+            )}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 mb-4 leading-relaxed">
+              {nextModuleDef.section === "math" ? (
+                <>The Math section allows the built-in Desmos calculator throughout.</>
+              ) : (
+                <>The Reading & Writing section does not allow a calculator.</>
+              )}
+            </div>
+
+            {showModuleScoreChoice ? (
+              <div className="mb-4 space-y-3">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  Score this module
+                </p>
+                <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                  <button
+                    type="button"
+                    onClick={() => void scoreModule(false)}
+                    disabled={scoringModule}
+                    className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {scoringModule ? "Scoring…" : "Grade with AI"}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Uses AI for questions missing an answer key. May take several minutes.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                  <button
+                    type="button"
+                    onClick={() => void scoreModule(true)}
+                    disabled={scoringModule}
+                    className="w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Score with answer key only
+                  </button>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Only questions with a key in the exam are graded.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowModuleScoreChoice(false)}
+                  disabled={scoringModule}
+                  className="text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                >
+                  Back
+                </button>
+              </div>
+            ) : (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModuleScoreChoice(true);
+                    setModuleTransitionError(null);
+                  }}
+                  disabled={scoringModule}
+                  className="w-full rounded-md border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  Score this module
+                </button>
+                <p className="mt-2 text-xs text-gray-500 text-center">
+                  Preview results for this module only. Your exam stays open.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setModuleTransitionShown(null);
+                  setShowModuleScoreChoice(false);
+                }}
+                disabled={scoringModule}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Stay on this module
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setModuleTransitionError(null);
+                  void goToNextModule();
+                }}
+                disabled={nextModuleQuestionCount === 0 || scoringModule}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next module: {nextModuleDef.shortLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {moduleScoreResult && (
+        <SatModuleResultOverlay
+          result={moduleScoreResult}
+          moduleGroup={moduleScoreGroup}
+          hasNextModule={!!nextModuleDef && nextModuleQuestionCount > 0}
+          onContinue={() => {
+            setModuleScoreResult(null);
+            setShowModuleScoreChoice(false);
+            void goToNextModule();
+          }}
+          onStay={() => {
+            setModuleScoreResult(null);
+            setShowModuleScoreChoice(false);
+            setModuleTransitionShown(null);
+          }}
+        />
+      )}
       {showEndExamConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="mx-4 max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Finish exam?</h2>
-            {markedForReview.size > 0 ? (
-              <>
-                <p className="mb-3 text-sm text-gray-700">
-                  You marked some questions for review. You can still finish when you are ready.
-                </p>
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {questions
-                    .filter((q) => markedForReview.has(q.id))
-                    .map((q) => (
-                      <span
-                        key={q.id}
-                        className="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 text-sm font-medium"
-                      >
-                        {q.question_number}
-                      </span>
-                    ))}
-                </div>
-              </>
-            ) : (
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              {isSat ? "Finish SAT exam?" : "Finish exam?"}
+            </h2>
+            {isSat ? (
+              <SatMarkedForReviewWarning
+                items={satMarkedForReviewQuestions}
+                allQuestions={questions}
+                isSatFullExam={isSatFull}
+              />
+            ) : null}
+            {!isSat ? (
               <p className="mb-4 text-sm text-gray-700">Choose how you want to complete this attempt.</p>
-            )}
+            ) : satMarkedForReviewQuestions.length === 0 ? (
+              <p className="mb-4 text-sm text-gray-700">
+                You are about to submit this attempt for scoring.
+              </p>
+            ) : null}
             <p className="mb-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Scoring</p>
             <div className="flex flex-col gap-3 mb-4">
               <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">
@@ -2804,6 +3817,129 @@ export default function ExamPage() {
           </div>
         </div>
       )}
+    </div>
+    </GraphZoomProvider>
+  );
+}
+
+/**
+ * SAT Math grid-in (Student-Produced Response) numeric input.
+ * Accepts digits, decimal point, slash for fractions, and a leading minus sign.
+ * Commits on each keystroke (via onCommit), mirroring how MCQ selections persist.
+ */
+function SatGridInInput({
+  value,
+  onCommit,
+  large = false,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  large?: boolean;
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => {
+    setLocal(value);
+  }, [value]);
+  const valid = local === "" || /^-?[\d./]*$/.test(local);
+  const commit = (v: string) => {
+    setLocal(v);
+    if (v === "" || (/^-?[\d./]+$/.test(v) && /\d/.test(v))) {
+      onCommit(v);
+    } else if (v === "") {
+      onCommit("");
+    }
+  };
+  const appendChar = (c: string) => {
+    commit(local + c);
+  };
+  const backspace = () => {
+    commit(local.slice(0, -1));
+  };
+  const clear = () => {
+    commit("");
+  };
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border-2 border-blue-200 bg-blue-50/40 p-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-blue-700 mb-2">
+          Grid-in answer
+        </p>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={local}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "" || /^-?[\d./]*$/.test(v)) {
+              commit(v);
+            }
+          }}
+          placeholder="Enter your answer (e.g. 3/2 or 0.5)"
+          className={cn(
+            "w-full rounded-md border-2 px-3 font-mono text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2",
+            large ? "py-3.5 text-xl" : "py-3 text-lg",
+            valid
+              ? "border-gray-300 focus:border-blue-600 focus:ring-blue-200"
+              : "border-red-400 focus:border-red-600 focus:ring-red-200"
+          )}
+        />
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {["7", "8", "9", "/"].map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => appendChar(k)}
+              className="rounded-md border border-gray-300 bg-white py-2 text-sm font-mono text-gray-800 hover:bg-gray-50"
+            >
+              {k}
+            </button>
+          ))}
+          {["4", "5", "6", "."].map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => appendChar(k)}
+              className="rounded-md border border-gray-300 bg-white py-2 text-sm font-mono text-gray-800 hover:bg-gray-50"
+            >
+              {k}
+            </button>
+          ))}
+          {["1", "2", "3", "-"].map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => appendChar(k)}
+              className="rounded-md border border-gray-300 bg-white py-2 text-sm font-mono text-gray-800 hover:bg-gray-50"
+            >
+              {k}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => appendChar("0")}
+            className="col-span-2 rounded-md border border-gray-300 bg-white py-2 text-sm font-mono text-gray-800 hover:bg-gray-50"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            onClick={backspace}
+            className="rounded-md border border-gray-300 bg-white py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            className="rounded-md border border-red-200 bg-red-50 py-2 text-sm font-medium text-red-600 hover:bg-red-100"
+          >
+            Clear
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          You can type with your keyboard or use the keypad. Fractions like 3/2 and decimals like 1.5 are both accepted.
+        </p>
+      </div>
     </div>
   );
 }

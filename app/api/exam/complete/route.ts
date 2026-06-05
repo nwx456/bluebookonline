@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
-import { buildSolvePromptWithOptionalPdf, parseSolveResponse, type SolveQuestionInput } from "@/lib/ai-solve-prompts";
+import {
+  gradeAndPersistQuestionSubset,
+  type GradeQuestionRow,
+} from "@/lib/exam-grade";
 import type { SubjectKey } from "@/lib/gemini-prompts";
-import { generateWithFallback } from "@/lib/gemini-client";
+import { getExamProgram, isSatFullTest } from "@/lib/exam-program";
 
-const BATCH_SIZE = 8;
-const VALID_ANSWERS = ["A", "B", "C", "D", "E"] as const;
-const PDF_MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+/** Scale raw correct count -> SAT R&W scaled score (200-800). */
+function scaleRwScore(correct: number, totalAvailable: number, hadHardM2: boolean): number {
+  if (totalAvailable <= 0) return 200;
+  const ratio = Math.max(0, Math.min(1, correct / totalAvailable));
+  let score = Math.round(200 + ratio * 600);
+  if (hadHardM2) score = Math.min(800, score + 30);
+  return Math.max(200, Math.min(800, score));
+}
 
-async function downloadPdfAsBase64(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseAdmin>>,
-  uploadId: string,
-  storagePath: string | null
-): Promise<string | null> {
-  if (!storagePath?.trim() || !storagePath.endsWith(".pdf")) return null;
-  try {
-    const { data, error } = await supabase.storage.from("pdf_uploads").download(storagePath);
-    if (error && storagePath.startsWith("pending/")) {
-      const fallbackPath = `${uploadId}.pdf`;
-      const fallback = await supabase.storage.from("pdf_uploads").download(fallbackPath);
-      if (fallback.error || !fallback.data) return null;
-      if (fallback.data.size > PDF_MAX_SIZE_BYTES) return null;
-      return Buffer.from(await fallback.data.arrayBuffer()).toString("base64");
-    }
-    if (error || !data) return null;
-    if (data.size > PDF_MAX_SIZE_BYTES) return null;
-    return Buffer.from(await data.arrayBuffer()).toString("base64");
-  } catch {
-    return null;
-  }
+/** Scale raw correct count -> SAT Math scaled score (200-800). */
+function scaleMathScore(correct: number, totalAvailable: number, hadHardM2: boolean): number {
+  if (totalAvailable <= 0) return 200;
+  const ratio = Math.max(0, Math.min(1, correct / totalAvailable));
+  let score = Math.round(200 + ratio * 600);
+  if (hadHardM2) score = Math.min(800, score + 30);
+  return Math.max(200, Math.min(800, score));
 }
 
 export async function POST(request: NextRequest) {
@@ -36,6 +30,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const attemptId = (body.attemptId ?? body.attempt_id) as string | undefined;
     const skipAiGrading = body.skipAiGrading === true || body.skip_ai_grading === true;
+    const selectedRwM2VariantRaw = (body.selectedRwM2Variant ??
+      body.selected_rw_m2_variant) as string | undefined;
+    const selectedMathM2VariantRaw = (body.selectedMathM2Variant ??
+      body.selected_math_m2_variant) as string | undefined;
+    const selectedRwM2Variant =
+      selectedRwM2VariantRaw === "easy" || selectedRwM2VariantRaw === "hard"
+        ? selectedRwM2VariantRaw
+        : null;
+    const selectedMathM2Variant =
+      selectedMathM2VariantRaw === "easy" || selectedMathM2VariantRaw === "hard"
+        ? selectedMathM2VariantRaw
+        : null;
 
     if (!attemptId?.trim()) {
       return NextResponse.json({ error: "attemptId is required." }, { status: 400 });
@@ -59,15 +65,20 @@ export async function POST(request: NextRequest) {
 
     const { data: upload } = await supabase
       .from("pdf_uploads")
-      .select("subject, storage_path")
+      .select("subject, storage_path, exam_program, sat_format, sat_adaptive_mode")
       .eq("id", attempt.upload_id)
       .single();
 
     const subject = (upload?.subject ?? "AP_PSYCHOLOGY") as SubjectKey;
+    const examProgram = (upload?.exam_program ?? getExamProgram(subject)) as "AP" | "SAT";
+    const isSat = examProgram === "SAT";
+    const isSatFull = isSatFullTest(subject);
 
     const { data: allQuestions } = await supabase
       .from("questions")
-      .select("id, question_number, question_text, passage_text, precondition_text, option_a, option_b, option_c, option_d, option_e, correct_answer, page_number, has_graph, bbox")
+      .select(
+        "id, question_number, question_text, passage_text, precondition_text, option_a, option_b, option_c, option_d, option_e, correct_answer, page_number, has_graph, bbox, question_type, accepted_answers, sat_section, sat_module, sat_module_variant, sat_difficulty"
+      )
       .eq("upload_id", attempt.upload_id)
       .order("question_number", { ascending: true })
       .order("id", { ascending: true });
@@ -76,200 +87,120 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No questions found." }, { status: 400 });
     }
 
-    const aiAnswerMap = new Map<string, string>();
+    const questions = allQuestions as GradeQuestionRow[];
 
-    if (!skipAiGrading) {
-      const questionsNeedingAi = allQuestions.filter(
-        (q) => !q.correct_answer || String(q.correct_answer).trim() === ""
-      ) as (typeof allQuestions[0] & { correct_answer: null })[];
-
-      const apiKey = process.env.GEMINI_API_KEY;
-      const batchHasGraph = questionsNeedingAi.some((q) => q.has_graph === true);
-      let pdfBase64: string | null = null;
-      if (batchHasGraph && upload?.storage_path) {
-        pdfBase64 = await downloadPdfAsBase64(supabase, attempt.upload_id, upload.storage_path);
-      }
-
-      if (questionsNeedingAi.length > 0 && apiKey?.trim()) {
-        for (let i = 0; i < questionsNeedingAi.length; i += BATCH_SIZE) {
-          const batch = questionsNeedingAi.slice(i, i + BATCH_SIZE);
-          const inputs: SolveQuestionInput[] = batch.map((q) => ({
-            id: q.id,
-            question_number: q.question_number,
-            question_text: q.question_text,
-            passage_text: q.passage_text,
-            precondition_text: q.precondition_text ?? null,
-            option_a: q.option_a,
-            option_b: q.option_b,
-            option_c: q.option_c,
-            option_d: q.option_d,
-            option_e: q.option_e,
-            page_number: q.page_number ?? null,
-            has_graph: q.has_graph ?? false,
-            bbox: q.bbox as { x: number; y: number; width: number; height: number } | null ?? null,
-          }));
-
-          const { prompt, usePdf } = buildSolvePromptWithOptionalPdf(subject, inputs, pdfBase64);
-          const runBatch = async (isRetry = false): Promise<boolean> => {
-            const contents = usePdf && pdfBase64
-              ? [
-                  { text: prompt },
-                  { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
-                ]
-              : prompt;
-            const { text } = await generateWithFallback({ apiKey, contents });
-            if (!text?.trim()) {
-              if (process.env.NODE_ENV === "development") {
-                console.warn("[exam/complete] Gemini returned empty response for batch", i);
-              }
-              return false;
-            }
-            const answers = parseSolveResponse(text, batch.length);
-            const parsedCount = answers.filter((a) => a != null).length;
-            if (parsedCount === 0 && process.env.NODE_ENV === "development") {
-              console.warn("[exam/complete] parseSolveResponse got no valid answers. Raw:", text.slice(0, 300));
-            }
-            const allSame =
-              batch.length > 1 &&
-              parsedCount === batch.length &&
-              answers.every((a) => a === answers[0]);
-            if (allSame && !isRetry && process.env.NODE_ENV === "development") {
-              console.warn("[exam/complete] All answers same for batch - possible parse error, will retry. Raw:", text.slice(0, 300));
-            }
-            if (allSame) {
-              if (!isRetry) return true;
-              return false;
-            }
-            batch.forEach((q, j) => {
-              const ans = answers[j];
-              if (ans && VALID_ANSWERS.includes(ans as (typeof VALID_ANSWERS)[number])) {
-                aiAnswerMap.set(q.id, ans);
-              }
-            });
-            return false;
-          };
-          try {
-            const shouldRetry = await runBatch();
-            if (shouldRetry) {
-              await runBatch(true);
-            }
-          } catch (err) {
-            console.error("Gemini solve batch error:", err);
-            try {
-              await runBatch(true);
-            } catch (retryErr) {
-              console.error("Gemini solve batch retry error:", retryErr);
-            }
-          }
-        }
-      }
-
-      for (const [qId, ans] of aiAnswerMap) {
-        await supabase.from("questions").update({ correct_answer: ans }).eq("id", qId);
-      }
-    }
-
-    const { data: attemptAnswers } = await supabase
-      .from("attempt_answers")
-      .select("id, question_id, user_answer")
-      .eq("attempt_id", attemptId);
-
-    const questionCorrectMap = new Map(
-      allQuestions.map((q) => [
-        q.id,
-        skipAiGrading
-          ? ((q.correct_answer?.toString().trim().toUpperCase() || null) as string | null)
-          : ((q.correct_answer?.toString().trim().toUpperCase() || aiAnswerMap.get(q.id) || null) as string | null),
-      ])
-    );
-
-    for (const aa of attemptAnswers ?? []) {
-      const correctAnswer = questionCorrectMap.get(aa.question_id) ?? null;
-      const userAnswer = aa.user_answer?.toString().toUpperCase().trim() || null;
-      const isCorrect =
-        userAnswer !== null && correctAnswer !== null && userAnswer === correctAnswer;
-      const aiAnswer = skipAiGrading ? null : (aiAnswerMap.get(aa.question_id) ?? null);
-
-      await supabase
-        .from("attempt_answers")
-        .update({
-          ai_answer: aiAnswer,
-          is_correct: isCorrect,
-        })
-        .eq("id", aa.id);
-    }
-
-    const answeredIds = new Set((attemptAnswers ?? []).map((a) => a.question_id));
-    for (const q of allQuestions) {
-      if (!answeredIds.has(q.id)) {
-        const aiAnswer = skipAiGrading ? null : (aiAnswerMap.get(q.id) ?? null);
-        await supabase.from("attempt_answers").insert({
-          attempt_id: attemptId,
-          question_id: q.id,
-          user_answer: null,
-          ai_answer: aiAnswer,
-          is_correct: false,
-        });
-      }
-    }
-
-    const { data: finalAnswers } = await supabase
-      .from("attempt_answers")
-      .select("question_id, user_answer, is_correct")
-      .eq("attempt_id", attemptId);
-
-    let correctCount = 0;
-    let incorrectCount = 0;
-    let unansweredCount = 0;
-    let notGradedCount = 0;
-
-    if (skipAiGrading) {
-      for (const a of finalAnswers ?? []) {
-        const key = questionCorrectMap.get(a.question_id) ?? null;
-        const user = a.user_answer?.toString().toUpperCase().trim() || null;
-        if (user === null || user === "") {
-          unansweredCount++;
-        } else if (key === null || key === "") {
-          notGradedCount++;
-        } else if (user === key) {
-          correctCount++;
-        } else {
-          incorrectCount++;
-        }
-      }
-    } else {
-      for (const a of finalAnswers ?? []) {
-        if (a.user_answer == null || a.user_answer === "") {
-          unansweredCount++;
-        } else if (a.is_correct) {
-          correctCount++;
-        } else {
-          incorrectCount++;
-        }
-      }
-    }
+    const { breakdown, counts } = await gradeAndPersistQuestionSubset({
+      supabase,
+      attemptId,
+      subject,
+      storagePath: upload?.storage_path ?? null,
+      uploadId: attempt.upload_id,
+      questions,
+      skipAiGrading,
+      insertMissingAnswers: true,
+    });
 
     const startedAt = attempt.started_at ? new Date(attempt.started_at) : new Date();
     const completedAt = new Date();
-    const timeSpentSeconds = Math.max(0, Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000));
+    const timeSpentSeconds = Math.max(
+      0,
+      Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000)
+    );
 
-    const gradedAnswered = correctCount + incorrectCount;
-    const percentage =
-      skipAiGrading
-        ? gradedAnswered > 0
-          ? Math.round((correctCount / gradedAnswered) * 100)
-          : 0
-        : allQuestions.length > 0
-          ? Math.round((correctCount / allQuestions.length) * 100)
-          : 0;
+    type SatModuleStats = {
+      module: string;
+      section: "rw" | "math";
+      moduleNumber: 1 | 2;
+      correct: number;
+      total: number;
+    };
+    let rwScaled: number | null = null;
+    let mathScaled: number | null = null;
+    let totalScaled: number | null = null;
+    const satModuleStats: SatModuleStats[] = [];
 
-    const attemptUpdateBase = {
+    if (isSat) {
+      const { data: finalAnswers } = await supabase
+        .from("attempt_answers")
+        .select("question_id, user_answer, is_correct")
+        .eq("attempt_id", attemptId);
+
+      const finalAnswerMap = new Map(
+        (finalAnswers ?? []).map((a) => [a.question_id, a] as const)
+      );
+      const groups = new Map<string, SatModuleStats>();
+      const satAdaptiveMode = (upload as { sat_adaptive_mode?: string | null })?.sat_adaptive_mode;
+      const useSixModule = satAdaptiveMode === "six_module";
+      let rwHardM2 = useSixModule ? selectedRwM2Variant === "hard" : false;
+      let mathHardM2 = useSixModule ? selectedMathM2Variant === "hard" : false;
+
+      for (const q of questions) {
+        const section = (q.sat_section === "math" ? "math" : "rw") as "rw" | "math";
+        const moduleNumber = (q.sat_module === 2 ? 2 : 1) as 1 | 2;
+        const variant = q.sat_module_variant;
+
+        if (useSixModule && moduleNumber === 2) {
+          const selectedVariant = section === "rw" ? selectedRwM2Variant : selectedMathM2Variant;
+          if (variant && selectedVariant && variant !== selectedVariant) continue;
+        } else if (!useSixModule && moduleNumber === 2 && variant === "hard") {
+          if (section === "rw") rwHardM2 = true;
+          if (section === "math") mathHardM2 = true;
+        }
+
+        const key = `${section}${moduleNumber}`;
+        let stats = groups.get(key);
+        if (!stats) {
+          stats = { module: key, section, moduleNumber, correct: 0, total: 0 };
+          groups.set(key, stats);
+        }
+        stats.total++;
+        const a = finalAnswerMap.get(q.id);
+        if (a?.is_correct) stats.correct++;
+      }
+
+      const rwStats = ["rw1", "rw2"]
+        .map((k) => groups.get(k))
+        .filter((g): g is SatModuleStats => !!g);
+      const mathStats = ["math1", "math2"]
+        .map((k) => groups.get(k))
+        .filter((g): g is SatModuleStats => !!g);
+
+      const rwTotalCorrect = rwStats.reduce((s, g) => s + g.correct, 0);
+      const rwTotalAvail = rwStats.reduce((s, g) => s + g.total, 0);
+      const mathTotalCorrect = mathStats.reduce((s, g) => s + g.correct, 0);
+      const mathTotalAvail = mathStats.reduce((s, g) => s + g.total, 0);
+
+      if (rwTotalAvail > 0) rwScaled = scaleRwScore(rwTotalCorrect, rwTotalAvail, rwHardM2);
+      if (mathTotalAvail > 0) mathScaled = scaleMathScore(mathTotalCorrect, mathTotalAvail, mathHardM2);
+      if (rwScaled != null || mathScaled != null) {
+        totalScaled = (rwScaled ?? 0) + (mathScaled ?? 0);
+      }
+
+      const order: Array<"rw1" | "rw2" | "math1" | "math2"> = ["rw1", "rw2", "math1", "math2"];
+      for (const key of order) {
+        const g = groups.get(key);
+        if (g) satModuleStats.push(g);
+      }
+    }
+
+    const attemptUpdateBase: Record<string, unknown> = {
       completed_at: completedAt.toISOString(),
       time_spent_seconds: timeSpentSeconds,
-      correct_count: correctCount,
-      incorrect_count: incorrectCount,
-      unanswered_count: unansweredCount,
+      correct_count: counts.correctCount,
+      incorrect_count: counts.incorrectCount,
+      unanswered_count: counts.unansweredCount,
     };
+
+    if (isSat) {
+      const moduleProgress: Record<string, { correct: number; total: number }> = {};
+      for (const m of satModuleStats) {
+        moduleProgress[m.module] = { correct: m.correct, total: m.total };
+      }
+      attemptUpdateBase.module_progress = moduleProgress;
+      if (rwScaled != null) attemptUpdateBase.rw_scaled_score = rwScaled;
+      if (mathScaled != null) attemptUpdateBase.math_scaled_score = mathScaled;
+      if (totalScaled != null) attemptUpdateBase.total_scaled_score = totalScaled;
+    }
 
     const { error: attemptUpdateError } = await supabase
       .from("attempts")
@@ -280,43 +211,27 @@ export async function POST(request: NextRequest) {
       await supabase.from("attempts").update(attemptUpdateBase).eq("id", attemptId);
     }
 
-    const totalQuestions = allQuestions.length;
-
-    const { data: questionsWithAnswers } = await supabase
-      .from("questions")
-      .select("id, question_number, correct_answer")
-      .eq("upload_id", attempt.upload_id)
-      .order("question_number", { ascending: true })
-      .order("id", { ascending: true });
-
-    const { data: answersWithAi } = await supabase
-      .from("attempt_answers")
-      .select("question_id, user_answer, ai_answer, is_correct")
-      .eq("attempt_id", attemptId);
-
-    const answerByQ = new Map((answersWithAi ?? []).map((a) => [a.question_id, a]));
-    const breakdown = (questionsWithAnswers ?? []).map((q) => {
-      const a = answerByQ.get(q.id);
-      const correctAnswer = (q.correct_answer?.toString().trim().toUpperCase() || a?.ai_answer || null) as string | null;
-      return {
-        questionNumber: q.question_number,
-        userAnswer: a?.user_answer ?? null,
-        correctAnswer,
-        isCorrect: a?.is_correct ?? false,
-      };
-    });
-
     return NextResponse.json({
       ok: true,
-      total: totalQuestions,
-      correctCount,
-      incorrectCount,
-      unansweredCount,
-      notGradedCount,
+      total: questions.length,
+      correctCount: counts.correctCount,
+      incorrectCount: counts.incorrectCount,
+      unansweredCount: counts.unansweredCount,
+      notGradedCount: counts.notGradedCount,
       skipAiGrading,
-      percentage,
+      percentage: counts.percentage,
       timeSpentSeconds,
       breakdown,
+      examProgram,
+      sat: isSat
+        ? {
+            isFullTest: isSatFull,
+            rwScaled,
+            mathScaled,
+            totalScaled,
+            modules: satModuleStats,
+          }
+        : null,
     });
   } catch (err) {
     console.error("exam complete error:", err);

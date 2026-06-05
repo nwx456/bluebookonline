@@ -1,36 +1,59 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen, Calendar } from "lucide-react";
-import { HeaderNav } from "@/components/HeaderNav";
+import { SiteHeader } from "@/components/SiteHeader";
 import { formatBlogDate, getAllPostMeta } from "@/lib/blog";
+import type { ExamProgram } from "@/lib/exam-program";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
 
 export const metadata: Metadata = {
-  title: "Blog - AP Exam Tips, Bluebook Guides, and Study Strategies",
+  title: "Blog - AP & Digital SAT Tips, Bluebook Guides, Study Strategies",
   description:
-    "Practical guides for AP students: how to prepare for the digital Bluebook exam, study strategies for AP Calculus, Biology, Psychology, and more.",
+    "Practical guides for AP and Digital SAT students: how to prepare for the digital Bluebook exam, study strategies for AP Calculus, Biology, Psychology, and SAT R&W / Math.",
   alternates: { canonical: `${baseUrl}/blog` },
   openGraph: {
     title: "Blog | Bluebook Online",
     description:
-      "Practical guides for AP students: how to prepare for the digital Bluebook exam, study strategies, and subject-specific tips.",
+      "Practical guides for AP and SAT students: digital Bluebook exam strategies, study tips, and subject-specific advice.",
     url: `${baseUrl}/blog`,
     type: "website",
     images: ["/og-image.png"],
   },
 };
 
-export default function BlogIndexPage() {
-  const posts = getAllPostMeta();
+function parseProgram(value: string | string[] | undefined): ExamProgram {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw?.toLowerCase() === "sat" ? "SAT" : "AP";
+}
+
+interface BlogIndexPageProps {
+  searchParams?: Promise<{ program?: string | string[] }>;
+}
+
+export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps) {
+  const sp = (await searchParams) ?? {};
+  const program = parseProgram(sp.program);
+  const isSat = program === "SAT";
+  const programQuery = isSat ? "?program=sat" : "";
+
+  // All current posts are AP-focused. Until SAT-tagged content exists, the SAT
+  // view shows an explicit empty state instead of mixing in AP guides.
+  const posts = isSat ? [] : getAllPostMeta();
+
+  const heroTitle = isSat ? "Digital SAT Prep Blog" : "AP Exam Prep Blog";
+  const heroSubtitle = isSat
+    ? "Practical guides for the Digital SAT: Bluebook strategies, Module 2 adaptive routing, grid-in pacing, and Desmos tips. Fresh posts coming soon."
+    : "Practical guides for AP students: digital Bluebook exam strategies, subject-specific study tips, and how to use AI tools responsibly during prep.";
 
   const blogJsonLd = {
     "@context": "https://schema.org",
     "@type": "Blog",
     name: "Bluebook Online Blog",
-    description:
-      "Guides and study strategies for AP students preparing for the digital Bluebook exam.",
-    url: `${baseUrl}/blog`,
+    description: isSat
+      ? "Digital SAT prep guides and Bluebook-app strategies."
+      : "Guides and study strategies for AP students preparing for the digital Bluebook exam.",
+    url: `${baseUrl}/blog${programQuery}`,
     publisher: {
       "@type": "Organization",
       name: "Bluebook Online",
@@ -52,44 +75,41 @@ export default function BlogIndexPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
       />
 
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-          >
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-12">
         <section className="mb-10 rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-6 py-10 shadow-sm border border-gray-100 text-center">
-          <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
-            AP Exam Prep Blog
-          </h1>
-          <p className="mt-3 text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            Practical guides for AP students: digital Bluebook exam strategies, subject-specific
-            study tips, and how to use AI tools responsibly during prep.
-          </p>
+          <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">{heroTitle}</h1>
+          <p className="mt-3 text-gray-600 max-w-2xl mx-auto leading-relaxed">{heroSubtitle}</p>
         </section>
 
         {posts.length === 0 ? (
           <div className="rounded-xl border border-gray-200 bg-white p-14 text-center shadow-sm">
             <BookOpen className="mx-auto h-12 w-12 text-blue-600" />
-            <h2 className="mt-3 text-lg font-semibold text-gray-900">No posts yet</h2>
+            <h2 className="mt-3 text-lg font-semibold text-gray-900">
+              {isSat ? "SAT blog content is coming soon" : "No posts yet"}
+            </h2>
             <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
-              We are working on the first batch of guides. Check back soon, or browse our practice
-              tests in the meantime.
+              {isSat
+                ? "We are working on Digital SAT prep guides. In the meantime, jump into a SAT practice test or switch back to AP posts using the toggle in the header."
+                : "We are working on the first batch of guides. Check back soon, or browse our practice tests in the meantime."}
             </p>
-            <Link
-              href="/exams"
-              className="mt-5 inline-flex items-center justify-center rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Browse practice tests
-            </Link>
+            <div className="mt-5 flex flex-col sm:flex-row gap-3 sm:justify-center">
+              <Link
+                href={`/exams${programQuery}`}
+                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                {isSat ? "Browse SAT practice tests" : "Browse practice tests"}
+              </Link>
+              {isSat && (
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  View AP blog posts
+                </Link>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -132,15 +152,15 @@ export default function BlogIndexPage() {
       <footer className="border-t border-gray-200 bg-white py-6">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link href="/" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={`/${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               Home
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={`/exams${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               Practice tests
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={`/about${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               About
             </Link>
             <span className="text-gray-300">|</span>

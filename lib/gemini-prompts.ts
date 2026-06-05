@@ -28,6 +28,9 @@ export const SUBJECT_KEYS = [
   "AP_CALCULUS_AB",
   "AP_CALCULUS_BC",
   "AP_PRECALCULUS",
+  "SAT_RW",
+  "SAT_MATH",
+  "SAT_FULL_TEST",
 ] as const;
 
 export type SubjectKey = (typeof SUBJECT_KEYS)[number];
@@ -58,6 +61,9 @@ export const SUBJECT_DEFAULT_HAS_VISUALS: Record<SubjectKey, boolean | "code"> =
   AP_CALCULUS_AB: false,
   AP_CALCULUS_BC: false,
   AP_PRECALCULUS: false,
+  SAT_RW: false,
+  SAT_MATH: true,
+  SAT_FULL_TEST: true,
 };
 
 export const SUBJECT_LABELS: Record<SubjectKey, string> = {
@@ -85,6 +91,9 @@ export const SUBJECT_LABELS: Record<SubjectKey, string> = {
   AP_CALCULUS_AB: "AP Calculus AB",
   AP_CALCULUS_BC: "AP Calculus BC",
   AP_PRECALCULUS: "AP Precalculus",
+  SAT_RW: "SAT Reading & Writing",
+  SAT_MATH: "SAT Math",
+  SAT_FULL_TEST: "SAT Full Test",
 };
 
 const SHARED_STIMULUS_RULE = `
@@ -205,8 +214,109 @@ const MSQ_ONLY_RULE = `
 ÖNEMLİ: Sadece **çoktan seçmeli soruları (MSQ)** çıkar. **Free-response (FRQ)** sorularını ve FRQ bölümlerindeki metni dahil etme; sadece MSQ bölümlerinden çıkar.
 `;
 
+// =============================================================================
+// SAT-specific output schemas
+// Digital SAT: A-D options only (no E), passages for R&W, figures+grid-ins for Math.
+// =============================================================================
+
+const SAT_COMMON_FIELDS = `
+SAT (Digital) için ZORUNLU alanlar (her soruda):
+- "sat_section": "rw" | "math" — sorunun bölümü
+- "sat_module": 1 | 2 — sorunun modülü (Module 1 veya Module 2)
+- "sat_module_variant": "easy" | "hard" | null — yalnızca 6-modüllü adaptif PDF'lerde (M2 versiyonu); diğer durumda null
+- "sat_difficulty": "easy" | "medium" | "hard" | null — pool adaptif modunda kullanılır; diğer durumda null
+- "question_type": "mcq" | "grid_in" — Math'te numeric grid-in için "grid_in"; geri kalan her şey "mcq"
+- "accepted_answers": grid-in için kabul edilebilen string cevap listesi (ör. ["3/2","1.5","1.50"]); MCQ için null
+- A-D ŞIKLAR: SAT her zaman A, B, C, D'dir (E YOK). "options": ["A metni","B metni","C metni","D metni"]. grid-in için options = []`;
+
+const OUTPUT_SCHEMA_SAT_RW = `
+Her SAT R&W sorusu için şu JSON nesnesini üret (her zaman 4 şık A-D, passage image_description'a):
+{
+  "type": "text",
+  "content": "SADECE soru kökü (stem). Passage veya alıntı 'image_description'da.",
+  "image_description": "Passage / alıntı / şair veya yazarın metni / introduction blok. Yoksa null.",
+  "options": ["A", "B", "C", "D"],
+  "correct": "A" | null,
+  "question_type": "mcq",
+  "sat_section": "rw",
+  "sat_module": 1,
+  "sat_module_variant": null,
+  "sat_difficulty": null,
+  "accepted_answers": null
+}
+${SHARED_STIMULUS_RULE}
+Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+`;
+
+const OUTPUT_SCHEMA_SAT_MATH = `
+Her SAT Math sorusu için şu JSON nesnesini üret (4 şık A-D MCQ veya grid-in numeric):
+{
+  "type": "text" | "image",
+  "content": "Soru metni (kısa Math soruları için tüm metin; uzun word problem'da stem).",
+  "image_description": "R&W için passage/liste (grafik YOK); Math'te yalnızca passage/liste — grafik varsa null bırak, has_graph+bbox kullan",
+  "has_graph": true | false,
+  "page_number": 1,
+  "bbox": { "x": 0.1, "y": 0.2, "width": 0.6, "height": 0.4 },
+  "options": ["A","B","C","D"],
+  "correct": "A" | "3/2" | null,
+  "question_type": "mcq" | "grid_in",
+  "accepted_answers": null | ["3/2","1.5","1.50"],
+  "sat_section": "math",
+  "sat_module": 1,
+  "sat_module_variant": null,
+  "sat_difficulty": null
+}
+GRID-IN KURALLARI:
+- Soru "Enter the answer" veya cevap kutusu / oval olmayan numeric cevap içeriyorsa question_type = "grid_in".
+- grid_in için options = [] (boş array) ZORUNLU — asla ["A","B","C","D"] veya uydurma şık ekleme.
+- MCQ için question_type = "mcq", options 4 elemanlı (A-D).
+HAS_GRAPH KURALLARI (Math): Grafik, diyagram, geometrik şekil, koordinat düzlemi, fonksiyon grafiği VAR MI? true ise page_number + bbox zorunlu (0-1 normalleştirilmiş, kenarda %3-5 boşluk). Grafiği SVG/metin ile tarif etme — has_graph true iken image_description null.
+${SHARED_STIMULUS_RULE}
+Tüm soruları bir JSON dizisi olarak döndür: [ { ... }, { ... } ]
+`;
+
+const OUTPUT_SCHEMA_SAT_FULL = `
+Her SAT (Digital) sorusu için şu JSON nesnesini üret. Tüm Section/Module/Variant alanları ZORUNLU.
+{
+  "type": "text" | "image",
+  "content": "Soru kökü / soru metni.",
+  "image_description": "R&W için passage; Math'te liste/passage — grafik varsa null (has_graph+bbox kullan)",
+  "has_graph": true | false,
+  "page_number": 1,
+  "bbox": { "x": 0, "y": 0, "width": 0.5, "height": 0.4 },
+  "options": ["A","B","C","D"],
+  "correct": "A" | "3/2" | null,
+  "question_type": "mcq" | "grid_in",
+  "accepted_answers": null | ["3/2","1.5"],
+  "sat_section": "rw" | "math",
+  "sat_module": 1 | 2,
+  "sat_module_variant": "easy" | "hard" | null,
+  "sat_difficulty": "easy" | "medium" | "hard" | null
+}
+${SAT_COMMON_FIELDS}
+
+MODÜL TESPİTİ ZORUNLU:
+- PDF'i baştan sona dikkatlice oku ve modül sınırlarını tespit et.
+- Tipik başlıklar: "Section 1, Module 1: Reading and Writing", "Module 2", "Section 2, Module 1: Math", "No-Calculator", "Calculator", "Modül 1 — Easy", "Module 2 — Hard", "Módulo A", "Modul B", "Module facile", "模块 1", "وحدة 1".
+- Her soruyu DOĞRU sat_section + sat_module ile etiketle. R&W → "rw", Math → "math". Soru numarası başlığa göre 1'den başlasa bile section'a göre etiketleme yap.
+- SAT_FULL_TEST gerçek bir Digital SAT sınavıdır: 4 modül zinciri (R&W M1 → R&W M2 → Math M1 → Math M2). PDF'de 6 modül varsa (M2'nin Easy + Hard versiyonları) sat_module_variant alanını doldur; aksi halde null.
+${SHARED_STIMULUS_RULE}
+Tüm soruları sırasıyla tek bir JSON dizisi olarak döndür: [ { ... }, { ... }, ... ]
+`;
+
 export function isCodeSubject(subject: SubjectKey): boolean {
   return subject === "AP_CSA" || subject === "AP_CSP";
+}
+
+export function isSatSubjectKey(subject: SubjectKey): boolean {
+  return subject === "SAT_RW" || subject === "SAT_MATH" || subject === "SAT_FULL_TEST";
+}
+
+/** Optional SAT context passed into getSystemPrompt for SAT_FULL_TEST. */
+export interface SatPromptContext {
+  satAdaptiveMode?: "none" | "pool" | "six_module";
+  satCutoffRw?: number | null;
+  satCutoffMath?: number | null;
 }
 
 const TEXT_ONLY_BASE = (subjectLabel: string) => `Sen bir ${subjectLabel} sınav PDF analiz asistanısın.
@@ -219,7 +329,120 @@ GÖREV:
 
 ÇIKTI: ${OUTPUT_SCHEMA_TEXT_ONLY}`;
 
-export function getSystemPrompt(subject: SubjectKey, hasVisuals?: boolean): string {
+export function getSystemPrompt(
+  subject: SubjectKey,
+  hasVisuals?: boolean,
+  satContext?: SatPromptContext
+): string {
+  // -------------------------------------------------------------------------
+  // SAT cases first (Digital SAT: A-D only, optional grid-in for Math)
+  // -------------------------------------------------------------------------
+  if (subject === "SAT_RW") {
+    return `Sen bir Digital SAT Reading & Writing sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+KRİTİK SAT KURALLARI:
+- Şıklar HER ZAMAN A, B, C, D'dir. (E YOK; SAT'ta 5. şık asla olmaz.)
+- "options" alanı tam 4 elemanlı bir dizi olmalı.
+- "correct" alanı: PDF'te cevap anahtarı varsa A/B/C/D; yoksa null. ASLA tahmin etme.
+- Her soruya zorunlu olarak şu alanlar:
+  * sat_section: "rw"
+  * sat_module: 1 veya 2 (PDF başlığından "Module 1" / "Module 2"; tek-modüllü pratik PDF'lerde 1 yaz)
+  * question_type: "mcq" (R&W'de grid-in yok)
+  * sat_module_variant: null
+  * sat_difficulty: null
+  * accepted_answers: null
+
+GÖREV:
+- Passage / alıntı / introduction / madde listeleri (I. II. III. veya bullet) → image_description
+- Soru kökü (kısa, genelde "Which choice…", "As used in the passage…") → content ONLY
+- content alanına passage veya madde listesi YAZMA — karışık metin üretme
+- PDF'i baştan sona oku, soru sırasını koru.
+- has_graph, page_number, bbox EKLEME (R&W'de figür yok).
+
+ÇIKTI: ${OUTPUT_SCHEMA_SAT_RW}
+
+KURAL: content = sadece soru kökü; passage image_description'da. Tüm soruları tek JSON dizisi olarak döndür.`;
+  }
+
+  if (subject === "SAT_MATH") {
+    return `Sen bir Digital SAT Math sınav PDF analiz asistanısın.
+${MSQ_ONLY_RULE}
+
+KRİTİK SAT KURALLARI:
+- MCQ şıkları HER ZAMAN A, B, C, D'dir. (E YOK.)
+- "options" MCQ için tam 4 elemanlı, grid-in için boş [] olmalı.
+- Grid-in (Student-Produced Response): soruda cevap kutusu / "Enter your answer" / "Grid your answer" gibi ifade veya çoktan seçmeli liste OLMAYAN sayısal cevap istemi varsa question_type = "grid_in"; correct = numeric string ("3/2","0.5","-2"); accepted_answers = matematiksel olarak eşdeğer string formların array'i.
+- MCQ için question_type = "mcq"; correct = A/B/C/D veya null; accepted_answers = null.
+- Her soruya zorunlu olarak şu alanlar:
+  * sat_section: "math"
+  * sat_module: 1 veya 2
+  * sat_module_variant: null
+  * sat_difficulty: null
+
+GÖREV:
+- Grafikleri, geometrik şekilleri, koordinat düzlemlerini, fonksiyon eğrilerini, veri tablolarını tespit et.
+- has_graph true ise page_number (1-based) + bbox (0-1 normalleştirilmiş) ZORUNLU — grafiği metin/SVG ile image_description'a YAZMA.
+- Bbox kuralları: tüm figürü çevrele (eksen, başlık, legend dahil); kenarda %3-5 boşluk bırak; minimum width 0.18, height 0.12.
+- Grid-in: options = [] zorunlu; asla A/B/C/D uydurma.
+
+ÇIKTI: ${OUTPUT_SCHEMA_SAT_MATH}
+
+KURAL: SAT Math'te grafik veya tablo varsa sol panel = SADECE PDF crop (bbox ile). Grid-in için A/B/C/D yok; numeric cevap accepted_answers'da.`;
+  }
+
+  if (subject === "SAT_FULL_TEST") {
+    const adaptiveMode = satContext?.satAdaptiveMode ?? "none";
+    const cutoffRw = satContext?.satCutoffRw ?? null;
+    const cutoffMath = satContext?.satCutoffMath ?? null;
+
+    const adaptiveInstructions =
+      adaptiveMode === "six_module"
+        ? `**6-MODÜLLÜ ADAPTİF FORMAT**: PDF'te her bölüm için 3 blok vardır:
+- R&W Module 1 (sat_module=1, sat_module_variant=null) — kesin yapılacak ilk modül
+- R&W ikinci aşama KOLAY yolu: Module A / Easy / Below the bar (sat_module=2, sat_module_variant="easy")
+- R&W ikinci aşama ZOR yolu: Module B / Hard / Above the bar (sat_module=2, sat_module_variant="hard")
+- Math için aynı yapı (Module 1 + Module A/Easy + Module B/Hard)
+ÖNEMLİ: MCQ cevap şıkları A,B,C,D modül adı DEĞİLDİR. Module A/B yalnızca bölüm başlıklarında geçer.
+PDF başlıklarında "Easy", "Hard", "Module A", "Module B", "Below the bar", "Above the bar" arayın. Cutoff: R&W=${cutoffRw ?? "(AI tahmin)"} / Math=${cutoffMath ?? "(AI tahmin)"}.`
+        : adaptiveMode === "pool"
+        ? `**POOL ADAPTİF FORMAT**: M2 soruları tek havuzda; her birine zorluk etiketi "sat_difficulty": "easy" | "medium" | "hard" koy. sat_module_variant = null kalır.`
+        : `**NON-ADAPTİF FORMAT**: Sadece 4 modül (R&W M1, R&W M2, Math M1, Math M2). sat_module_variant = null, sat_difficulty = null. Module 2 = ikinci modül (Module 2 / Part 2 / Form 2).`;
+
+    return `Sen bir Digital SAT FULL TEST PDF analiz asistanısın. Bu bir tam SAT sınavıdır: Reading & Writing + Math, her biri 2 modül.
+${MSQ_ONLY_RULE}
+
+KRİTİK SAT KURALLARI:
+- MCQ şıkları HER ZAMAN A, B, C, D'dir. (E YOK.)
+- "options" MCQ için 4 eleman, grid-in için [] olmalı — grid-in'e asla uydurma şık ekleme.
+- "correct" alanı PDF'te cevap anahtarı varsa doldurulur (MCQ için harf, grid-in için numeric string); yoksa null. ASLA tahmin etme.
+- Grid-in (Math): question_type = "grid_in"; options = []; accepted_answers = string array.
+- MCQ: question_type = "mcq".
+
+${adaptiveInstructions}
+
+MODÜL TESPİTİ (ZORUNLU):
+- PDF'i baştan sona DİKKATLİCE oku ve her sorunun hangi bölüm + modüle ait olduğunu belirle.
+- Modül başlıkları İngilizce dışında da olabilir: Modül/Módulo/Modul, Module facile/difficile, Kolay/Zor, Fácil/Difícil, Leicht/Schwer, 模块, وحدة — yine de sat_section, sat_module, sat_module_variant kanonik alanlara map et.
+- Tipik başlıklar: "Module 1", "Module 2", "Module A", "Module B", "Módulo 1", "Modul A", "Module facile", "Part 1", "Part 2", "Easy", "Hard", "Section 1 Module 1: Reading and Writing", "Section 2 Module 2: Math", "模块 1", "وحدة 1".
+- MCQ answer choices A/B/C/D are NOT module names — only section headings identify modules.
+- Soru numaralandırması her modülde yeniden 1'den başlayabilir; section başlığına göre etiketleme yap.
+- Reading & Writing → sat_section = "rw"; Math → sat_section = "math".
+
+GÖREV:
+- Tüm modüllerin sorularını çıkar; sırayı koru (R&W M1 → R&W M2 → Math M1 → Math M2).
+- R&W: passage image_description'da, soru kökü content'te, has_graph kullanma; madde listeleri passage'ta.
+- Math: grafik/diyagram varsa has_graph true + page_number + bbox — grafiği metin olarak yazma; yoksa false.
+- Grid-in sorularını tespit et: cevap kutusu, "Enter the answer", numeric SPR formatı, MCQ'nun olmadığı kısa sayısal cevap istemi.
+
+ÇIKTI: ${OUTPUT_SCHEMA_SAT_FULL}
+
+KURAL: Her sorunun tüm SAT alanları (sat_section, sat_module, sat_module_variant, sat_difficulty, question_type, accepted_answers) DOĞRU şekilde doldurulmalı. Tüm soruları tek bir JSON dizisi olarak döndür.`;
+  }
+
+  // -------------------------------------------------------------------------
+  // AP cases (existing behavior, unchanged)
+  // -------------------------------------------------------------------------
   if (subject === "AP_CSA" || subject === "AP_CSP") {
     return `Sen bir AP Computer Science ${subject === "AP_CSP" ? "Principles (CSP)" : "A (CSA)"} sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}

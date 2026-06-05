@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, BookOpen, Loader2, Mail } from "lucide-react";
-import { HeaderNav } from "@/components/HeaderNav";
+import { BarChart3, Loader2, Mail } from "lucide-react";
+import { SiteHeader } from "@/components/SiteHeader";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
@@ -289,18 +289,7 @@ export default function AdminMailPage() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-          >
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 space-y-6">
         <div className="rounded-md border border-gray-200 bg-white p-6 shadow-sm">

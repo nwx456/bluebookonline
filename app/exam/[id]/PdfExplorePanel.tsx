@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useContext } from "react";
 import { cn } from "@/lib/utils";
 import { isLikelyNormalized, prepareCropRect } from "@/lib/pdf-geometry";
 import { cropCanvasToDataUrl } from "@/lib/pdf-crop";
+import { GraphZoomContext } from "./GraphZoomContext";
 
 export type ExploreBbox = { x: number; y: number; width: number; height: number };
 
@@ -275,6 +276,27 @@ export default function PdfExplorePanel({
     }
   }, []);
 
+  const graphZoomCtx = useContext(GraphZoomContext);
+  const useHeaderToolbar = graphZoomCtx != null;
+
+  const zoomControls = useMemo(
+    () => ({
+      zoomIn,
+      zoomOut,
+      reset: resetView,
+      label: `${Math.round(zoom * 100)}%`,
+      canZoomIn: zoomIndex < ZOOM_STEPS.length - 1,
+      canZoomOut: zoomIndex > 0,
+    }),
+    [zoomIn, zoomOut, resetView, zoom, zoomIndex]
+  );
+
+  useEffect(() => {
+    if (!graphZoomCtx) return;
+    graphZoomCtx.registerControls(zoomControls);
+    return () => graphZoomCtx.registerControls(null);
+  }, [graphZoomCtx, zoomControls]);
+
   return (
     <div
       className={cn("w-full min-w-0", className)}
@@ -316,6 +338,7 @@ export default function PdfExplorePanel({
             }}
           />
         )}
+        {!useHeaderToolbar && (
         <div
           data-no-pan
           className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded border border-gray-300 bg-white/95 shadow-sm cursor-default"
@@ -348,6 +371,7 @@ export default function PdfExplorePanel({
             +
           </button>
         </div>
+        )}
       </div>
     </div>
   );

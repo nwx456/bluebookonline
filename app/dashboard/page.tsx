@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -17,8 +17,9 @@ import {
   ImageIcon,
   Clock,
   XCircle,
+  ExternalLink,
 } from "lucide-react";
-import { HeaderNav } from "@/components/HeaderNav";
+import { SiteHeader } from "@/components/SiteHeader";
 import { cn, generateId } from "@/lib/utils";
 import {
   MAX_PDF_UPLOAD_BYTES,
@@ -34,12 +35,43 @@ import {
   isCodeSubject,
   type SubjectKey,
 } from "@/lib/gemini-prompts";
+import {
+  getExamProgram,
+  isSatFullTest,
+  isSatSubject,
+  SAT_MODULES,
+  type SatAdaptiveMode,
+  type SatModuleId,
+} from "@/lib/exam-program";
+import {
+  getModuleDisplayNumber,
+  getSatModuleGroups,
+} from "@/lib/sat-question-display";
+import { useProgram } from "@/lib/use-program";
+import { UploadAnalyzeProgress, type PhaseTiming } from "@/components/UploadAnalyzeProgress";
+import {
+  buildClientAnalyzePhases,
+  formatFriendlyAnalyzeError,
+  PHASE_UPLOAD,
+  PHASE_EXTRACT,
+  PHASE_SAVE,
+  type AnalyzeErrorDisplay,
+  type AnalyzePhase,
+  type ProgressEvent,
+} from "@/lib/upload-analyze-progress";
 
 const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
 const SUBJECTS_FILTER = [
   { value: "" as const, label: "All subjects" },
   ...SUBJECTS,
 ];
+const AP_SUBJECT_OPTIONS = SUBJECTS.filter((s) => getExamProgram(s.value) === "AP");
+
+function formatSatModuleCounts(moduleCounts: Partial<Record<SatModuleId, number>>): string {
+  return SAT_MODULES.map((mod) => `${mod.shortLabel}: ${moduleCounts[mod.id] ?? 0}`).join(" | ");
+}
+const SAT_SUBJECT_OPTIONS = SUBJECTS.filter((s) => getExamProgram(s.value) === "SAT");
+const SAT_AUTO_COUNT = 100;
 
 const UNPUBLISH_CONFIRM_COOLDOWN_SEC = 3;
 
@@ -49,6 +81,7 @@ interface UploadedExam {
   id: string;
   name: string;
   subject: SubjectValue;
+  examProgram: "AP" | "SAT";
   questionCount: number;
   uploadedAt: string;
   isPublished: boolean;
@@ -59,6 +92,7 @@ interface RecentAttempt {
   uploadId: string;
   filename: string;
   subject: string;
+  examProgram?: "AP" | "SAT";
   completedAt: string;
   correctCount: number;
   incorrectCount: number;
@@ -74,6 +108,7 @@ interface InProgressAttempt {
   uploadId: string;
   filename: string;
   subject: string;
+  examProgram?: "AP" | "SAT";
   startedAt: string;
   timeSpentSeconds: number;
 }
@@ -89,6 +124,9 @@ interface AttemptQuestion {
   option_c: string | null;
   option_d: string | null;
   option_e: string | null;
+  sat_section?: "rw" | "math" | null;
+  sat_module?: number | null;
+  sat_module_variant?: "easy" | "hard" | null;
 }
 
 interface AttemptBreakdownRow {
@@ -107,14 +145,25 @@ interface ExpandedAttemptData {
 export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { program } = useProgram();
+  const isProgramSat = program === "SAT";
   const [subject, setSubject] = useState<SubjectValue | "">("");
   const [hasVisualsInPdf, setHasVisualsInPdf] = useState<boolean | null>(null);
   const [questionCount, setQuestionCount] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [showAnalyzeProgress, setShowAnalyzeProgress] = useState(false);
+  const [analyzePhases, setAnalyzePhases] = useState<AnalyzePhase[]>([]);
+  const [phaseTimings, setPhaseTimings] = useState<Record<string, PhaseTiming>>({});
+  const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
+  const [overallStartedAt, setOverallStartedAt] = useState<number | null>(null);
+  const [totalPredictedLabel, setTotalPredictedLabel] = useState<string | undefined>();
+  const [analyzeError, setAnalyzeError] = useState<AnalyzeErrorDisplay | null>(null);
+  const progressPanelRef = useRef<HTMLDivElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccessDetail, setUploadSuccessDetail] = useState<string | null>(null);
+  const [uploadModeWarning, setUploadModeWarning] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadedExam[]>([]);
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<SubjectValue | "">("");
@@ -137,21 +186,52 @@ export default function DashboardPage() {
   const [expandedAttemptData, setExpandedAttemptData] = useState<ExpandedAttemptData | null>(null);
   const [expandedAttemptLoading, setExpandedAttemptLoading] = useState(false);
   const [selectedWrongQuestion, setSelectedWrongQuestion] = useState<number | null>(null);
-  const [wrongResultViewMode, setWrongResultViewMode] = useState<"explanation" | "question">("explanation");
+  const [wrongResultViewMode, setWrongResultViewMode] = useState<"explanation" | "question">("question");
   const [wrongResultExplanation, setWrongResultExplanation] = useState<string | null>(null);
   const [wrongResultExplanationLoading, setWrongResultExplanationLoading] = useState(false);
 
+  // SAT-specific upload state
+  const [satAdaptiveMode, setSatAdaptiveMode] = useState<SatAdaptiveMode>("none");
+  const [satCutoffRw, setSatCutoffRw] = useState<string>("");
+  const [satCutoffMath, setSatCutoffMath] = useState<string>("");
+
+  const isSat = isSatSubject(subject || null);
+  const isSatFull = isSatFullTest(subject || null);
+  const isCode = subject !== "" && !isSat && isCodeSubject(subject as SubjectKey);
+
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
-  const isCode = subject !== "" && isCodeSubject(subject as SubjectKey);
+  const effectiveQuestionCount = isProgramSat
+    ? SAT_AUTO_COUNT
+    : isQuestionCountValid
+      ? questionCountNum
+      : NaN;
+  const isQuestionCountValidEffective = isProgramSat ? true : isQuestionCountValid;
+
+  const uploadSubjectOptions = isProgramSat ? SAT_SUBJECT_OPTIONS : AP_SUBJECT_OPTIONS;
+
   const pdfTooLarge =
     selectedFile !== null && selectedFile.size > MAX_PDF_UPLOAD_BYTES;
   const canAnalyze =
     selectedFile !== null &&
     !pdfTooLarge &&
-    isQuestionCountValid &&
+    isQuestionCountValidEffective &&
     subject !== "" &&
     (isCode || hasVisualsInPdf !== null);
+
+  useEffect(() => {
+    setSubjectFilter("");
+  }, [program]);
+
+  useEffect(() => {
+    if (!subject) return;
+    const subjectProgram = getExamProgram(subject as SubjectKey);
+    if (subjectProgram !== program) {
+      setSubject("");
+      setHasVisualsInPdf(null);
+      setQuestionCount("");
+    }
+  }, [program, subject]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -173,7 +253,7 @@ export default function DashboardPage() {
       setCheckingAuth(false);
       supabase
         .from("pdf_uploads")
-        .select("id, filename, subject, created_at, is_published")
+        .select("id, filename, subject, exam_program, created_at, is_published")
         .eq("user_email", email)
         .order("created_at", { ascending: false })
         .then(async ({ data: rows, error }) => {
@@ -194,6 +274,10 @@ export default function DashboardPage() {
               id: row.id,
               name: row.filename ?? "PDF",
               subject: (row.subject ?? "AP_CSA") as SubjectValue,
+              examProgram:
+                (row as { exam_program?: string | null }).exam_program === "SAT"
+                  ? "SAT"
+                  : "AP",
               questionCount: countByUpload[row.id] ?? 0,
               uploadedAt: row.created_at ?? new Date().toISOString(),
               isPublished: row.is_published === true,
@@ -317,7 +401,14 @@ export default function DashboardPage() {
     [accessToken, expandedAttemptId]
   );
 
-  const handleWrongQuestionClick = useCallback(
+  const handleWrongRowClick = useCallback((questionNumber: number) => {
+    setSelectedWrongQuestion(questionNumber);
+    setWrongResultViewMode("question");
+    setWrongResultExplanation(null);
+    setWrongResultExplanationLoading(false);
+  }, []);
+
+  const loadWrongExplanation = useCallback(
     async (questionNumber: number) => {
       const data = expandedAttemptData;
       if (!data) return;
@@ -352,6 +443,47 @@ export default function DashboardPage() {
       }
     },
     [expandedAttemptData]
+  );
+
+  const handleWrongQuestionClick = useCallback(
+    async (questionNumber: number) => {
+      const data = expandedAttemptData;
+      if (!data) return;
+      if (getExamProgram(data.upload.subject) === "SAT") {
+        handleWrongRowClick(questionNumber);
+        return;
+      }
+      const q = data.questions.find((qq) => qq.question_number === questionNumber);
+      const row = data.result.breakdown.find((b) => b.questionNumber === questionNumber);
+      if (!q || !row) return;
+      setSelectedWrongQuestion(questionNumber);
+      setWrongResultViewMode("explanation");
+      setWrongResultExplanationLoading(true);
+      setWrongResultExplanation(null);
+      try {
+        const opts = [q.option_a, q.option_b, q.option_c, q.option_d, q.option_e].filter(
+          (o): o is string => o != null && String(o).trim() !== ""
+        );
+        const res = await fetch("/api/exam/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questionText: q.question_text,
+            passageText: q.passage_text ?? "",
+            options: opts,
+            correctAnswer: row.correctAnswer ?? "A",
+            subject: data.upload.subject,
+          }),
+        });
+        const json = await res.json();
+        setWrongResultExplanation(json.explanation ?? "No explanation available.");
+      } catch {
+        setWrongResultExplanation("Failed to load explanation.");
+      } finally {
+        setWrongResultExplanationLoading(false);
+      }
+    },
+    [expandedAttemptData, handleWrongRowClick]
   );
 
   const closeUnpublishModal = useCallback(() => {
@@ -448,28 +580,135 @@ export default function DashboardPage() {
     setUploadError(null);
   }, []);
 
-  async function handleAnalyze() {
+  const dismissAnalyzeProgress = useCallback(() => {
+    setShowAnalyzeProgress(false);
+    setAnalyzePhases([]);
+    setPhaseTimings({});
+    setActivePhaseId(null);
+    setOverallStartedAt(null);
+    setAnalyzeError(null);
+    setTotalPredictedLabel(undefined);
+  }, []);
+
+  const applyProgressEvent = useCallback((event: ProgressEvent) => {
+    switch (event.type) {
+      case "init":
+        setAnalyzePhases((prev) => {
+          const upload = prev.find((p) => p.id === PHASE_UPLOAD);
+          return upload ? [upload, ...event.phases] : event.phases;
+        });
+        if (event.totalPredictedLabel) setTotalPredictedLabel(event.totalPredictedLabel);
+        break;
+      case "phase_start":
+        setActivePhaseId(event.phaseId);
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [event.phaseId]: {
+            ...prev[event.phaseId],
+            status: "active",
+            startedAt: event.at,
+          },
+        }));
+        break;
+      case "phase_done":
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [event.phaseId]: {
+            status: "done",
+            durationMs: event.durationMs,
+            detail: event.detail,
+            startedAt: prev[event.phaseId]?.startedAt,
+          },
+        }));
+        break;
+      case "phase_error":
+        setActivePhaseId(event.phaseId);
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [event.phaseId]: {
+            ...prev[event.phaseId],
+            status: "error",
+            errorMessage: event.message,
+          },
+        }));
+        break;
+      case "error":
+        setAnalyzeError({
+          failedPhaseId: event.failedPhaseId,
+          title: event.title,
+          message: event.message,
+          reason: event.reason,
+          suggestion: event.suggestion,
+          errorCode: event.errorCode,
+          moduleSummary: event.moduleSummary,
+          modeMismatchWarning: event.modeMismatchWarning,
+        });
+        if (event.failedPhaseId) {
+          setActivePhaseId(event.failedPhaseId);
+          setPhaseTimings((prev) => ({
+            ...prev,
+            [event.failedPhaseId!]: {
+              ...prev[event.failedPhaseId!],
+              status: "error",
+              errorMessage: event.message,
+            },
+          }));
+        }
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  async function handleApAnalyze() {
     if (!selectedFile || !canAnalyze || !subject) return;
+
+    const started = Date.now();
+    const { phases, totalPredictedLabel: predictedLabel } = buildClientAnalyzePhases({
+      subject,
+      satAdaptiveMode: "none",
+    });
+
     setIsUploading(true);
-    setUploadProgress(0);
     setUploadError(null);
-    const steps = [0, 25, 50, 75, 100];
-    let stepIndex = 0;
-    const progressInterval = setInterval(() => {
-      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
-      setUploadProgress(steps[stepIndex] ?? 0);
-    }, 800);
+    setUploadSuccessDetail(null);
+    setUploadModeWarning(null);
+    setAnalyzeError(null);
+    setAnalyzePhases(phases);
+    setPhaseTimings({
+      [PHASE_UPLOAD]: { status: "active", startedAt: started },
+    });
+    setActivePhaseId(PHASE_UPLOAD);
+    setOverallStartedAt(started);
+    setTotalPredictedLabel(predictedLabel);
+    setShowAnalyzeProgress(true);
+
+    requestAnimationFrame(() => {
+      progressPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+
+    const extractStarted = Date.now();
+    setPhaseTimings((prev) => ({
+      ...prev,
+      [PHASE_UPLOAD]: {
+        status: "done",
+        durationMs: extractStarted - started,
+        startedAt: started,
+      },
+      [PHASE_EXTRACT]: { status: "active", startedAt: extractStarted },
+    }));
+    setActivePhaseId(PHASE_EXTRACT);
 
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      const userEmail = session?.user?.email ?? "";
+      const sessionEmail = session?.user?.email ?? "";
 
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("subject", subject);
       formData.append("questionCount", String(questionCountNum));
-      formData.append("userEmail", userEmail);
+      formData.append("userEmail", sessionEmail);
       formData.append(
         "hasVisuals",
         isCode ? "true" : (hasVisualsInPdf ? "true" : "false")
@@ -481,19 +720,62 @@ export default function DashboardPage() {
         body: formData,
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        examId?: string;
+        questionCount?: number;
+        error?: string;
+      };
 
       if (!res.ok) {
-        setUploadError(data.error ?? "Analysis failed. Try again.");
+        const err = formatFriendlyAnalyzeError(data.error ?? "Analysis failed. Try again.", {
+          failedPhaseId: PHASE_EXTRACT,
+        });
+        setAnalyzeError(err);
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [PHASE_EXTRACT]: {
+            status: "error",
+            errorMessage: err.message,
+            durationMs: Date.now() - extractStarted,
+            startedAt: extractStarted,
+          },
+        }));
+        setActivePhaseId(PHASE_EXTRACT);
+        setUploadError(err.message);
         return;
       }
+
+      const extractDone = Date.now();
+      const saveStarted = extractDone;
+      setPhaseTimings((prev) => ({
+        ...prev,
+        [PHASE_EXTRACT]: {
+          status: "done",
+          durationMs: extractDone - extractStarted,
+          startedAt: extractStarted,
+        },
+        [PHASE_SAVE]: { status: "active", startedAt: saveStarted },
+      }));
+      setActivePhaseId(PHASE_SAVE);
+
+      const saveDone = Date.now();
+      setPhaseTimings((prev) => ({
+        ...prev,
+        [PHASE_SAVE]: {
+          status: "done",
+          durationMs: saveDone - saveStarted,
+          startedAt: saveStarted,
+        },
+      }));
+      setActivePhaseId(null);
 
       setUploads((prev) => [
         {
           id: data.examId ?? generateId(),
           name: selectedFile.name,
           subject,
-          questionCount: questionCountNum,
+          examProgram: "AP",
+          questionCount: data.questionCount ?? questionCountNum,
           uploadedAt: new Date().toISOString(),
           isPublished: true,
         },
@@ -501,23 +783,262 @@ export default function DashboardPage() {
       ]);
       setSelectedFile(null);
       setQuestionCount("");
+      setTimeout(() => dismissAnalyzeProgress(), 2500);
     } catch {
-      setUploadError("Connection error. Try again.");
+      const err = formatFriendlyAnalyzeError("Connection error. Try again.", {
+        failedPhaseId: PHASE_EXTRACT,
+      });
+      setAnalyzeError(err);
+      setPhaseTimings((prev) => ({
+        ...prev,
+        [PHASE_EXTRACT]: {
+          status: "error",
+          errorMessage: err.message,
+          durationMs: Date.now() - extractStarted,
+          startedAt: extractStarted,
+        },
+      }));
+      setActivePhaseId(PHASE_EXTRACT);
+      setUploadError(err.message);
     } finally {
-      clearInterval(progressInterval);
-      setUploadProgress(100);
       setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 300);
+    }
+  }
+
+  async function handleSatAnalyze() {
+    if (!selectedFile || !canAnalyze || !subject) return;
+
+    const started = Date.now();
+    const { phases, totalPredictedLabel: predictedLabel } = buildClientAnalyzePhases({
+      subject,
+      satAdaptiveMode: isSatFull ? satAdaptiveMode : "none",
+    });
+
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadSuccessDetail(null);
+    setUploadModeWarning(null);
+    setAnalyzeError(null);
+    setAnalyzePhases(phases);
+    setPhaseTimings({
+      [PHASE_UPLOAD]: { status: "active", startedAt: started },
+    });
+    setActivePhaseId(PHASE_UPLOAD);
+    setOverallStartedAt(started);
+    setTotalPredictedLabel(predictedLabel);
+    setShowAnalyzeProgress(true);
+
+    requestAnimationFrame(() => {
+      progressPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+
+    const uploadStarted = Date.now();
+
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userEmail = session?.user?.email ?? "";
+
+      const signedRes = await fetch("/api/upload/create-signed-url", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          userEmail,
+          filename: selectedFile.name,
+          contentType: "application/pdf",
+          size: selectedFile.size,
+        }),
+      });
+      const signedData = (await signedRes.json().catch(() => ({}))) as {
+        bucket?: string;
+        storagePath?: string;
+        signedUrl?: string;
+        token?: string;
+        error?: string;
+      };
+      if (!signedRes.ok || !signedData?.signedUrl || !signedData?.token || !signedData?.storagePath || !signedData?.bucket) {
+        const err = formatFriendlyAnalyzeError(
+          signedData?.error ?? "Could not initialize upload. Try again.",
+          { failedPhaseId: PHASE_UPLOAD }
+        );
+        setAnalyzeError(err);
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [PHASE_UPLOAD]: {
+            status: "error",
+            durationMs: Date.now() - uploadStarted,
+            errorMessage: err.message,
+            startedAt: uploadStarted,
+          },
+        }));
+        setUploadError(err.message);
+        return;
+      }
+
+      const { error: uploadStorageError } = await supabase.storage
+        .from(signedData.bucket)
+        .uploadToSignedUrl(signedData.storagePath, signedData.token, selectedFile, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+      if (uploadStorageError) {
+        const err = formatFriendlyAnalyzeError(uploadStorageError.message || "Upload failed.", {
+          failedPhaseId: PHASE_UPLOAD,
+        });
+        setAnalyzeError(err);
+        setPhaseTimings((prev) => ({
+          ...prev,
+          [PHASE_UPLOAD]: {
+            status: "error",
+            durationMs: Date.now() - uploadStarted,
+            errorMessage: err.message,
+            startedAt: uploadStarted,
+          },
+        }));
+        setUploadError(err.message);
+        return;
+      }
+
+      setPhaseTimings((prev) => ({
+        ...prev,
+        [PHASE_UPLOAD]: {
+          status: "done",
+          durationMs: Date.now() - uploadStarted,
+          startedAt: uploadStarted,
+        },
+      }));
+      setActivePhaseId(null);
+
+      const analyzeBody: Record<string, unknown> = {
+        storagePath: signedData.storagePath,
+        filename: selectedFile.name,
+        subject,
+        questionCount: effectiveQuestionCount,
+        userEmail,
+        hasVisuals: hasVisualsInPdf,
+        aiProvider: "gemini",
+        streamProgress: true,
+        examProgram: "SAT",
+        satFormat: isSatFull ? "full_test" : "single_module",
+        satAdaptiveMode: isSatFull ? satAdaptiveMode : "none",
+      };
+      if (isSatFull) {
+        if (satCutoffRw.trim()) analyzeBody.satCutoffRw = parseInt(satCutoffRw.trim(), 10);
+        if (satCutoffMath.trim()) analyzeBody.satCutoffMath = parseInt(satCutoffMath.trim(), 10);
+      }
+
+      const res = await fetch("/api/upload/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(analyzeBody),
+      });
+
+      if (!res.ok || !res.body) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const err = formatFriendlyAnalyzeError(data.error ?? "Analysis failed. Try again.", {});
+        setAnalyzeError(err);
+        setUploadError(err.message);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completeData: Extract<ProgressEvent, { type: "complete" }> | null = null;
+      let streamHadError = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line) as ProgressEvent;
+            applyProgressEvent(event);
+            if (event.type === "complete") completeData = event;
+            if (event.type === "error") streamHadError = true;
+          } catch {
+            // ignore malformed line
+          }
+        }
+      }
+
+      if (!completeData) {
+        if (!streamHadError) {
+          const err = formatFriendlyAnalyzeError("Analysis did not complete.", {});
+          setAnalyzeError(err);
+          setUploadError(err.message);
+        }
+        return;
+      }
+
+      if (completeData.moduleSummary) {
+        setUploadSuccessDetail(completeData.moduleSummary);
+      } else {
+        setUploadSuccessDetail(null);
+      }
+      if (completeData.modeMismatchWarning) {
+        setUploadModeWarning(completeData.modeMismatchWarning);
+      } else {
+        setUploadModeWarning(null);
+      }
+
+      setUploads((prev) => [
+        {
+          id: completeData.examId ?? generateId(),
+          name: selectedFile.name,
+          subject,
+          examProgram: "SAT",
+          questionCount: completeData.questionCount ?? effectiveQuestionCount,
+          uploadedAt: new Date().toISOString(),
+          isPublished: true,
+        },
+        ...prev,
+      ]);
+      setSelectedFile(null);
+      setQuestionCount("");
+      setSatAdaptiveMode("none");
+      setSatCutoffRw("");
+      setSatCutoffMath("");
+      setActivePhaseId(null);
+      setTimeout(() => dismissAnalyzeProgress(), 2500);
+    } catch {
+      const err = formatFriendlyAnalyzeError("Connection error. Try again.", {});
+      setAnalyzeError(err);
+      setUploadError(err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function handleAnalyze() {
+    if (isProgramSat) {
+      await handleSatAnalyze();
+    } else {
+      await handleApAnalyze();
     }
   }
 
   const subjectLabel = subject
     ? (SUBJECTS.find((s) => s.value === subject)?.label ?? subject)
-    : "Select subject";
+    : isProgramSat
+      ? "Select a test type"
+      : "Select subject";
 
+  const programUploads = uploads.filter((u) => u.examProgram === program);
   const filteredUploads = subjectFilter
-    ? uploads.filter((u) => u.subject === subjectFilter)
-    : uploads;
+    ? programUploads.filter((u) => u.subject === subjectFilter)
+    : programUploads;
+
+  const filteredInProgress = inProgressAttempts.filter(
+    (a) => (a.examProgram ?? "AP") === program
+  );
+  const filteredRecent = recentAttempts.filter(
+    (a) => (a.examProgram ?? "AP") === program
+  );
 
   const wrongAnswersFromAttempt = expandedAttemptData
     ? expandedAttemptData.result.breakdown.filter(
@@ -529,6 +1050,15 @@ export default function DashboardPage() {
           String(b.userAnswer).trim() !== ""
       )
     : [];
+
+  const expandedAttemptIsSat =
+    expandedAttemptData != null &&
+    getExamProgram(expandedAttemptData.upload.subject) === "SAT";
+
+  const wrongSatGroups = useMemo(() => {
+    if (!expandedAttemptData || !expandedAttemptIsSat) return [];
+    return getSatModuleGroups(expandedAttemptData.questions, expandedAttemptData.upload.subject);
+  }, [expandedAttemptData, expandedAttemptIsSat]);
 
   const subjectFilterLabel =
     subjectFilter === ""
@@ -545,15 +1075,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8">
         <div className="mb-6">
@@ -561,11 +1083,13 @@ export default function DashboardPage() {
             Upload exam PDF
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            Upload your AP exam PDF to get started. The AI will extract questions automatically.
+            {isProgramSat
+              ? "Upload your Digital SAT exam PDF to get started. The AI will extract questions automatically."
+              : "Upload your AP exam PDF to get started. The AI will extract questions automatically."}
           </p>
         </div>
 
-        {inProgressAttempts.length > 0 && (
+        {filteredInProgress.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <FileText className="h-5 w-5 text-amber-600" />
@@ -575,7 +1099,7 @@ export default function DashboardPage() {
               Resume where you left off, or discard an attempt to remove it from this list.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {inProgressAttempts.map((a) => (
+              {filteredInProgress.map((a) => (
                 <div
                   key={a.id}
                   className="rounded-lg border border-amber-200 bg-amber-50/40 p-2.5 flex flex-col gap-2 shadow-sm"
@@ -625,14 +1149,14 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {recentAttempts.length > 0 && (
+        {filteredRecent.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
               Recent exams
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {recentAttempts.map((a) => (
+              {filteredRecent.map((a) => (
                 <div
                   key={a.id}
                   className={cn(
@@ -716,58 +1240,122 @@ export default function DashboardPage() {
                           ) : (
                             <>
                               <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-sm">
-                                    <thead>
-                                      <tr className="border-b border-gray-200 bg-gray-50">
-                                        <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
-                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
-                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
-                                        <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {wrongAnswersFromAttempt.map((row) => (
-                                        <tr
-                                          key={row.questionNumber}
-                                          onClick={() => handleWrongQuestionClick(row.questionNumber)}
-                                          className={cn(
-                                            "border-b border-gray-100 cursor-pointer transition-colors",
-                                            selectedWrongQuestion === row.questionNumber ? "bg-blue-50" : "hover:bg-gray-50"
-                                          )}
-                                        >
-                                          <td className="px-4 py-3 font-medium text-gray-900">{row.questionNumber}</td>
-                                          <td className="px-4 py-3 text-red-600">{row.userAnswer ?? "—"}</td>
-                                          <td className="px-4 py-3 text-green-600">{row.correctAnswer ?? "—"}</td>
-                                          <td className="px-4 py-3">
-                                            <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800">
-                                              Incorrect
+                                {expandedAttemptIsSat && wrongSatGroups.length > 0 ? (
+                                  <div className="divide-y divide-gray-200">
+                                    {wrongSatGroups.map((group) => {
+                                      const wrongInGroup = group.questions
+                                        .map((gq) => {
+                                          const row = wrongAnswersFromAttempt.find(
+                                            (b) => b.questionNumber === gq.question_number
+                                          );
+                                          return row ? { gq, row } : null;
+                                        })
+                                        .filter(
+                                          (x): x is { gq: AttemptQuestion; row: AttemptBreakdownRow } =>
+                                            x != null
+                                        );
+                                      if (wrongInGroup.length === 0) return null;
+                                      return (
+                                        <details key={group.id} className="group" open>
+                                          <summary className="cursor-pointer bg-gray-50/80 px-4 py-3 font-medium text-gray-900 flex items-center justify-between list-none">
+                                            <span>{group.label}</span>
+                                            <span className="text-sm font-normal text-red-600">
+                                              {wrongInGroup.length} incorrect
                                             </span>
-                                          </td>
+                                          </summary>
+                                          <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                              <thead>
+                                                <tr className="border-b border-gray-200 bg-gray-50">
+                                                  <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                                                  <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
+                                                  <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
+                                                  <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {wrongInGroup.map(({ gq, row }) => {
+                                                  const displayNum = getModuleDisplayNumber(
+                                                    group.questions,
+                                                    gq
+                                                  );
+                                                  return (
+                                                    <tr
+                                                      key={row.questionNumber}
+                                                      onClick={() => handleWrongRowClick(row.questionNumber)}
+                                                      className={cn(
+                                                        "border-b border-gray-100 cursor-pointer transition-colors",
+                                                        selectedWrongQuestion === row.questionNumber
+                                                          ? "bg-blue-50"
+                                                          : "hover:bg-gray-50"
+                                                      )}
+                                                    >
+                                                      <td className="px-4 py-3 font-medium text-gray-900">
+                                                        {displayNum}
+                                                      </td>
+                                                      <td className="px-4 py-3 text-red-600">{row.userAnswer ?? "—"}</td>
+                                                      <td className="px-4 py-3 text-green-600">{row.correctAnswer ?? "—"}</td>
+                                                      <td className="px-4 py-3">
+                                                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                                                          Incorrect
+                                                        </span>
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        </details>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                      <thead>
+                                        <tr className="border-b border-gray-200 bg-gray-50">
+                                          <th className="text-left px-4 py-3 font-medium text-gray-700">#</th>
+                                          <th className="text-left px-4 py-3 font-medium text-gray-700">Your Answer</th>
+                                          <th className="text-left px-4 py-3 font-medium text-gray-700">Correct</th>
+                                          <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
                                         </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                      </thead>
+                                      <tbody>
+                                        {wrongAnswersFromAttempt.map((row) => (
+                                          <tr
+                                            key={row.questionNumber}
+                                            onClick={() => handleWrongQuestionClick(row.questionNumber)}
+                                            className={cn(
+                                              "border-b border-gray-100 cursor-pointer transition-colors",
+                                              selectedWrongQuestion === row.questionNumber ? "bg-blue-50" : "hover:bg-gray-50"
+                                            )}
+                                          >
+                                            <td className="px-4 py-3 font-medium text-gray-900">{row.questionNumber}</td>
+                                            <td className="px-4 py-3 text-red-600">{row.userAnswer ?? "—"}</td>
+                                            <td className="px-4 py-3 text-green-600">{row.correctAnswer ?? "—"}</td>
+                                            <td className="px-4 py-3">
+                                              <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+                                                Incorrect
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
                               </div>
                               {selectedWrongQuestion != null && (() => {
                                 const selectedQ = expandedAttemptData.questions.find((q) => q.question_number === selectedWrongQuestion);
+                                const selectedDisplayNum =
+                                  selectedQ && expandedAttemptIsSat
+                                    ? getModuleDisplayNumber(expandedAttemptData.questions, selectedQ)
+                                    : selectedQ?.question_number;
                                 return (
                                   <div className="mt-6 rounded-xl border-2 border-blue-200 bg-white p-6 shadow-sm">
                                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                                       <div className="flex gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => setWrongResultViewMode("explanation")}
-                                          className={cn(
-                                            "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
-                                            wrongResultViewMode === "explanation"
-                                              ? "bg-blue-600 text-white"
-                                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                          )}
-                                        >
-                                          Solution explanation
-                                        </button>
                                         <button
                                           type="button"
                                           onClick={() => setWrongResultViewMode("question")}
@@ -780,10 +1368,30 @@ export default function DashboardPage() {
                                         >
                                           Show question
                                         </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            expandedAttemptIsSat
+                                              ? void loadWrongExplanation(selectedWrongQuestion)
+                                              : setWrongResultViewMode("explanation")
+                                          }
+                                          className={cn(
+                                            "px-4 py-2 text-sm font-medium rounded-lg transition-colors",
+                                            wrongResultViewMode === "explanation"
+                                              ? "bg-blue-600 text-white"
+                                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          )}
+                                        >
+                                          Solution explanation
+                                        </button>
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => setSelectedWrongQuestion(null)}
+                                        onClick={() => {
+                                          setSelectedWrongQuestion(null);
+                                          setWrongResultExplanation(null);
+                                          setWrongResultViewMode("question");
+                                        }}
                                         className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
                                       >
                                         <X className="h-4 w-4" />
@@ -795,11 +1403,15 @@ export default function DashboardPage() {
                                         <p className="text-sm text-gray-500">Loading explanation…</p>
                                       ) : wrongResultExplanation ? (
                                         <div className="text-sm text-gray-700 whitespace-pre-wrap">{wrongResultExplanation}</div>
+                                      ) : expandedAttemptIsSat ? (
+                                        <p className="text-sm text-gray-500">
+                                          Click &quot;Solution explanation&quot; to load an AI explanation for this question.
+                                        </p>
                                       ) : null
                                     ) : selectedQ ? (
                                       <div className="space-y-4">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gray-200 text-gray-900 font-bold">
-                                          {selectedQ.question_number}
+                                          {selectedDisplayNum ?? 0}
                                         </div>
                                         {selectedQ.passage_text?.trim() ? (
                                           <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
@@ -968,6 +1580,21 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  If your PDF is too large to upload, you can use our merge app to split or
+                  combine pages and reduce file size.
+                </p>
+                <a
+                  href="https://pdfmerge-beta.vercel.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open PDF Merge App
+                </a>
+              </div>
             </section>
 
             {/* Subject and analysis section */}
@@ -981,7 +1608,7 @@ export default function DashboardPage() {
               <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subject
+                    {isProgramSat ? "Test type" : "Subject"}
                   </label>
                   <div className="relative">
                     <button
@@ -1002,8 +1629,11 @@ export default function DashboardPage() {
                       />
                     </button>
                     {subjectOpen && (
-                      <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                        {SUBJECTS.map((s) => (
+                      <div className="absolute z-10 mt-1 w-full max-h-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                        <div className="px-3 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          {isProgramSat ? "Test type" : "AP Subjects"}
+                        </div>
+                        {uploadSubjectOptions.map((s) => (
                           <button
                             key={s.value}
                             type="button"
@@ -1027,21 +1657,91 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="w-full sm:w-40">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Question count
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={999}
-                    value={questionCount}
-                    onChange={(e) => setQuestionCount(e.target.value)}
-                    placeholder="e.g. 50"
-                    className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                  />
-                </div>
+                {!isProgramSat && (
+                  <div className="w-full sm:w-40">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Question count
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={questionCount}
+                      onChange={(e) => setQuestionCount(e.target.value)}
+                      placeholder="e.g. 50"
+                      className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
+
+              {isSatFull && (
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <BookOpen className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">SAT Full Test configuration</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        Your PDF should contain all 4 modules (R&W M1, R&W M2, Math M1, Math M2). The AI will detect module boundaries automatically.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        PDF format
+                      </label>
+                      <select
+                        value={satAdaptiveMode}
+                        onChange={(e) => setSatAdaptiveMode(e.target.value as SatAdaptiveMode)}
+                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none bg-white"
+                      >
+                        <option value="none">Non-adaptive (4 modules: M1 + M2 per section)</option>
+                        <option value="pool">Pool adaptive (M2 questions tagged with difficulty)</option>
+                        <option value="six_module">Six-module adaptive (Module 1 + Module A/B or Easy/Hard per section)</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Use Six-module when your PDF has Module 1 (fixed) plus Module A and Module B (or Easy/Hard) for the adaptive second stage. MCQ answer letters A–D are not module names.
+                      </p>
+                    </div>
+                    {satAdaptiveMode === "six_module" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            R&W M1 cutoff (optional)
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={27}
+                            value={satCutoffRw}
+                            onChange={(e) => setSatCutoffRw(e.target.value)}
+                            placeholder="e.g. 18"
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Math M1 cutoff (optional)
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={22}
+                            value={satCutoffMath}
+                            onChange={(e) => setSatCutoffMath(e.target.value)}
+                            placeholder="e.g. 14"
+                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                      Cutoff = minimum correct answers in Module 1 to trigger the harder Module 2. Leave blank to let the AI infer it from the PDF (or fall back to ~60% of M1 questions).
+                    </p>
+                  </div>
+                </div>
+              )}
               {subject && !isCode && (
                 <label
                   className={cn(
@@ -1080,6 +1780,16 @@ export default function DashboardPage() {
                   {uploadError}
                 </p>
               )}
+              {uploadModeWarning && (
+                <p className="mb-3 text-sm text-amber-700" role="status">
+                  {uploadModeWarning}
+                </p>
+              )}
+              {uploadSuccessDetail && (
+                <p className="mb-3 text-sm text-green-700" role="status">
+                  Modules extracted: {uploadSuccessDetail}
+                </p>
+              )}
               <div>
                 <button
                   type="button"
@@ -1096,20 +1806,25 @@ export default function DashboardPage() {
                   {isUploading ? "Analyzing…" : "Analyze with AI"}
                 </button>
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Select a PDF above and enter subject and question count to enable this button. This process may take a while.
+                  {isProgramSat
+                    ? "Select a PDF above and choose a test type to enable this button. This process may take a while."
+                    : "Select a PDF above and enter subject and question count to enable this button. This process may take a while."}
                 </p>
               </div>
-              {isUploading && (
-                <div className="mt-4 w-full max-w-xs">
-                  <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
-                    <div
-                      className="h-full bg-blue-600 transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Analyzing…</p>
+              {showAnalyzeProgress && analyzePhases.length > 0 ? (
+                <div ref={progressPanelRef}>
+                  <UploadAnalyzeProgress
+                    phases={analyzePhases}
+                    phaseTimings={phaseTimings}
+                    activePhaseId={activePhaseId}
+                    overallStartedAt={overallStartedAt}
+                    totalPredictedLabel={totalPredictedLabel}
+                    error={analyzeError}
+                    onDismiss={dismissAnalyzeProgress}
+                    onTryAgain={analyzeError && !isUploading ? handleAnalyze : undefined}
+                  />
                 </div>
-              )}
+              ) : null}
 
               <div className="mt-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <Lightbulb className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
@@ -1168,10 +1883,50 @@ export default function DashboardPage() {
                           aria-hidden
                           onClick={() => setSubjectFilterOpen(false)}
                         />
-                        <div className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                          {SUBJECTS_FILTER.map((s) => (
+                        <div className="absolute right-0 z-20 mt-1 min-w-[260px] max-h-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                          <button
+                            key="all"
+                            type="button"
+                            onClick={() => {
+                              setSubjectFilter("");
+                              setSubjectFilterOpen(false);
+                            }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-sm",
+                              subjectFilter === ""
+                                ? "bg-blue-600 text-white"
+                                : "text-gray-700 hover:bg-gray-50"
+                            )}
+                          >
+                            All subjects
+                          </button>
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-t border-gray-100">
+                            AP
+                          </div>
+                          {AP_SUBJECT_OPTIONS.map((s) => (
                             <button
-                              key={s.value || "all"}
+                              key={s.value}
+                              type="button"
+                              onClick={() => {
+                                setSubjectFilter(s.value as SubjectValue | "");
+                                setSubjectFilterOpen(false);
+                              }}
+                              className={cn(
+                                "w-full px-3 py-2 text-left text-sm",
+                                subjectFilter === s.value
+                                  ? "bg-blue-600 text-white"
+                                  : "text-gray-700 hover:bg-gray-50"
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-t border-gray-100">
+                            SAT
+                          </div>
+                          {SAT_SUBJECT_OPTIONS.map((s) => (
+                            <button
+                              key={s.value}
                               type="button"
                               onClick={() => {
                                 setSubjectFilter(s.value as SubjectValue | "");
@@ -1237,11 +1992,23 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {filteredUploads.map((exam) => (
                     <tr key={exam.id} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-3 flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
-                          {exam.name}
-                        </span>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-gray-400 shrink-0" />
+                          <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                            {exam.name}
+                          </span>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide leading-none",
+                              exam.examProgram === "SAT"
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-blue-100 text-blue-700"
+                            )}
+                          >
+                            {exam.examProgram}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}
@@ -1374,10 +2141,50 @@ export default function DashboardPage() {
                       aria-hidden
                       onClick={() => setSubjectFilterOpen(false)}
                     />
-                    <div className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                      {SUBJECTS_FILTER.map((s) => (
+                    <div className="absolute right-0 z-20 mt-1 min-w-[260px] max-h-80 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                      <button
+                        key="all"
+                        type="button"
+                        onClick={() => {
+                          setSubjectFilter("");
+                          setSubjectFilterOpen(false);
+                        }}
+                        className={cn(
+                          "w-full px-3 py-2 text-left text-sm",
+                          subjectFilter === ""
+                            ? "bg-blue-600 text-white"
+                            : "text-gray-700 hover:bg-gray-50"
+                        )}
+                      >
+                        All subjects
+                      </button>
+                      <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-t border-gray-100">
+                        AP
+                      </div>
+                      {AP_SUBJECT_OPTIONS.map((s) => (
                         <button
-                          key={s.value || "all"}
+                          key={s.value}
+                          type="button"
+                          onClick={() => {
+                            setSubjectFilter(s.value as SubjectValue | "");
+                            setSubjectFilterOpen(false);
+                          }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-sm",
+                            subjectFilter === s.value
+                              ? "bg-blue-600 text-white"
+                              : "text-gray-700 hover:bg-gray-50"
+                          )}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                      <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-t border-gray-100">
+                        SAT
+                      </div>
+                      {SAT_SUBJECT_OPTIONS.map((s) => (
+                        <button
+                          key={s.value}
                           type="button"
                           onClick={() => {
                             setSubjectFilter(s.value as SubjectValue | "");
@@ -1422,9 +2229,21 @@ export default function DashboardPage() {
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {filteredUploads.map((exam) => (
                       <tr key={exam.id} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-3 flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{exam.name}</span>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-gray-400 shrink-0" />
+                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{exam.name}</span>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider",
+                                exam.examProgram === "SAT"
+                                  ? "bg-indigo-100 text-indigo-700"
+                                  : "bg-blue-100 text-blue-700"
+                              )}
+                            >
+                              {exam.examProgram}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{exam.questionCount || "—"}</td>

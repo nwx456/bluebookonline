@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Calendar, ArrowLeft } from "lucide-react";
-import { HeaderNav } from "@/components/HeaderNav";
+import { SiteHeader } from "@/components/SiteHeader";
 import { formatBlogDate, getAllPostMeta, getAllPostSlugs, getPostBySlug } from "@/lib/blog";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
@@ -96,18 +96,7 @@ export default async function BlogPostPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-          >
-            <BookOpen className="h-6 w-6 text-blue-600" />
-            Bluebook Online
-          </Link>
-          <HeaderNav />
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-3xl px-4 py-10">
         <Link

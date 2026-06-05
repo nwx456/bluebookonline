@@ -60,13 +60,18 @@ export async function GET(request: NextRequest) {
     const uploadIds = [...new Set(list.map((a) => a.upload_id))];
     const { data: uploads } = await supabase
       .from("pdf_uploads")
-      .select("id, filename, subject")
+      .select("id, filename, subject, exam_program")
       .in("id", uploadIds);
 
     const uploadMap = new Map(
       (uploads ?? []).map((u) => [
         u.id,
-        { filename: u.filename ?? "PDF", subject: u.subject ?? "AP_CSA" },
+        {
+          filename: u.filename ?? "PDF",
+          subject: u.subject ?? "AP_CSA",
+          examProgram:
+            (u as { exam_program?: string | null }).exam_program === "SAT" ? "SAT" : "AP",
+        },
       ])
     );
 
@@ -77,6 +82,7 @@ export async function GET(request: NextRequest) {
         uploadId: a.upload_id,
         filename: u?.filename ?? "PDF",
         subject: u?.subject ?? "AP_CSA",
+        examProgram: u?.examProgram ?? "AP",
         startedAt: a.started_at,
         timeSpentSeconds: a.time_spent_seconds ?? 0,
       };

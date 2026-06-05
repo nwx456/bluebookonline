@@ -1,6 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
+type SatModuleStat = {
+  module: string;
+  section: "rw" | "math";
+  moduleNumber: 1 | 2;
+  correct: number;
+  total: number;
+};
+
+function parseModuleProgress(progress: unknown): SatModuleStat[] {
+  if (!progress || typeof progress !== "object") return [];
+  const order: Array<"rw1" | "rw2" | "math1" | "math2"> = ["rw1", "rw2", "math1", "math2"];
+  const result: SatModuleStat[] = [];
+  for (const key of order) {
+    const entry = (progress as Record<string, unknown>)[key];
+    if (!entry || typeof entry !== "object") continue;
+    const correct = (entry as { correct?: unknown }).correct;
+    const total = (entry as { total?: unknown }).total;
+    if (typeof correct !== "number" || typeof total !== "number") continue;
+    result.push({
+      module: key,
+      section: key.startsWith("math") ? "math" : "rw",
+      moduleNumber: key.endsWith("2") ? 2 : 1,
+      correct,
+      total,
+    });
+  }
+  return result;
+}
+
+function isSatUpload(upload: { subject?: string | null; exam_program?: string | null }): boolean {
+  return (
+    upload.exam_program === "SAT" ||
+    upload.subject === "SAT_FULL_TEST" ||
+    upload.subject === "SAT_RW" ||
+    upload.subject === "SAT_MATH"
+  );
+}
+
+function buildSatResult(
+  upload: { subject?: string | null; exam_program?: string | null },
+  satRow: {
+    rw_scaled_score?: number | null;
+    math_scaled_score?: number | null;
+    total_scaled_score?: number | null;
+    module_progress?: unknown;
+  } | null
+) {
+  if (!isSatUpload(upload)) return null;
+  const modules = parseModuleProgress(satRow?.module_progress);
+  const rwScaled = satRow?.rw_scaled_score ?? null;
+  const mathScaled = satRow?.math_scaled_score ?? null;
+  const totalScaled = satRow?.total_scaled_score ?? null;
+  if (rwScaled == null && mathScaled == null && totalScaled == null && modules.length === 0) {
+    return null;
+  }
+  return {
+    isFullTest: upload.subject === "SAT_FULL_TEST",
+    rwScaled,
+    mathScaled,
+    totalScaled,
+    modules,
+  };
+}
+
 async function getAuthUser(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -49,9 +113,9 @@ export async function GET(
     const supabase = createServerSupabaseAdmin();
 
     const SELECT_ATTEMPT_WITH_SKIP =
-      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading";
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading, current_module_index";
     const SELECT_ATTEMPT_BASE =
-      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions";
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, current_module_index";
 
     type AttemptHeader = {
       id: string;
@@ -64,6 +128,7 @@ export async function GET(
       time_spent_seconds: number | null;
       total_questions: number | null;
       skip_ai_grading?: boolean | null;
+      current_module_index?: number | null;
     };
 
     const first = await supabase
@@ -76,15 +141,42 @@ export async function GET(
     let attemptError = first.error;
 
     let hasSkipAiColumn = true;
+    let hasModuleIndexColumn = true;
     if (attemptError) {
-      const retry = await supabase
+      const retryNoSkip = await supabase
         .from("attempts")
         .select(SELECT_ATTEMPT_BASE)
         .eq("id", attemptId)
         .single();
-      attempt = retry.data as AttemptHeader | null | undefined;
-      attemptError = retry.error;
+      attempt = retryNoSkip.data as AttemptHeader | null | undefined;
+      attemptError = retryNoSkip.error;
       hasSkipAiColumn = false;
+    }
+    if (attemptError) {
+      const retryLegacy = await supabase
+        .from("attempts")
+        .select(
+          "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading"
+        )
+        .eq("id", attemptId)
+        .single();
+      if (!retryLegacy.error && retryLegacy.data) {
+        attempt = retryLegacy.data as AttemptHeader;
+        attemptError = null;
+        hasModuleIndexColumn = false;
+      } else {
+        const retryLegacy2 = await supabase
+          .from("attempts")
+          .select(
+            "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions"
+          )
+          .eq("id", attemptId)
+          .single();
+        attempt = retryLegacy2.data as AttemptHeader | null | undefined;
+        attemptError = retryLegacy2.error;
+        hasSkipAiColumn = false;
+        hasModuleIndexColumn = false;
+      }
     }
 
     if (attemptError || !attempt) {
@@ -104,7 +196,9 @@ export async function GET(
     const [{ data: upload }, { data: questions }] = await Promise.all([
       supabase
         .from("pdf_uploads")
-        .select("id, subject, filename, storage_path")
+        .select(
+          "id, subject, filename, storage_path, exam_program, sat_format, sat_adaptive_mode, sat_cutoff_rw, sat_cutoff_math"
+        )
         .eq("id", uploadId)
         .single(),
       supabase
@@ -130,11 +224,17 @@ export async function GET(
         resume: true,
         attemptId: attempt.id,
         timeSpentSeconds: attempt.time_spent_seconds ?? 0,
+        currentModuleIndex: hasModuleIndexColumn ? (attempt.current_module_index ?? 0) : 0,
         upload: {
           id: upload.id,
           subject: upload.subject,
           filename: upload.filename,
           storage_path: upload.storage_path,
+          exam_program: upload.exam_program,
+          sat_format: upload.sat_format,
+          sat_adaptive_mode: upload.sat_adaptive_mode,
+          sat_cutoff_rw: upload.sat_cutoff_rw,
+          sat_cutoff_math: upload.sat_cutoff_math,
         },
         questions: questions ?? [],
         savedAnswers: rows.map((a) => ({
@@ -183,12 +283,31 @@ export async function GET(
         ? Math.round((correctCount / totalQuestions) * 100)
         : 0;
 
+    const examProgram =
+      (upload as { exam_program?: string | null }).exam_program === "SAT" ? "SAT" : "AP";
+
+    let satResult: ReturnType<typeof buildSatResult> = null;
+    if (isSatUpload(upload)) {
+      const { data: satRow } = await supabase
+        .from("attempts")
+        .select("module_progress, rw_scaled_score, math_scaled_score, total_scaled_score")
+        .eq("id", attemptId)
+        .single();
+      satResult = buildSatResult(upload, satRow);
+    }
+
     return NextResponse.json({
+      attemptId: attempt.id,
       upload: {
         id: upload.id,
         subject: upload.subject,
         filename: upload.filename,
         storage_path: upload.storage_path,
+        exam_program: (upload as { exam_program?: string | null }).exam_program ?? null,
+        sat_format: (upload as { sat_format?: string | null }).sat_format ?? null,
+        sat_adaptive_mode: (upload as { sat_adaptive_mode?: string | null }).sat_adaptive_mode ?? null,
+        sat_cutoff_rw: (upload as { sat_cutoff_rw?: number | null }).sat_cutoff_rw ?? null,
+        sat_cutoff_math: (upload as { sat_cutoff_math?: number | null }).sat_cutoff_math ?? null,
       },
       questions: questions ?? [],
       result: {
@@ -201,6 +320,8 @@ export async function GET(
         percentage,
         timeSpentSeconds: attempt.time_spent_seconds ?? 0,
         breakdown: questionsWithAnswers,
+        examProgram,
+        sat: satResult,
       },
     });
   } catch (err) {
@@ -241,15 +362,23 @@ export async function PATCH(
     const body = await request.json().catch(() => ({}));
     const raw =
       (body.timeSpentSeconds ?? body.time_spent_seconds) as number | string | undefined;
+    const rawModuleIndex =
+      (body.currentModuleIndex ?? body.current_module_index) as number | string | undefined;
     const timeSpentSeconds =
       typeof raw === "number" && Number.isFinite(raw) && raw >= 0
         ? Math.floor(raw)
         : typeof raw === "string" && /^\d+$/.test(raw.trim())
           ? parseInt(raw.trim(), 10)
           : null;
-    if (timeSpentSeconds === null) {
+    const currentModuleIndex =
+      typeof rawModuleIndex === "number" && Number.isFinite(rawModuleIndex) && rawModuleIndex >= 0
+        ? Math.floor(rawModuleIndex)
+        : typeof rawModuleIndex === "string" && /^\d+$/.test(rawModuleIndex.trim())
+          ? parseInt(rawModuleIndex.trim(), 10)
+          : null;
+    if (timeSpentSeconds === null && currentModuleIndex === null) {
       return NextResponse.json(
-        { error: "timeSpentSeconds must be a non-negative number." },
+        { error: "timeSpentSeconds or currentModuleIndex must be provided." },
         { status: 400 }
       );
     }
@@ -280,10 +409,32 @@ export async function PATCH(
       );
     }
 
-    const { error: updateError } = await supabase
+    const updatePayload: Record<string, unknown> = {};
+    if (timeSpentSeconds !== null) {
+      updatePayload.time_spent_seconds = timeSpentSeconds;
+    }
+    if (currentModuleIndex !== null) {
+      updatePayload.current_module_index = currentModuleIndex;
+    }
+
+    let { error: updateError } = await supabase
       .from("attempts")
-      .update({ time_spent_seconds: timeSpentSeconds })
+      .update(updatePayload)
       .eq("id", attemptId);
+
+    if (updateError && currentModuleIndex !== null) {
+      const fallbackPayload = { ...updatePayload };
+      delete fallbackPayload.current_module_index;
+      if (Object.keys(fallbackPayload).length > 0) {
+        const retry = await supabase
+          .from("attempts")
+          .update(fallbackPayload)
+          .eq("id", attemptId);
+        updateError = retry.error;
+      } else {
+        updateError = null;
+      }
+    }
 
     if (updateError) {
       console.error("attempt PATCH error:", updateError);
