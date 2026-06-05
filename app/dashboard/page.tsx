@@ -51,6 +51,10 @@ import {
   getModuleDisplayNumber,
   getSatModuleGroups,
 } from "@/lib/sat-question-display";
+import {
+  formatMathTextIfNeeded,
+  shouldFormatMathNotation,
+} from "@/lib/math-notation-display";
 import { useProgram } from "@/lib/use-program";
 import { UploadAnalyzeProgress, type PhaseTiming } from "@/components/UploadAnalyzeProgress";
 import {
@@ -1381,6 +1385,16 @@ function DashboardPageInner() {
                               </div>
                               {selectedWrongQuestion != null && (() => {
                                 const selectedQ = expandedAttemptData.questions.find((q) => q.question_number === selectedWrongQuestion);
+                                const formatWrongMath = (text: string | null | undefined) =>
+                                  formatMathTextIfNeeded(
+                                    text ?? "",
+                                    shouldFormatMathNotation(
+                                      expandedAttemptData.upload.subject,
+                                      selectedQ?.sat_section === "rw" || selectedQ?.sat_section === "math"
+                                        ? selectedQ.sat_section
+                                        : null
+                                    )
+                                  );
                                 const selectedDisplayNum =
                                   selectedQ && expandedAttemptIsSat
                                     ? getModuleDisplayNumber(expandedAttemptData.questions, selectedQ)
@@ -1449,7 +1463,9 @@ function DashboardPageInner() {
                                         {selectedQ.passage_text?.trim() ? (
                                           <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
                                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Passage</p>
-                                            <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQ.passage_text}</div>
+                                            <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                                              {formatWrongMath(selectedQ.passage_text)}
+                                            </div>
                                           </div>
                                         ) : null}
                                         {selectedQ.precondition_text?.trim() ? (
@@ -1458,7 +1474,9 @@ function DashboardPageInner() {
                                             <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap">{selectedQ.precondition_text}</pre>
                                           </div>
                                         ) : null}
-                                        <p className="text-gray-900 font-medium">{selectedQ.question_text || "Which of the following is correct?"}</p>
+                                        <p className="text-gray-900 font-medium">
+                                          {formatWrongMath(selectedQ.question_text) || "Which of the following is correct?"}
+                                        </p>
                                         <div className="space-y-2">
                                           {[
                                             { key: "A", text: selectedQ.option_a },
@@ -1476,7 +1494,7 @@ function DashboardPageInner() {
                                                 <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium">
                                                   {key}
                                                 </span>
-                                                <span className="flex-1 min-w-0 text-gray-800">{text}</span>
+                                                <span className="flex-1 min-w-0 text-gray-800">{formatWrongMath(text)}</span>
                                               </div>
                                             ))}
                                         </div>

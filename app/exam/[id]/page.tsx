@@ -69,6 +69,10 @@ import { GraphZoomProvider, GraphZoomHeaderToolbar } from "./GraphZoomContext";
 import { DesmosCalculator } from "@/components/DesmosCalculator";
 import { useFloatingPanelDrag } from "@/app/exam/useFloatingPanelDrag";
 import {
+  formatMathTextIfNeeded,
+  shouldFormatMathNotation,
+} from "@/lib/math-notation-display";
+import {
   SatModuleResultOverlay,
   type ModuleScoreResult,
 } from "@/app/exam/SatModuleResultOverlay";
@@ -1796,6 +1800,9 @@ export default function ExamPage() {
   const isSatMathSection =
     isSat &&
     (currentQuestion?.sat_section === "math" || isSatMath(subject));
+  const formatMathText = (text: string) => formatMathTextIfNeeded(text, isSatMathSection);
+  const displayQuestionText = formatMathText(rightPanelQuestionText);
+  const displayLeftPanelContent = formatMathText(leftPanelContent);
   const isSatRwSection =
     isSat &&
     (satSectionForQuestion === "rw" || isSatRw(subject));
@@ -2260,6 +2267,16 @@ export default function ExamPage() {
             </div>
             {selectedResultQuestion != null && (() => {
               const selectedQ = questions.find((q) => q.question_number === selectedResultQuestion);
+              const formatResultMath = (text: string | null | undefined) =>
+                formatMathTextIfNeeded(
+                  text ?? "",
+                  shouldFormatMathNotation(
+                    subject,
+                    selectedQ?.sat_section === "rw" || selectedQ?.sat_section === "math"
+                      ? selectedQ.sat_section
+                      : null
+                  )
+                );
               const selectedDisplayNum =
                 selectedQ && isSat
                   ? getModuleDisplayNumber(questions, selectedQ)
@@ -2320,7 +2337,9 @@ export default function ExamPage() {
                       {selectedQ.passage_text?.trim() ? (
                         <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Passage</p>
-                          <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectedQ.passage_text}</div>
+                          <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                            {formatResultMath(selectedQ.passage_text)}
+                          </div>
                         </div>
                       ) : null}
                       {selectedQ.precondition_text?.trim() ? (
@@ -2329,7 +2348,9 @@ export default function ExamPage() {
                           <pre className="text-sm font-mono text-gray-700 whitespace-pre-wrap">{selectedQ.precondition_text}</pre>
                         </div>
                       ) : null}
-                      <p className="text-gray-900 font-medium">{selectedQ.question_text || "Which of the following is correct?"}</p>
+                      <p className="text-gray-900 font-medium">
+                        {formatResultMath(selectedQ.question_text) || "Which of the following is correct?"}
+                      </p>
                       <div className="space-y-2">
                         {[
                           { key: "A", text: selectedQ.option_a },
@@ -2347,7 +2368,7 @@ export default function ExamPage() {
                               <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-400 font-medium">
                                 {key}
                               </span>
-                              <span className="flex-1 min-w-0 text-gray-800">{text}</span>
+                              <span className="flex-1 min-w-0 text-gray-800">{formatResultMath(text)}</span>
                             </div>
                           ))}
                       </div>
@@ -2466,7 +2487,7 @@ export default function ExamPage() {
         }}
       >
         {renderTextWithHighlights(
-          rightPanelQuestionText,
+          displayQuestionText,
           highlights[currentQuestion?.id ? `${currentQuestion.id}-stem` : ""] ?? []
         )}
       </p>
@@ -2491,7 +2512,7 @@ export default function ExamPage() {
           const isSelected = currentQuestion && answers[currentQuestion.id] === key;
           const isEliminated = currentQuestion && eliminatedOptions.get(currentQuestion.id)?.has(key);
           const showAsCode = isCsa && optionLooksLikeCode(text ?? null);
-          const optionContent = text ?? "";
+          const optionContent = formatMathText(text ?? "");
           const blockId = currentQuestion ? `${currentQuestion.id}-opt-${key}` : "";
           return (
             <div
@@ -3401,7 +3422,7 @@ export default function ExamPage() {
                   ) : currentQuestion ? (
                     <PassagePanelContent
                       questionId={currentQuestion.id}
-                      text={leftPanelContent}
+                      text={displayLeftPanelContent}
                       highlights={highlights}
                       className={cn(
                         isSat ? satPassageTextClass : apPassageTextClass
