@@ -83,14 +83,19 @@ function findDetectedTitle(
 
 export function buildSatExtractionPlan(
   adaptiveMode: SatAdaptiveMode,
-  structure?: SatStructureDetected | null
+  structure?: SatStructureDetected | null,
+  sectionFilter?: SatSection | null
 ): SatModuleBucket[] {
   const base =
     adaptiveMode === "six_module"
       ? [...rwBuckets(), ...mathBuckets()]
       : fourModuleBuckets();
 
-  return base.map((bucket) => ({
+  const filtered = sectionFilter
+    ? base.filter((b) => b.section === sectionFilter)
+    : base;
+
+  return filtered.map((bucket) => ({
     ...bucket,
     detectedTitle: findDetectedTitle(structure, bucket),
   }));
@@ -302,55 +307,78 @@ export function formatSatModuleReport(report: SatModuleReport): string {
 export function validateSatModuleReport(
   report: SatModuleReport,
   adaptiveMode: SatAdaptiveMode,
-  structure?: SatStructureDetected | null
+  structure?: SatStructureDetected | null,
+  sectionFilter?: SatSection | null
 ): SatValidationResult {
   const emptyBucketKeys: string[] = [];
-  const detectedTitles = getDetectedLabels(structure);
+  const detectedTitles = sectionFilter
+    ? getDetectedLabels(structure).filter((l) =>
+        l.toUpperCase().startsWith(sectionFilter.toUpperCase())
+      )
+    : getDetectedLabels(structure);
+
+  const checkRw = !sectionFilter || sectionFilter === "rw";
+  const checkMath = !sectionFilter || sectionFilter === "math";
 
   if (adaptiveMode === "six_module") {
-    if (report.rw1 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw1");
-    if (report.math1 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math1");
-    if (report.rw2Easy + report.rw2Hard < SAT_MODULE_MIN.rw) {
+    if (checkRw && report.rw1 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw1");
+    if (checkMath && report.math1 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math1");
+    if (checkRw && report.rw2Easy + report.rw2Hard < SAT_MODULE_MIN.rw) {
       emptyBucketKeys.push("rw2Easy", "rw2Hard");
     }
-    if (report.math2Easy + report.math2Hard < SAT_MODULE_MIN.math) {
+    if (checkMath && report.math2Easy + report.math2Hard < SAT_MODULE_MIN.math) {
       emptyBucketKeys.push("math2Easy", "math2Hard");
     }
     if (emptyBucketKeys.length === 0) return { ok: true };
 
     const hint =
-      report.rw2Easy + report.rw2Hard === 0 && report.rw2 === 0
+      checkRw && report.rw2Easy + report.rw2Hard === 0 && report.rw2 === 0
         ? " R&W Module A/B (or Easy/Hard) not found — select Six-module adaptive and ensure PDF has second-stage modules."
-        : "";
+        : checkMath && report.math2Easy + report.math2Hard === 0 && report.math2 === 0
+          ? " Math Module A/B (or Easy/Hard) not found — select Six-module adaptive and ensure PDF has second-stage modules."
+          : "";
+    const scope = sectionFilter
+      ? sectionFilter === "rw"
+        ? "Reading & Writing"
+        : "Math"
+      : "SAT";
     return {
       ok: false,
       emptyBucketKeys,
-      error: `PDF'ten tam SAT çıkarılamadı. Eksik: ${emptyBucketKeys.join(", ")}.${hint}${
+      error: `PDF'ten ${scope} modülleri çıkarılamadı. Eksik: ${emptyBucketKeys.join(", ")}.${hint}${
         detectedTitles.length ? ` PDF başlıkları: ${detectedTitles.join("; ")}.` : ""
-      } PDF'i tekrar yükleyin veya modül modül yükleyin.`,
+      } PDF'i tekrar yükleyin veya modül formatını kontrol edin.`,
     };
   }
 
-  if (report.rw1 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw1");
-  if (report.rw2 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw2");
-  if (report.math1 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math1");
-  if (report.math2 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math2");
+  if (checkRw && report.rw1 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw1");
+  if (checkRw && report.rw2 < SAT_MODULE_MIN.rw) emptyBucketKeys.push("rw2");
+  if (checkMath && report.math1 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math1");
+  if (checkMath && report.math2 < SAT_MODULE_MIN.math) emptyBucketKeys.push("math2");
 
   if (emptyBucketKeys.length === 0) return { ok: true };
 
   const sixHint =
     structure?.suggestedAdaptiveMode === "six_module"
       ? " PDF 6 modül (Module A/B) içeriyor olabilir — Six-module adaptive seçin."
-      : report.rw2 === 0 && report.math2 > SAT_MODULE_MIN.math * 1.5
+      : checkMath &&
+          report.rw2 === 0 &&
+          report.math2 > SAT_MODULE_MIN.math * 1.5
         ? " Math M2 çift görünüyor — Six-module adaptive deneyin."
         : "";
+
+  const scope = sectionFilter
+    ? sectionFilter === "rw"
+      ? "Reading & Writing"
+      : "Math"
+    : "SAT";
 
   return {
     ok: false,
     emptyBucketKeys,
-    error: `PDF'ten tam SAT çıkarılamadı. Boş modüller: ${emptyBucketKeys.join(", ")}.${sixHint}${
+    error: `PDF'ten ${scope} modülleri çıkarılamadı. Boş modüller: ${emptyBucketKeys.join(", ")}.${sixHint}${
       detectedTitles.length ? ` Tespit: ${detectedTitles.join("; ")}.` : ""
-    } PDF'i tekrar yükleyin veya modül modül (SAT Reading & Writing / SAT Math) yükleyin.`,
+    } PDF'i tekrar yükleyin veya modül formatını kontrol edin.`,
   };
 }
 

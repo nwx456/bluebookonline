@@ -38,9 +38,13 @@ import {
 import {
   getExamProgram,
   isSatFullTest,
+  isSatMath,
+  isSatRw,
+  isSatSectionUpload,
   isSatSubject,
   SAT_MODULES,
   type SatAdaptiveMode,
+  type SatFormat,
   type SatModuleId,
 } from "@/lib/exam-program";
 import {
@@ -208,9 +212,13 @@ function DashboardPageInner() {
   const [satAdaptiveMode, setSatAdaptiveMode] = useState<SatAdaptiveMode>("none");
   const [satCutoffRw, setSatCutoffRw] = useState<string>("");
   const [satCutoffMath, setSatCutoffMath] = useState<string>("");
+  const [satSectionFormat, setSatSectionFormat] = useState<SatFormat>("single_module");
 
   const isSat = isSatSubject(subject || null);
   const isSatFull = isSatFullTest(subject || null);
+  const isSatSection = isSatSectionUpload(subject || null);
+  const usesSatModuleUpload =
+    isSatFull || (isSatSection && satSectionFormat === "section_test");
   const isCode = subject !== "" && !isSat && isCodeSubject(subject as SubjectKey);
 
   const questionCountNum = parseInt(questionCount, 10);
@@ -244,6 +252,7 @@ function DashboardPageInner() {
       setSubject("");
       setHasVisualsInPdf(null);
       setQuestionCount("");
+      setSatSectionFormat("single_module");
     }
   }, [program, subject]);
 
@@ -823,9 +832,15 @@ function DashboardPageInner() {
     if (!selectedFile || !canAnalyze || !subject) return;
 
     const started = Date.now();
+    const uploadSatFormat: SatFormat = isSatFull
+      ? "full_test"
+      : isSatSection && satSectionFormat === "section_test"
+        ? "section_test"
+        : "single_module";
     const { phases, totalPredictedLabel: predictedLabel } = buildClientAnalyzePhases({
       subject,
-      satAdaptiveMode: isSatFull ? satAdaptiveMode : "none",
+      satAdaptiveMode: usesSatModuleUpload ? satAdaptiveMode : "none",
+      satFormat: uploadSatFormat,
     });
 
     setIsUploading(true);
@@ -933,12 +948,16 @@ function DashboardPageInner() {
         aiProvider: "gemini",
         streamProgress: true,
         examProgram: "SAT",
-        satFormat: isSatFull ? "full_test" : "single_module",
-        satAdaptiveMode: isSatFull ? satAdaptiveMode : "none",
+        satFormat: uploadSatFormat,
+        satAdaptiveMode: usesSatModuleUpload ? satAdaptiveMode : "none",
       };
-      if (isSatFull) {
-        if (satCutoffRw.trim()) analyzeBody.satCutoffRw = parseInt(satCutoffRw.trim(), 10);
-        if (satCutoffMath.trim()) analyzeBody.satCutoffMath = parseInt(satCutoffMath.trim(), 10);
+      if (usesSatModuleUpload) {
+        if (satCutoffRw.trim() && (isSatFull || isSatRw(subject))) {
+          analyzeBody.satCutoffRw = parseInt(satCutoffRw.trim(), 10);
+        }
+        if (satCutoffMath.trim() && (isSatFull || isSatMath(subject))) {
+          analyzeBody.satCutoffMath = parseInt(satCutoffMath.trim(), 10);
+        }
       }
 
       const res = await fetch("/api/upload/analyze", {
@@ -1689,14 +1708,64 @@ function DashboardPageInner() {
                 )}
               </div>
 
-              {isSatFull && (
+              {isSatSection && (
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    PDF structure
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSatSectionFormat("single_module")}
+                      className={cn(
+                        "flex-1 rounded-md border px-3 py-2 text-sm text-left",
+                        satSectionFormat === "single_module"
+                          ? "border-blue-600 bg-blue-50 text-blue-900"
+                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      )}
+                    >
+                      <span className="font-medium">Single practice sheet</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">
+                        All questions in one continuous exam
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSatSectionFormat("section_test")}
+                      className={cn(
+                        "flex-1 rounded-md border px-3 py-2 text-sm text-left",
+                        satSectionFormat === "section_test"
+                          ? "border-blue-600 bg-blue-50 text-blue-900"
+                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      )}
+                    >
+                      <span className="font-medium">Multi-module (Digital SAT)</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">
+                        Module 1 → Module 2 with Submit Module between
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {usesSatModuleUpload && (
                 <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
                   <div className="flex items-start gap-2 mb-3">
                     <BookOpen className="h-5 w-5 shrink-0 text-blue-600 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">SAT Full Test configuration</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {isSatFull
+                          ? "SAT Full Test configuration"
+                          : isSatRw(subject)
+                            ? "SAT Reading & Writing configuration"
+                            : "SAT Math configuration"}
+                      </p>
                       <p className="text-xs text-gray-600 mt-0.5">
-                        Your PDF should contain all 4 modules (R&W M1, R&W M2, Math M1, Math M2). The AI will detect module boundaries automatically.
+                        {isSatFull
+                          ? "Your PDF should contain all 4 modules (R&W M1, R&W M2, Math M1, Math M2). The AI will detect module boundaries automatically."
+                          : isSatRw(subject)
+                            ? "Your PDF should contain R&W Module 1 and Module 2 (or M1 + Easy/Hard paths for adaptive PDFs)."
+                            : "Your PDF should contain Math Module 1 and Module 2 (or M1 + Easy/Hard paths for adaptive PDFs)."}
                       </p>
                     </div>
                   </div>
@@ -1710,48 +1779,65 @@ function DashboardPageInner() {
                         onChange={(e) => setSatAdaptiveMode(e.target.value as SatAdaptiveMode)}
                         className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none bg-white"
                       >
-                        <option value="none">Non-adaptive (4 modules: M1 + M2 per section)</option>
+                        <option value="none">
+                          {isSatFull
+                            ? "Non-adaptive (4 modules: M1 + M2 per section)"
+                            : "Non-adaptive (2 modules: M1 + M2)"}
+                        </option>
                         <option value="pool">Pool adaptive (M2 questions tagged with difficulty)</option>
-                        <option value="six_module">Six-module adaptive (Module 1 + Module A/B or Easy/Hard per section)</option>
+                        <option value="six_module">
+                          {isSatFull
+                            ? "Six-module adaptive (Module 1 + Module A/B or Easy/Hard per section)"
+                            : "Six-module adaptive (M1 + Module A/B or Easy/Hard)"}
+                        </option>
                       </select>
                       <p className="mt-1 text-xs text-gray-500">
-                        Use Six-module when your PDF has Module 1 (fixed) plus Module A and Module B (or Easy/Hard) for the adaptive second stage. MCQ answer letters A–D are not module names.
+                        Use Six-module when your PDF has Module 1 plus Module A and Module B (or Easy/Hard) for the adaptive second stage. MCQ answer letters A–D are not module names.
                       </p>
                     </div>
                     {satAdaptiveMode === "six_module" && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            R&W M1 cutoff (optional)
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={27}
-                            value={satCutoffRw}
-                            onChange={(e) => setSatCutoffRw(e.target.value)}
-                            placeholder="e.g. 18"
-                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Math M1 cutoff (optional)
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={22}
-                            value={satCutoffMath}
-                            onChange={(e) => setSatCutoffMath(e.target.value)}
-                            placeholder="e.g. 14"
-                            className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                          />
-                        </div>
+                      <div
+                        className={cn(
+                          "grid gap-3",
+                          isSatFull ? "grid-cols-2" : "grid-cols-1"
+                        )}
+                      >
+                        {(isSatFull || isSatRw(subject)) && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              R&W M1 cutoff (optional)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={27}
+                              value={satCutoffRw}
+                              onChange={(e) => setSatCutoffRw(e.target.value)}
+                              placeholder="e.g. 18"
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                            />
+                          </div>
+                        )}
+                        {(isSatFull || isSatMath(subject)) && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Math M1 cutoff (optional)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={22}
+                              value={satCutoffMath}
+                              onChange={(e) => setSatCutoffMath(e.target.value)}
+                              placeholder="e.g. 14"
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                     <p className="text-[11px] text-gray-500 leading-relaxed">
-                      Cutoff = minimum correct answers in Module 1 to trigger the harder Module 2. Leave blank to let the AI infer it from the PDF (or fall back to ~60% of M1 questions).
+                      Cutoff = minimum correct answers in Module 1 to trigger the harder Module 2. Leave blank to fall back to ~60% of M1 questions.
                     </p>
                   </div>
                 </div>

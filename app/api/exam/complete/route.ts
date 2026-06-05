@@ -5,7 +5,7 @@ import {
   type GradeQuestionRow,
 } from "@/lib/exam-grade";
 import type { SubjectKey } from "@/lib/gemini-prompts";
-import { getExamProgram, isSatFullTest } from "@/lib/exam-program";
+import { getExamProgram, isSatFullTest, usesSatModuleFlow } from "@/lib/exam-program";
 
 /** Scale raw correct count -> SAT R&W scaled score (200-800). */
 function scaleRwScore(correct: number, totalAvailable: number, hadHardM2: boolean): number {
@@ -73,6 +73,10 @@ export async function POST(request: NextRequest) {
     const examProgram = (upload?.exam_program ?? getExamProgram(subject)) as "AP" | "SAT";
     const isSat = examProgram === "SAT";
     const isSatFull = isSatFullTest(subject);
+    const usesModuleFlow = usesSatModuleFlow({
+      subject,
+      satFormat: (upload as { sat_format?: string | null })?.sat_format,
+    });
 
     const { data: allQuestions } = await supabase
       .from("questions")
@@ -172,8 +176,10 @@ export async function POST(request: NextRequest) {
 
       if (rwTotalAvail > 0) rwScaled = scaleRwScore(rwTotalCorrect, rwTotalAvail, rwHardM2);
       if (mathTotalAvail > 0) mathScaled = scaleMathScore(mathTotalCorrect, mathTotalAvail, mathHardM2);
-      if (rwScaled != null || mathScaled != null) {
+      if (isSatFull && (rwScaled != null || mathScaled != null)) {
         totalScaled = (rwScaled ?? 0) + (mathScaled ?? 0);
+      } else if (!isSatFull && usesModuleFlow) {
+        totalScaled = rwScaled ?? mathScaled ?? null;
       }
 
       const order: Array<"rw1" | "rw2" | "math1" | "math2"> = ["rw1", "rw2", "math1", "math2"];
@@ -226,6 +232,7 @@ export async function POST(request: NextRequest) {
       sat: isSat
         ? {
             isFullTest: isSatFull,
+            usesModuleFlow,
             rwScaled,
             mathScaled,
             totalScaled,

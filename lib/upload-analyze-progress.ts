@@ -3,8 +3,11 @@ import {
   isSatFullTest,
   isSatMath,
   isSatRw,
+  isSatSectionUpload,
+  satSectionForSubject,
   SAT_MODULES,
   type SatAdaptiveMode,
+  type SatFormat,
 } from "@/lib/exam-program";
 import { buildSatExtractionPlan } from "@/lib/sat-extraction";
 import { bucketKey, type SatModuleBucket } from "@/lib/sat-module-normalizer";
@@ -160,6 +163,21 @@ export function buildSatFullAnalyzePhases(adaptiveMode: SatAdaptiveMode): Analyz
   ];
 }
 
+export function buildSectionSatAnalyzePhases(
+  subject: string,
+  adaptiveMode: SatAdaptiveMode
+): AnalyzePhase[] {
+  const section = satSectionForSubject(subject);
+  const plan = buildSatExtractionPlan(adaptiveMode, null, section);
+  return [
+    uploadPhase(),
+    discoveryPhase(),
+    ...plan.map(bucketPhase),
+    validatePhase(),
+    savePhase(),
+  ];
+}
+
 export function buildSingleSatAnalyzePhases(subject: string): AnalyzePhase[] {
   return [uploadPhase(), extractPhase(subject), savePhase()];
 }
@@ -171,11 +189,18 @@ export function buildApAnalyzePhases(): AnalyzePhase[] {
 export function buildClientAnalyzePhases(opts: {
   subject: string;
   satAdaptiveMode: SatAdaptiveMode;
+  satFormat?: SatFormat | null;
 }): { phases: AnalyzePhase[]; totalPredictedLabel: string } {
   const program = getExamProgram(opts.subject);
   let phases: AnalyzePhase[];
   if (program === "SAT" && isSatFullTest(opts.subject)) {
     phases = buildSatFullAnalyzePhases(opts.satAdaptiveMode);
+  } else if (
+    program === "SAT" &&
+    isSatSectionUpload(opts.subject) &&
+    opts.satFormat === "section_test"
+  ) {
+    phases = buildSectionSatAnalyzePhases(opts.subject, opts.satAdaptiveMode);
   } else if (program === "SAT") {
     phases = buildSingleSatAnalyzePhases(opts.subject);
   } else {

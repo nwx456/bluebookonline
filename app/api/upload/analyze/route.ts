@@ -13,7 +13,11 @@ import {
 import {
   getExamProgram,
   isSatFullTest,
+  isSatSectionTest,
+  isSatSectionUpload,
+  satSectionForSubject,
   type SatAdaptiveMode,
+  type SatFormat,
 } from "@/lib/exam-program";
 import {
   applySatIngestPostProcess,
@@ -60,7 +64,7 @@ interface AnalyzeInput {
   hasVisuals: boolean;
   aiProvider: "gemini" | "claude";
   userEmail: string;
-  satFormat: "full_test" | "single_module" | null;
+  satFormat: SatFormat | null;
   satAdaptiveMode: SatAdaptiveMode | null;
   satCutoffRw: number | null;
   satCutoffMath: number | null;
@@ -107,9 +111,12 @@ function parseSatAdaptiveMode(value: string | null | undefined): SatAdaptiveMode
   return v === "none" || v === "pool" || v === "six_module" ? (v as SatAdaptiveMode) : null;
 }
 
-function parseSatFormat(value: string | null | undefined): "full_test" | "single_module" | null {
+function parseSatFormat(value: string | null | undefined): SatFormat | null {
   const v = value?.trim();
-  return v === "full_test" ? "full_test" : v === "single_module" ? "single_module" : null;
+  if (v === "full_test") return "full_test";
+  if (v === "section_test") return "section_test";
+  if (v === "single_module") return "single_module";
+  return null;
 }
 
 function parseIntOrNull(value: string | null | undefined): number | null {
@@ -503,14 +510,18 @@ export async function POST(request: NextRequest) {
     }
 
     const isSatFull = isSatFullTest(subject);
+    const resolvedSatFormat: SatFormat =
+      satFormat ?? (isSatFull ? "full_test" : "single_module");
+    const usesBucketPipeline =
+      isSatFull || isSatSectionTest(subject, resolvedSatFormat);
 
-    // For SAT_FULL_TEST the AI auto-counts modules; allow large default.
-    const questionCount = isSatFull
+    // Full test and section_test use bucket extraction; question count is optional.
+    const questionCount = usesBucketPipeline
       ? (questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
           ? questionCountRaw
           : 100)
       : questionCountRaw;
-    if (!isSatFull && (questionCount == null || !Number.isInteger(questionCount) || questionCount < 1)) {
+    if (!usesBucketPipeline && (questionCount == null || !Number.isInteger(questionCount) || questionCount < 1)) {
       return NextResponse.json(
         { error: "Question count must be a positive number." },
         { status: 400 }
@@ -545,6 +556,7 @@ export async function POST(request: NextRequest) {
       const { phases } = buildClientAnalyzePhases({
         subject,
         satAdaptiveMode: satAdaptiveMode ?? "none",
+        satFormat: resolvedSatFormat,
       });
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
@@ -645,7 +657,14 @@ async function performAnalyze(
   }
 
   const isSatFull = isSatFullTest(subject);
-  const questionCount = isSatFull
+  const resolvedSatFormat: SatFormat =
+    satFormat ?? (isSatFull ? "full_test" : "single_module");
+  const usesBucketPipeline =
+    isSatFull || isSatSectionTest(subject, resolvedSatFormat);
+  const sectionFilter = isSatSectionTest(subject, resolvedSatFormat)
+    ? satSectionForSubject(subject)
+    : null;
+  const questionCount = usesBucketPipeline
     ? questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
       ? questionCountRaw
       : 100
@@ -758,7 +777,7 @@ async function performAnalyze(
         displayName: filename,
       });
 
-      if (isSatFull) {
+      if (usesBucketPipeline) {
         tracker?.start(PHASE_DISCOVERY);
         const discovery = await runGeminiExtraction({
           apiKey: process.env.GEMINI_API_KEY!,
@@ -786,7 +805,11 @@ async function performAnalyze(
         const blockCount = structureDetected?.sections.reduce((n, s) => n + s.blocks.length, 0) ?? 0;
         tracker?.done(PHASE_DISCOVERY, `${blockCount} module blocks detected`);
 
-        const plan = buildSatExtractionPlan(effectiveAdaptiveMode, structureDetected);
+        const plan = buildSatExtractionPlan(
+          effectiveAdaptiveMode,
+          structureDetected,
+          sectionFilter
+        );
         const allQuestions: GeminiQuestion[] = [];
         const bucketCountsDuringExtract: Record<string, number> = {};
 
@@ -838,7 +861,7 @@ async function performAnalyze(
           );
           if (process.env.NODE_ENV === "development") {
             console.info(
-              `[upload/analyze] SAT_FULL_TEST ${bucketLabel}: parsed ${result.questions.length} questions`
+              `[upload/analyze] SAT bucket ${bucketLabel}: parsed ${result.questions.length} questions`
             );
           }
           for (const q of result.questions) {
@@ -923,14 +946,15 @@ async function performAnalyze(
 
     let moduleReport: ReturnType<typeof buildSatModuleReport> | undefined;
     let moduleCounts: ReturnType<typeof reportToLegacyModuleCounts> | undefined;
-    if (isSatFull) {
+    if (usesBucketPipeline) {
       tracker?.start(PHASE_VALIDATE);
       moduleReport = buildSatModuleReport(questions);
       moduleCounts = reportToLegacyModuleCounts(moduleReport);
       const validation = validateSatModuleReport(
         moduleReport,
         effectiveAdaptiveMode,
-        structureDetected
+        structureDetected,
+        sectionFilter
       );
       if (!validation.ok) {
         if (process.env.NODE_ENV === "development") {
@@ -997,8 +1021,10 @@ async function performAnalyze(
       exam_program: examProgram,
     };
     if (isSat) {
-      uploadInsertPayload.sat_format = satFormat ?? (isSatFull ? "full_test" : "single_module");
-      uploadInsertPayload.sat_adaptive_mode = isSatFull ? (satAdaptiveMode ?? "none") : "none";
+      uploadInsertPayload.sat_format = resolvedSatFormat;
+      uploadInsertPayload.sat_adaptive_mode = usesBucketPipeline
+        ? (satAdaptiveMode ?? "none")
+        : "none";
       if (satCutoffRw != null && Number.isFinite(satCutoffRw)) {
         uploadInsertPayload.sat_cutoff_rw = satCutoffRw;
       }

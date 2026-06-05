@@ -53,7 +53,9 @@ import {
   isSatRw,
   requiresDesmos as satRequiresDesmos,
   pickSatM2Variant,
+  satSectionForSubject,
   SAT_MODULES,
+  usesSatModuleFlow,
   type SatModuleId,
   type SatSection,
 } from "@/lib/exam-program";
@@ -1221,8 +1223,11 @@ export default function ExamPage() {
         let selectedRwM2Variant: "easy" | "hard" | null = null;
         let selectedMathM2Variant: "easy" | "hard" | null = null;
         const adaptiveMode = upload?.sat_adaptive_mode;
-        const satFullExam = isSatFullTest(upload?.subject);
-        if (adaptiveMode === "six_module" && satFullExam) {
+        const moduleFlowExam = usesSatModuleFlow({
+          subject: upload?.subject,
+          satFormat: upload?.sat_format,
+        });
+        if (adaptiveMode === "six_module" && moduleFlowExam) {
           let rwM1Correct = 0;
           let mathM1Correct = 0;
           let rwM1Total = 0;
@@ -1347,6 +1352,9 @@ export default function ExamPage() {
   const examProgram = getExamProgram(subject);
   const isSat = examProgram === "SAT";
   const isSatFull = isSatFullTest(subject);
+  const satFormat = upload?.sat_format ?? (isSatFull ? "full_test" : "single_module");
+  const usesSatModules = usesSatModuleFlow({ subject, satFormat });
+  const satSectionOnly = satSectionForSubject(subject);
   const satResultGroups = useMemo(
     () => (isSat ? getSatModuleGroups(questions, subject) : []),
     [isSat, questions, subject]
@@ -1367,12 +1375,13 @@ export default function ExamPage() {
   // -----------------------------------------------------------------------
   const initialSatModule = useMemo<SatModuleId | null>(() => {
     if (!isSat) return null;
-    if (!isSatFull) {
+    if (!usesSatModules) {
       const section: SatSection = isSatRw(subject) ? "rw" : "math";
       return `${section}1` as SatModuleId;
     }
+    if (satSectionOnly) return `${satSectionOnly}1` as SatModuleId;
     return "rw1";
-  }, [isSat, isSatFull, subject]);
+  }, [isSat, usesSatModules, subject, satSectionOnly]);
 
   useEffect(() => {
     if (!isSat) return;
@@ -1380,7 +1389,7 @@ export default function ExamPage() {
   }, [currentModuleId, isSat]);
 
   const m1RwCorrectCount = useMemo(() => {
-    if (!isSatFull || satAdaptiveMode !== "six_module") return 0;
+    if (!usesSatModules || satAdaptiveMode !== "six_module") return 0;
     let count = 0;
     for (const q of questions) {
       if (q.sat_section === "rw" && q.sat_module === 1) {
@@ -1388,9 +1397,9 @@ export default function ExamPage() {
       }
     }
     return count;
-  }, [isSatFull, satAdaptiveMode, questions, answers]);
+  }, [usesSatModules, satAdaptiveMode, questions, answers]);
   const m1MathCorrectCount = useMemo(() => {
-    if (!isSatFull || satAdaptiveMode !== "six_module") return 0;
+    if (!usesSatModules || satAdaptiveMode !== "six_module") return 0;
     let count = 0;
     for (const q of questions) {
       if (q.sat_section === "math" && q.sat_module === 1) {
@@ -1398,7 +1407,7 @@ export default function ExamPage() {
       }
     }
     return count;
-  }, [isSatFull, satAdaptiveMode, questions, answers]);
+  }, [usesSatModules, satAdaptiveMode, questions, answers]);
 
   const rwM1Total = useMemo(
     () => questions.filter((q) => q.sat_section === "rw" && q.sat_module === 1).length,
@@ -1425,17 +1434,19 @@ export default function ExamPage() {
   );
 
   const availableModules = useMemo(() => {
-    if (!isSatFull) return SAT_MODULES;
-    return SAT_MODULES.filter((mod) =>
-      questions.some((q) => questionMatchesSatModuleBase(q, mod.section, mod.module))
+    if (!usesSatModules) return SAT_MODULES;
+    return SAT_MODULES.filter(
+      (mod) =>
+        (!satSectionOnly || mod.section === satSectionOnly) &&
+        questions.some((q) => questionMatchesSatModuleBase(q, mod.section, mod.module))
     );
-  }, [isSatFull, questions]);
+  }, [usesSatModules, satSectionOnly, questions]);
 
   const matchesCurrentModule = useCallback(
     (q: Question, modId: SatModuleId | null): boolean => {
       if (!isSat) return true;
       if (!modId) return true;
-      if (!isSatFull) return true;
+      if (!usesSatModules) return true;
       const target = SAT_MODULES.find((m) => m.id === modId);
       if (!target) return false;
       if (q.sat_section !== target.section) return false;
@@ -1446,7 +1457,7 @@ export default function ExamPage() {
       }
       return true;
     },
-    [isSat, isSatFull, satAdaptiveMode, m2RwVariant, m2MathVariant]
+    [isSat, usesSatModules, satAdaptiveMode, m2RwVariant, m2MathVariant]
   );
 
   const moduleQuestions = useMemo(() => {
@@ -1469,7 +1480,7 @@ export default function ExamPage() {
     ? availableModules.findIndex((m) => m.id === currentModuleId)
     : -1;
   const nextModuleDef =
-    isSatFull && currentAvailIndex >= 0 && currentAvailIndex < availableModules.length - 1
+    usesSatModules && currentAvailIndex >= 0 && currentAvailIndex < availableModules.length - 1
       ? availableModules[currentAvailIndex + 1]
       : null;
   const nextModuleQuestionCount = useMemo(() => {
@@ -1477,10 +1488,12 @@ export default function ExamPage() {
     return questions.filter((q) => matchesCurrentModule(q, nextModuleDef.id)).length;
   }, [nextModuleDef, questions, matchesCurrentModule]);
   const isLastSatModule =
-    !isSatFull || (currentAvailIndex >= 0 && currentAvailIndex === availableModules.length - 1);
+    !usesSatModules ||
+    (currentAvailIndex >= 0 && currentAvailIndex === availableModules.length - 1);
   const isOnLastQuestionOfModule =
     activeQuestions.length > 0 && currentIndex >= activeQuestions.length - 1;
-  const isEmptySatModule = isSatFull && currentModuleId != null && activeQuestions.length === 0;
+  const isEmptySatModule =
+    usesSatModules && currentModuleId != null && activeQuestions.length === 0;
 
   const satMarkedForReviewQuestions = useMemo(() => {
     if (!isSat) return [];
@@ -1495,7 +1508,7 @@ export default function ExamPage() {
   }, [isSat, activeQuestions, markedForReview]);
 
   useEffect(() => {
-    if (!isSatFull || questions.length === 0 || availableModules.length === 0) return;
+    if (!usesSatModules || questions.length === 0 || availableModules.length === 0) return;
     if (resumeModuleIndex != null) {
       const mod = availableModules[resumeModuleIndex] ?? availableModules[0];
       if (mod) setCurrentModuleId(mod.id);
@@ -1508,7 +1521,7 @@ export default function ExamPage() {
       if (startMod) setCurrentModuleId(startMod.id);
     }
   }, [
-    isSatFull,
+    usesSatModules,
     questions.length,
     availableModules,
     resumeModuleIndex,
@@ -1994,23 +2007,36 @@ export default function ExamPage() {
                     <span className="text-5xl font-bold text-indigo-700">
                       {r.sat.totalScaled ?? "—"}
                     </span>
-                    <span className="text-2xl text-indigo-400 ml-2">/ 1600</span>
+                    <span className="text-2xl text-indigo-400 ml-2">
+                      / {r.sat.isFullTest ? 1600 : 800}
+                    </span>
                   </div>
-                  <div className="mt-5 grid grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Reading & Writing</p>
-                      <p className="mt-1 text-3xl font-bold text-gray-900">
-                        {r.sat.rwScaled ?? "—"}
-                      </p>
-                      <p className="text-xs text-gray-500">/ 800</p>
-                    </div>
-                    <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
-                      <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Math</p>
-                      <p className="mt-1 text-3xl font-bold text-gray-900">
-                        {r.sat.mathScaled ?? "—"}
-                      </p>
-                      <p className="text-xs text-gray-500">/ 800</p>
-                    </div>
+                  <div
+                    className={cn(
+                      "mt-5 grid gap-4",
+                      r.sat.isFullTest ? "grid-cols-2" : "grid-cols-1 max-w-xs mx-auto"
+                    )}
+                  >
+                    {(r.sat.isFullTest || r.sat.rwScaled != null) && (
+                      <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
+                        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Reading & Writing
+                        </p>
+                        <p className="mt-1 text-3xl font-bold text-gray-900">
+                          {r.sat.rwScaled ?? "—"}
+                        </p>
+                        <p className="text-xs text-gray-500">/ 800</p>
+                      </div>
+                    )}
+                    {(r.sat.isFullTest || r.sat.mathScaled != null) && (
+                      <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
+                        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Math</p>
+                        <p className="mt-1 text-3xl font-bold text-gray-900">
+                          {r.sat.mathScaled ?? "—"}
+                        </p>
+                        <p className="text-xs text-gray-500">/ 800</p>
+                      </div>
+                    )}
                   </div>
                   {r.sat.modules.length > 0 && (
                     <div className="mt-5">
@@ -3021,7 +3047,7 @@ export default function ExamPage() {
           isSat ? (
             <>
               Answer all questions in this module. You can mark questions for review and navigate with
-              Back/Next. {isSatFull ? 'Click "Submit Module" when you finish to move on.' : null}
+              Back/Next. {usesSatModules ? 'Click "Submit Module" when you finish to move on.' : null}
             </>
           ) : (
             <>
@@ -3176,7 +3202,7 @@ export default function ExamPage() {
                 <Calculator className="h-4 w-4" /> Calculator
               </button>
             ) : null}
-            {needsDesmos && (currentModuleDef?.section === "math" || (!isSatFull && isSatMath(subject))) ? (
+            {needsDesmos && (currentModuleDef?.section === "math" || (!usesSatModules && isSatMath(subject))) ? (
               <button
                 type="button"
                 onClick={() => setDesmosOpen((o) => !o)}
@@ -3563,7 +3589,7 @@ export default function ExamPage() {
                 >
                   Next
                 </button>
-                {isOnLastQuestionOfModule && isSatFull && !isLastSatModule && (
+                {isOnLastQuestionOfModule && usesSatModules && !isLastSatModule && (
                   <button
                     type="button"
                     onClick={() => setModuleTransitionShown(currentModuleId)}
@@ -3572,7 +3598,7 @@ export default function ExamPage() {
                     Submit Module
                   </button>
                 )}
-                {isOnLastQuestionOfModule && (!isSatFull || isLastSatModule) && (
+                {isOnLastQuestionOfModule && (!usesSatModules || isLastSatModule) && (
                   <button
                     type="button"
                     onClick={() => setShowEndExamConfirm(true)}
@@ -3588,7 +3614,7 @@ export default function ExamPage() {
                       ? completingSkipAi
                         ? "Submitting…"
                         : "Calculating results…"
-                      : isSatFull ? "Finish & Score" : "End Exam"}
+                      : usesSatModules ? "Finish & Score" : "End Exam"}
                   </button>
                 )}
               </>
@@ -3596,7 +3622,7 @@ export default function ExamPage() {
           </>
         }
       />
-      {isOnLastQuestionOfModule && (!isSatFull || isLastSatModule) && (
+      {isOnLastQuestionOfModule && (!usesSatModules || isLastSatModule) && (
         <p
           className={cn(
             "px-4 py-2 text-center text-xs text-gray-500",
@@ -3627,7 +3653,7 @@ export default function ExamPage() {
               <SatMarkedForReviewWarning
                 items={satCurrentModuleMarkedForReview}
                 allQuestions={questions}
-                isSatFullExam={isSatFull}
+                isSatFullExam={usesSatModules}
               />
             ) : null}
             <p className="text-sm text-gray-600 mb-4">
@@ -3759,7 +3785,7 @@ export default function ExamPage() {
               <SatMarkedForReviewWarning
                 items={satMarkedForReviewQuestions}
                 allQuestions={questions}
-                isSatFullExam={isSatFull}
+                isSatFullExam={usesSatModules}
               />
             ) : null}
             {!isSat ? (

@@ -13,7 +13,7 @@ export type SatSection = "rw" | "math";
 export type SatModuleNumber = 1 | 2;
 export type SatModuleId = "rw1" | "rw2" | "math1" | "math2";
 export type SatAdaptiveMode = "none" | "pool" | "six_module";
-export type SatFormat = "single_module" | "full_test";
+export type SatFormat = "single_module" | "section_test" | "full_test";
 export type SatModuleVariant = "easy" | "hard";
 export type SatDifficulty = "easy" | "medium" | "hard";
 export type QuestionType = "mcq" | "grid_in";
@@ -95,6 +95,34 @@ export function isSatRw(subject: string | null | undefined): boolean {
 
 export function isSatMath(subject: string | null | undefined): boolean {
   return subject === "SAT_MATH" || subject === "SAT_FULL_TEST";
+}
+
+/** SAT_RW or SAT_MATH only (not full test). */
+export function isSatSectionUpload(subject: string | null | undefined): boolean {
+  return subject === "SAT_RW" || subject === "SAT_MATH";
+}
+
+export function satSectionForSubject(subject: string | null | undefined): SatSection | null {
+  if (subject === "SAT_RW") return "rw";
+  if (subject === "SAT_MATH") return "math";
+  return null;
+}
+
+export function isSatSectionTest(
+  subject: string | null | undefined,
+  satFormat: string | null | undefined
+): boolean {
+  return isSatSectionUpload(subject) && satFormat === "section_test";
+}
+
+/** Module-by-module exam navigation (Submit Module, adaptive M2 routing). */
+export function usesSatModuleFlow(opts: {
+  subject: string | null | undefined;
+  satFormat?: string | null | undefined;
+}): boolean {
+  const { subject, satFormat } = opts;
+  if (isSatFullTest(subject)) return true;
+  return isSatSectionTest(subject, satFormat);
 }
 
 /**

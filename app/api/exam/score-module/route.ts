@@ -7,8 +7,9 @@ import {
 } from "@/lib/exam-grade";
 import type { SubjectKey } from "@/lib/gemini-prompts";
 import {
-  isSatFullTest,
+  satSectionForSubject,
   SAT_MODULES,
+  usesSatModuleFlow,
   type SatModuleId,
   type SatModuleVariant,
 } from "@/lib/exam-program";
@@ -57,16 +58,27 @@ export async function POST(request: NextRequest) {
 
     const { data: upload } = await supabase
       .from("pdf_uploads")
-      .select("subject, storage_path, exam_program, sat_adaptive_mode")
+      .select("subject, storage_path, exam_program, sat_format, sat_adaptive_mode")
       .eq("id", attempt.upload_id)
       .single();
 
     const subject = upload?.subject ?? "";
-    if (!isSatFullTest(subject)) {
+    if (!usesSatModuleFlow({ subject, satFormat: upload?.sat_format })) {
       return NextResponse.json(
-        { error: "Module scoring is only available for SAT full tests." },
+        { error: "Module scoring is only available for multi-module SAT exams." },
         { status: 400 }
       );
+    }
+
+    const sectionOnly = satSectionForSubject(subject);
+    if (sectionOnly) {
+      const modDef = SAT_MODULES.find((m) => m.id === moduleId);
+      if (!modDef || modDef.section !== sectionOnly) {
+        return NextResponse.json(
+          { error: "Module does not belong to this exam section." },
+          { status: 400 }
+        );
+      }
     }
 
     const { data: allQuestions } = await supabase
