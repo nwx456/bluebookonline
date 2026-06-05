@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -143,6 +143,20 @@ interface ExpandedAttemptData {
 }
 
 export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">
+          Loading…
+        </div>
+      }
+    >
+      <DashboardPageInner />
+    </Suspense>
+  );
+}
+
+function DashboardPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const { program } = useProgram();
