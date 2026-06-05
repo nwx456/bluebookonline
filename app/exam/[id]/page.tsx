@@ -67,6 +67,7 @@ import {
 } from "@/lib/sat-question-display";
 import { GraphZoomProvider, GraphZoomHeaderToolbar } from "./GraphZoomContext";
 import { DesmosCalculator } from "@/components/DesmosCalculator";
+import { useFloatingPanelDrag } from "@/app/exam/useFloatingPanelDrag";
 import {
   SatModuleResultOverlay,
   type ModuleScoreResult,
@@ -804,8 +805,14 @@ export default function ExamPage() {
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [calculatorDisplay, setCalculatorDisplay] = useState("");
   const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
-  const [calculatorPos, setCalculatorPos] = useState({ x: 32, y: 96 });
   const [calculatorRadians, setCalculatorRadians] = useState(true);
+  const { position: calculatorPos, onDragStart: handleCalculatorDragStart } = useFloatingPanelDrag({
+    panelWidth: 320,
+    panelHeight: 420,
+    initialPosition: { x: 32, y: 96 },
+    padding: 20,
+    allowPartialOffscreenLeft: true,
+  });
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [questionIdToImageUrl, setQuestionIdToImageUrl] = useState<Record<string, string>>({});
   const [unusableImageSrcs, setUnusableImageSrcs] = useState<Set<string>>(new Set());
@@ -870,8 +877,6 @@ export default function ExamPage() {
   const [highlightMode, setHighlightMode] = useState<"yellow" | "blue" | "pink" | "eraser" | null>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
-  const calculatorDragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
-
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1082,43 +1087,6 @@ export default function ExamPage() {
       window.removeEventListener("mouseup", handleResizeEnd);
     };
   }, [handleResize, handleResizeEnd]);
-
-  const handleCalculatorDragMove = useCallback((e: MouseEvent) => {
-    const r = calculatorDragRef.current;
-    if (!r) return;
-    const CALC_W = 288;
-    const padding = 20;
-    const dx = e.clientX - r.startX;
-    const dy = e.clientY - r.startY;
-    const nx = Math.max(padding - CALC_W, Math.min(window.innerWidth - padding, r.posX + dx));
-    const ny = Math.max(0, Math.min(window.innerHeight - padding, r.posY + dy));
-    setCalculatorPos({ x: nx, y: ny });
-  }, []);
-
-  const handleCalculatorDragEnd = useCallback(() => {
-    calculatorDragRef.current = null;
-    window.removeEventListener("mousemove", handleCalculatorDragMove);
-    window.removeEventListener("mouseup", handleCalculatorDragEnd);
-  }, [handleCalculatorDragMove]);
-
-  const handleCalculatorDragStart = useCallback((e: React.MouseEvent) => {
-    calculatorDragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      posX: calculatorPos.x,
-      posY: calculatorPos.y,
-    };
-    window.addEventListener("mousemove", handleCalculatorDragMove);
-    window.addEventListener("mouseup", handleCalculatorDragEnd);
-  }, [calculatorPos, handleCalculatorDragMove, handleCalculatorDragEnd]);
-
-  useEffect(() => {
-    return () => {
-      calculatorDragRef.current = null;
-      window.removeEventListener("mousemove", handleCalculatorDragMove);
-      window.removeEventListener("mouseup", handleCalculatorDragEnd);
-    };
-  }, [handleCalculatorDragMove, handleCalculatorDragEnd]);
 
   const toggleMarkForReview = useCallback(
     (questionId: string) => {
