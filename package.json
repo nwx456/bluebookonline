@@ -14,8 +14,16 @@
     "test:sat-ingest": "npx tsx --test lib/sat-ingest-postprocess.test.mjs",
     "test:passage-display": "npx tsx --test lib/passage-display.test.mjs",
     "test:math-notation": "npx tsx --test lib/math-notation-display.test.mjs",
+    "test:sat-extraction": "npx tsx --test lib/sat-extraction.test.mjs",
+    "test:sat-bucket-dedupe": "npx tsx --test lib/sat-bucket-dedupe.test.mjs",
+    "test:sat-upload-fields": "npx tsx --test lib/sat-upload-module-fields.test.mjs",
+    "test:sat-question-filter": "npx tsx --test lib/sat-question-filter.test.mjs",
+    "test:sat-extract-pipeline": "npx tsx --test lib/sat-extract-pipeline.test.mjs",
+    "test:sat-exam-grade": "npx tsx --test lib/exam-grade.sat.test.mjs",
     "test:upload-progress": "npx tsx --test lib/upload-analyze-progress.test.mjs",
-    "test:sat-smoke": "node --env-file=.env scripts/sat-module-flow-smoke.mjs"
+    "test:sat-smoke": "node --env-file=.env scripts/sat-module-flow-smoke.mjs",
+    "db:push": "supabase db push",
+    "db:migration:list": "supabase migration list"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -45,6 +53,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "supabase": "^2.109.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -39,7 +39,10 @@ export interface SatGeminiQuestion {
 }
 
 /** SAT-only: infer grid-in, strip fake options, boost has_graph from page + keywords. */
-export function applySatIngestPostProcess(q: SatGeminiQuestion): void {
+export function applySatIngestPostProcess(
+  q: SatGeminiQuestion,
+  opts?: { section?: "rw" | "math" | null }
+): void {
   const stem = (
     typeof q.content === "string"
       ? q.content
@@ -49,19 +52,15 @@ export function applySatIngestPostProcess(q: SatGeminiQuestion): void {
   ).trim();
 
   const desc = (q.image_description ?? "").trim();
+  const isRw = opts?.section === "rw";
 
-  if (looksLikeGridInStem(stem) || (q.question_type === "grid_in")) {
-    q.question_type = "grid_in";
-    q.options = [];
-  }
-
-  if (q.question_type === "grid_in" || looksLikeGridInStem(stem)) {
-    q.question_type = "grid_in";
-    q.options = [];
-  }
-
-  if (isPlaceholderMcqOptions(q.options)) {
-    if (looksLikeGridInStem(stem)) {
+  // R&W is MCQ-only. Math can be grid-in: infer once from stem or explicit tag.
+  if (!isRw) {
+    const isGridIn =
+      q.question_type === "grid_in" ||
+      looksLikeGridInStem(stem) ||
+      (isPlaceholderMcqOptions(q.options) && looksLikeGridInStem(stem));
+    if (isGridIn) {
       q.question_type = "grid_in";
       q.options = [];
     }

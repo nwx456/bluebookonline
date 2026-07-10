@@ -19,7 +19,7 @@ export function ProgramTabs({ program, onChange, className }: ProgramTabsProps) 
       role="tablist"
       aria-label="Choose exam program"
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 p-1 text-sm shadow-sm min-w-[7.25rem]",
+        "inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 p-1 text-sm shadow-sm min-w-[7.25rem] max-sm:min-w-0 max-sm:w-full max-sm:justify-center",
         className
       )}
     >

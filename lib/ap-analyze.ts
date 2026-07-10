@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { countRowsWithPdfAnswerKey } from "@/lib/answer-key-label";
 import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { generateWithFallback } from "@/lib/gemini-client";
@@ -332,6 +333,7 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
         original_text: text.slice(0, 50_000),
         is_published: true,
         exam_program: "AP",
+        requested_question_count: questionCount,
       })
       .select("id")
       .single();
@@ -464,6 +466,15 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
         return NextResponse.json({ error: "Failed to save questions." }, { status: 500 });
       }
     }
+
+    const answerKeyFromPdfCount = countRowsWithPdfAnswerKey(rows);
+    await supabase
+      .from("pdf_uploads")
+      .update({
+        requested_question_count: questionCount,
+        answer_key_from_pdf_count: answerKeyFromPdfCount,
+      })
+      .eq("id", uploadId);
 
     return NextResponse.json({ examId: uploadId, questionCount: rows.length });
   } catch (err) {

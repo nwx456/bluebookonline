@@ -1,28 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import {
+  filterQuestionsForSatModule,
   gradeAndPersistQuestionSubset,
   type GradeQuestionRow,
 } from "@/lib/exam-grade";
 import type { SubjectKey } from "@/lib/gemini-prompts";
-import { getExamProgram, isSatFullTest, usesSatModuleFlow } from "@/lib/exam-program";
+import {
+  getExamProgram,
+  isSatFullTest,
+  SAT_MODULES,
+  satSectionForSubject,
+  usesSatModuleFlow,
+  type SatModuleId,
+  type SatModuleVariant,
+  type SatSection,
+} from "@/lib/exam-program";
 
-/** Scale raw correct count -> SAT R&W scaled score (200-800). */
-function scaleRwScore(correct: number, totalAvailable: number, hadHardM2: boolean): number {
+const HARD_M2_BONUS = 30;
+
+/** Scale raw correct count -> SAT scaled score (200-800). */
+function scaleSectionScore(
+  correct: number,
+  totalAvailable: number,
+  useSixModule: boolean,
+  hardM2: boolean
+): number {
   if (totalAvailable <= 0) return 200;
   const ratio = Math.max(0, Math.min(1, correct / totalAvailable));
   let score = Math.round(200 + ratio * 600);
-  if (hadHardM2) score = Math.min(800, score + 30);
+  if (useSixModule && hardM2) score = Math.min(800, score + HARD_M2_BONUS);
   return Math.max(200, Math.min(800, score));
 }
 
-/** Scale raw correct count -> SAT Math scaled score (200-800). */
-function scaleMathScore(correct: number, totalAvailable: number, hadHardM2: boolean): number {
-  if (totalAvailable <= 0) return 200;
-  const ratio = Math.max(0, Math.min(1, correct / totalAvailable));
-  let score = Math.round(200 + ratio * 600);
-  if (hadHardM2) score = Math.min(800, score + 30);
-  return Math.max(200, Math.min(800, score));
+function normalizeVariant(raw: string | undefined): SatModuleVariant | null {
+  return raw === "easy" || raw === "hard" ? raw : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -30,18 +42,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const attemptId = (body.attemptId ?? body.attempt_id) as string | undefined;
     const skipAiGrading = body.skipAiGrading === true || body.skip_ai_grading === true;
-    const selectedRwM2VariantRaw = (body.selectedRwM2Variant ??
-      body.selected_rw_m2_variant) as string | undefined;
-    const selectedMathM2VariantRaw = (body.selectedMathM2Variant ??
-      body.selected_math_m2_variant) as string | undefined;
-    const selectedRwM2Variant =
-      selectedRwM2VariantRaw === "easy" || selectedRwM2VariantRaw === "hard"
-        ? selectedRwM2VariantRaw
-        : null;
-    const selectedMathM2Variant =
-      selectedMathM2VariantRaw === "easy" || selectedMathM2VariantRaw === "hard"
-        ? selectedMathM2VariantRaw
-        : null;
+    const selectedRwM2Variant = normalizeVariant(
+      (body.selectedRwM2Variant ?? body.selected_rw_m2_variant) as string | undefined
+    );
+    const selectedMathM2Variant = normalizeVariant(
+      (body.selectedMathM2Variant ?? body.selected_math_m2_variant) as
+        | string
+        | undefined
+    );
 
     if (!attemptId?.trim()) {
       return NextResponse.json({ error: "attemptId is required." }, { status: 400 });
@@ -51,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const { data: attempt, error: attemptError } = await supabase
       .from("attempts")
-      .select("id, upload_id, started_at, completed_at")
+      .select("id, upload_id, started_at, completed_at, module_progress")
       .eq("id", attemptId)
       .single();
 
@@ -73,10 +81,12 @@ export async function POST(request: NextRequest) {
     const examProgram = (upload?.exam_program ?? getExamProgram(subject)) as "AP" | "SAT";
     const isSat = examProgram === "SAT";
     const isSatFull = isSatFullTest(subject);
-    const usesModuleFlow = usesSatModuleFlow({
-      subject,
-      satFormat: (upload as { sat_format?: string | null })?.sat_format,
-    });
+    const satFormat = (upload as { sat_format?: string | null })?.sat_format ?? null;
+    const usesModuleFlow = usesSatModuleFlow({ subject, satFormat });
+    const satAdaptiveMode = (upload as { sat_adaptive_mode?: string | null })
+      ?.sat_adaptive_mode;
+    const useSixModule = satAdaptiveMode === "six_module";
+    const sectionOnly = satSectionForSubject(subject);
 
     const { data: allQuestions } = await supabase
       .from("questions")
@@ -93,13 +103,45 @@ export async function POST(request: NextRequest) {
 
     const questions = allQuestions as GradeQuestionRow[];
 
+    // ------------------------------------------------------------------
+    // Build the set of questions to actually grade.
+    //
+    // - AP / single-module SAT: grade every question as-is.
+    // - SAT full test / section test: STRICT filter — only questions with an
+    //   explicit sat_section + sat_module are graded, and in six_module the
+    //   M2 questions must match the user-selected easy/hard variant.
+    // ------------------------------------------------------------------
+    const questionsToGrade: GradeQuestionRow[] = usesModuleFlow
+      ? (() => {
+          const relevantModules = SAT_MODULES.filter(
+            (m) => !sectionOnly || m.section === sectionOnly
+          );
+          const seen = new Set<string>();
+          const out: GradeQuestionRow[] = [];
+          for (const mod of relevantModules) {
+            const modQuestions = filterQuestionsForSatModule(questions, mod.id, {
+              isSatFull: true,
+              satAdaptiveMode,
+              selectedRwM2Variant,
+              selectedMathM2Variant,
+            });
+            for (const q of modQuestions) {
+              if (seen.has(q.id)) continue;
+              seen.add(q.id);
+              out.push(q);
+            }
+          }
+          return out;
+        })()
+      : questions;
+
     const { breakdown, counts } = await gradeAndPersistQuestionSubset({
       supabase,
       attemptId,
       subject,
       storagePath: upload?.storage_path ?? null,
       uploadId: attempt.upload_id,
-      questions,
+      questions: questionsToGrade,
       skipAiGrading,
       insertMissingAnswers: true,
     });
@@ -113,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     type SatModuleStats = {
       module: string;
-      section: "rw" | "math";
+      section: SatSection;
       moduleNumber: 1 | 2;
       correct: number;
       total: number;
@@ -132,60 +174,71 @@ export async function POST(request: NextRequest) {
       const finalAnswerMap = new Map(
         (finalAnswers ?? []).map((a) => [a.question_id, a] as const)
       );
-      const groups = new Map<string, SatModuleStats>();
-      const satAdaptiveMode = (upload as { sat_adaptive_mode?: string | null })?.sat_adaptive_mode;
-      const useSixModule = satAdaptiveMode === "six_module";
-      let rwHardM2 = useSixModule ? selectedRwM2Variant === "hard" : false;
-      let mathHardM2 = useSixModule ? selectedMathM2Variant === "hard" : false;
 
-      for (const q of questions) {
-        const section = (q.sat_section === "math" ? "math" : "rw") as "rw" | "math";
-        const moduleNumber = (q.sat_module === 2 ? 2 : 1) as 1 | 2;
-        const variant = q.sat_module_variant;
+      // Compute stats per module using the SAME strict filter as grading.
+      const modulesForStats: SatModuleId[] = usesModuleFlow
+        ? SAT_MODULES.filter((m) => !sectionOnly || m.section === sectionOnly).map(
+            (m) => m.id
+          )
+        : [];
 
-        if (useSixModule && moduleNumber === 2) {
-          const selectedVariant = section === "rw" ? selectedRwM2Variant : selectedMathM2Variant;
-          if (variant && selectedVariant && variant !== selectedVariant) continue;
-        } else if (!useSixModule && moduleNumber === 2 && variant === "hard") {
-          if (section === "rw") rwHardM2 = true;
-          if (section === "math") mathHardM2 = true;
+      const rwHardM2 = useSixModule ? selectedRwM2Variant === "hard" : false;
+      const mathHardM2 = useSixModule ? selectedMathM2Variant === "hard" : false;
+
+      for (const modId of modulesForStats) {
+        const target = SAT_MODULES.find((m) => m.id === modId)!;
+        const modQuestions = filterQuestionsForSatModule(questions, modId, {
+          isSatFull: true,
+          satAdaptiveMode,
+          selectedRwM2Variant,
+          selectedMathM2Variant,
+        });
+        let correct = 0;
+        for (const q of modQuestions) {
+          const a = finalAnswerMap.get(q.id);
+          if (a?.is_correct) correct++;
         }
-
-        const key = `${section}${moduleNumber}`;
-        let stats = groups.get(key);
-        if (!stats) {
-          stats = { module: key, section, moduleNumber, correct: 0, total: 0 };
-          groups.set(key, stats);
-        }
-        stats.total++;
-        const a = finalAnswerMap.get(q.id);
-        if (a?.is_correct) stats.correct++;
+        satModuleStats.push({
+          module: modId,
+          section: target.section,
+          moduleNumber: target.module,
+          correct,
+          total: modQuestions.length,
+        });
       }
 
-      const rwStats = ["rw1", "rw2"]
-        .map((k) => groups.get(k))
-        .filter((g): g is SatModuleStats => !!g);
-      const mathStats = ["math1", "math2"]
-        .map((k) => groups.get(k))
-        .filter((g): g is SatModuleStats => !!g);
+      if (usesModuleFlow) {
+        const rwStats = satModuleStats.filter((s) => s.section === "rw");
+        const mathStats = satModuleStats.filter((s) => s.section === "math");
+        const rwTotalCorrect = rwStats.reduce((s, g) => s + g.correct, 0);
+        const rwTotalAvail = rwStats.reduce((s, g) => s + g.total, 0);
+        const mathTotalCorrect = mathStats.reduce((s, g) => s + g.correct, 0);
+        const mathTotalAvail = mathStats.reduce((s, g) => s + g.total, 0);
 
-      const rwTotalCorrect = rwStats.reduce((s, g) => s + g.correct, 0);
-      const rwTotalAvail = rwStats.reduce((s, g) => s + g.total, 0);
-      const mathTotalCorrect = mathStats.reduce((s, g) => s + g.correct, 0);
-      const mathTotalAvail = mathStats.reduce((s, g) => s + g.total, 0);
+        if (rwTotalAvail > 0) {
+          rwScaled = scaleSectionScore(
+            rwTotalCorrect,
+            rwTotalAvail,
+            useSixModule,
+            rwHardM2
+          );
+        }
+        if (mathTotalAvail > 0) {
+          mathScaled = scaleSectionScore(
+            mathTotalCorrect,
+            mathTotalAvail,
+            useSixModule,
+            mathHardM2
+          );
+        }
 
-      if (rwTotalAvail > 0) rwScaled = scaleRwScore(rwTotalCorrect, rwTotalAvail, rwHardM2);
-      if (mathTotalAvail > 0) mathScaled = scaleMathScore(mathTotalCorrect, mathTotalAvail, mathHardM2);
-      if (isSatFull && (rwScaled != null || mathScaled != null)) {
-        totalScaled = (rwScaled ?? 0) + (mathScaled ?? 0);
-      } else if (!isSatFull && usesModuleFlow) {
-        totalScaled = rwScaled ?? mathScaled ?? null;
-      }
-
-      const order: Array<"rw1" | "rw2" | "math1" | "math2"> = ["rw1", "rw2", "math1", "math2"];
-      for (const key of order) {
-        const g = groups.get(key);
-        if (g) satModuleStats.push(g);
+        if (isSatFull) {
+          if (rwScaled != null || mathScaled != null) {
+            totalScaled = (rwScaled ?? 0) + (mathScaled ?? 0);
+          }
+        } else if (sectionOnly) {
+          totalScaled = sectionOnly === "rw" ? rwScaled : mathScaled;
+        }
       }
     }
 
@@ -198,7 +251,18 @@ export async function POST(request: NextRequest) {
     };
 
     if (isSat) {
-      const moduleProgress: Record<string, { correct: number; total: number }> = {};
+      // Guarantee module_progress has an entry for each expected module even
+      // when the user skipped or emptied a module during the attempt.
+      const existingProgress =
+        attempt.module_progress && typeof attempt.module_progress === "object"
+          ? (attempt.module_progress as Record<
+              string,
+              { correct: number; total: number }
+            >)
+          : {};
+      const moduleProgress: Record<string, { correct: number; total: number }> = {
+        ...existingProgress,
+      };
       for (const m of satModuleStats) {
         moduleProgress[m.module] = { correct: m.correct, total: m.total };
       }
@@ -219,7 +283,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      total: questions.length,
+      total: questionsToGrade.length,
       correctCount: counts.correctCount,
       incorrectCount: counts.incorrectCount,
       unansweredCount: counts.unansweredCount,

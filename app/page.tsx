@@ -231,11 +231,11 @@ function HomeInner() {
       />
       <SiteHeader />
 
-      <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-8">
-        <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-6 py-10 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-center gap-3">
-            <BookOpen className="h-12 w-12 text-blue-600 shrink-0" />
-            <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
+      <main className="flex-1 mx-auto w-full max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
+        <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-4 py-8 shadow-sm border border-gray-100 sm:px-6 sm:py-10">
+          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <BookOpen className="h-10 w-10 text-blue-600 shrink-0 sm:h-12 sm:w-12" />
+            <h1 className="text-2xl font-semibold text-gray-900 sm:text-4xl">
               {heroTitle}
             </h1>
           </div>
@@ -318,7 +318,7 @@ function HomeInner() {
                   <img
                     src="/exam-interface-preview.png"
                     alt="Bluebook Online exam interface preview"
-                    className="w-full h-auto object-contain max-h-[500px]"
+                    className="w-full h-auto object-contain max-h-[40vh] sm:max-h-[500px]"
                   />
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4 text-sm">
@@ -463,7 +463,7 @@ function HomeInner() {
                         {isSat ? (
                           <>
                             <li className="pl-1">Pick the SAT subject (Reading &amp; Writing, Math, or Full Test).</li>
-                            <li className="pl-1">For Full Test: choose adaptive mode (non-adaptive, six-module, or pool) and optional M1 cutoffs.</li>
+                            <li className="pl-1">For Full Test: choose adaptive mode (non-adaptive or six-module) and optional M1 cutoffs.</li>
                             <li className="pl-1">For single-module uploads: enter the question count.</li>
                             <li className="pl-1">Drag and drop or click to choose the PDF. The AI will detect MCQ vs grid-in automatically.</li>
                           </>
@@ -590,7 +590,7 @@ function HomeInner() {
             </div>
             {subjectsOpen && (
               <div className="border-t border-gray-200 px-4 pb-4 pt-2">
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
                   {programKeys.map((key) => (
                     <Link
                       key={key}
@@ -724,12 +724,12 @@ function HomeInner() {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Published exams</h2>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setSubjectOpen((o) => !o)}
                 className={cn(
-                  "flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700",
+                  "flex w-full items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 sm:w-auto",
                   "hover:bg-gray-50 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                 )}
               >
@@ -743,7 +743,7 @@ function HomeInner() {
                     aria-hidden
                     onClick={() => setSubjectOpen(false)}
                   />
-                  <div className="absolute right-0 z-20 mt-1 min-w-[220px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                  <div className="absolute left-0 right-0 z-20 mt-1 w-full rounded-md border border-gray-200 bg-white py-1 shadow-lg sm:left-auto sm:right-0 sm:w-auto sm:min-w-[220px]">
                     {SUBJECTS.map((s) => (
                       <button
                         key={s.value || "all"}

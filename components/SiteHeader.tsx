@@ -6,26 +6,31 @@ import { BookOpen } from "lucide-react";
 import { HeaderNav } from "@/components/HeaderNav";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
 
-/**
- * Shared site header shell used on every page. Matches the dashboard layout
- * (max-w-5xl, h-14) so the nav bar never shifts when switching pages or AP/SAT.
- */
+const headerShell =
+  "border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 pt-[env(safe-area-inset-top)]";
+const headerRow =
+  "mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:h-16 sm:gap-6 sm:px-8";
+
+function BrandMark({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold text-gray-900 transition-colors hover:text-blue-600"
+    >
+      <BookOpen className="h-5 w-5 shrink-0 text-blue-600 sm:h-6 sm:w-6" aria-hidden />
+      <span className="text-sm leading-none tracking-tight sm:text-base">Bluebook Online</span>
+    </Link>
+  );
+}
+
 function SiteHeaderInner() {
   const { program } = useProgram();
 
   return (
-    <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link
-          href={appendProgramToHref("/", program)}
-          className="flex shrink-0 items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-        >
-          <BookOpen className="h-6 w-6 shrink-0 text-blue-600" />
-          Bluebook Online
-        </Link>
-        <div className="flex min-w-0 flex-1 items-center justify-end">
-          <HeaderNav />
-        </div>
+    <header className={headerShell}>
+      <div className={headerRow}>
+        <BrandMark href={appendProgramToHref("/", program)} />
+        <HeaderNav />
       </div>
     </header>
   );
@@ -33,16 +38,13 @@ function SiteHeaderInner() {
 
 function SiteHeaderFallback() {
   return (
-    <header className="border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-2 font-semibold text-gray-900"
-        >
-          <BookOpen className="h-6 w-6 shrink-0 text-blue-600" />
-          Bluebook Online
-        </Link>
-        <div className="h-9 w-[min(100%,22rem)] shrink-0 rounded-md bg-gray-50" />
+    <header className={headerShell}>
+      <div className={headerRow}>
+        <BrandMark href="/" />
+        <div className="flex items-center gap-2">
+          <div className="hidden h-9 w-56 rounded-full bg-gray-50 md:block" />
+          <div className="h-10 w-10 rounded-md bg-gray-50 md:h-9 md:w-28" />
+        </div>
       </div>
     </header>
   );

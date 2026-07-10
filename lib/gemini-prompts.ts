@@ -221,13 +221,14 @@ const MSQ_ONLY_RULE = `
 
 const SAT_COMMON_FIELDS = `
 SAT (Digital) için ZORUNLU alanlar (her soruda):
-- "sat_section": "rw" | "math" — sorunun bölümü
-- "sat_module": 1 | 2 — sorunun modülü (Module 1 veya Module 2)
+- "sat_section": "rw" | "math" — sorunun bölümü. **NULL OLAMAZ.** Boş veya belirsizse ilgili soruyu ATLA.
+- "sat_module": 1 | 2 — sorunun modülü (Module 1 veya Module 2). **NULL OLAMAZ.** Emin değilsen soruyu ATLA.
 - "sat_module_variant": "easy" | "hard" | null — yalnızca 6-modüllü adaptif PDF'lerde (M2 versiyonu); diğer durumda null
-- "sat_difficulty": "easy" | "medium" | "hard" | null — pool adaptif modunda kullanılır; diğer durumda null
+- "sat_difficulty": "easy" | "medium" | "hard" | null — genelde null (kullanılmıyor)
 - "question_type": "mcq" | "grid_in" — Math'te numeric grid-in için "grid_in"; geri kalan her şey "mcq"
 - "accepted_answers": grid-in için kabul edilebilen string cevap listesi (ör. ["3/2","1.5","1.50"]); MCQ için null
-- A-D ŞIKLAR: SAT her zaman A, B, C, D'dir (E YOK). "options": ["A metni","B metni","C metni","D metni"]. grid-in için options = []`;
+- A-D ŞIKLAR: SAT her zaman A, B, C, D'dir (E YOK). "options": ["A metni","B metni","C metni","D metni"]. grid-in için options = []
+- **Kural**: sat_section ve sat_module olmayan bir soru sisteme kabul edilmeyecek, bu yüzden bu iki alanı asla boş bırakma.`;
 
 const OUTPUT_SCHEMA_SAT_RW = `
 Her SAT R&W sorusu için şu JSON nesnesini üret (her zaman 4 şık A-D, passage image_description'a):
@@ -312,11 +313,13 @@ export function isSatSubjectKey(subject: SubjectKey): boolean {
   return subject === "SAT_RW" || subject === "SAT_MATH" || subject === "SAT_FULL_TEST";
 }
 
-/** Optional SAT context passed into getSystemPrompt for SAT_FULL_TEST. */
+/** Optional SAT context passed into getSystemPrompt for SAT uploads. */
 export interface SatPromptContext {
-  satAdaptiveMode?: "none" | "pool" | "six_module";
+  satAdaptiveMode?: "none" | "six_module";
   satCutoffRw?: number | null;
   satCutoffMath?: number | null;
+  satFormat?: "single_module" | "section_test" | "full_test";
+  usesBucketPipeline?: boolean;
 }
 
 const TEXT_ONLY_BASE = (subjectLabel: string) => `Sen bir ${subjectLabel} sınav PDF analiz asistanısın.
@@ -338,6 +341,14 @@ export function getSystemPrompt(
   // SAT cases first (Digital SAT: A-D only, optional grid-in for Math)
   // -------------------------------------------------------------------------
   if (subject === "SAT_RW") {
+    const bucketSixModule =
+      satContext?.usesBucketPipeline &&
+      satContext?.satAdaptiveMode === "six_module";
+    const variantRule = bucketSixModule
+      ? `- Modül ayıklama (bucket) modunda sat_module_variant: Module 1 için null; ikinci aşama Easy/A/B için "easy"; Hard/B için "hard".
+- Her bucket çağrısında YALNIZCA o modülün sorularını çıkar; diğer modül başlıklarından sonraki soruları dahil etme.`
+      : `- sat_module_variant: null (tek çağrı modunda veya klasik 2 modül).`;
+
     return `Sen bir Digital SAT Reading & Writing sınav PDF analiz asistanısın.
 ${MSQ_ONLY_RULE}
 
@@ -346,12 +357,12 @@ KRİTİK SAT KURALLARI:
 - "options" alanı tam 4 elemanlı bir dizi olmalı.
 - "correct" alanı: PDF'te cevap anahtarı varsa A/B/C/D; yoksa null. ASLA tahmin etme.
 - Her soruya zorunlu olarak şu alanlar:
-  * sat_section: "rw"
-  * sat_module: 1 veya 2 (PDF başlığından "Module 1" / "Module 2"; tek-modüllü pratik PDF'lerde 1 yaz)
+  * sat_section: "rw" (NULL OLAMAZ, sabit "rw")
+  * sat_module: 1 veya 2 (PDF başlığından "Module 1" / "Module 2" / "Module A/B") — NULL OLAMAZ; emin değilsen soruyu atla
   * question_type: "mcq" (R&W'de grid-in yok)
-  * sat_module_variant: null
   * sat_difficulty: null
   * accepted_answers: null
+${variantRule}
 
 GÖREV:
 - Passage / alıntı / introduction / madde listeleri (I. II. III. veya bullet) → image_description
@@ -375,8 +386,8 @@ KRİTİK SAT KURALLARI:
 - Grid-in (Student-Produced Response): soruda cevap kutusu / "Enter your answer" / "Grid your answer" gibi ifade veya çoktan seçmeli liste OLMAYAN sayısal cevap istemi varsa question_type = "grid_in"; correct = numeric string ("3/2","0.5","-2"); accepted_answers = matematiksel olarak eşdeğer string formların array'i.
 - MCQ için question_type = "mcq"; correct = A/B/C/D veya null; accepted_answers = null.
 - Her soruya zorunlu olarak şu alanlar:
-  * sat_section: "math"
-  * sat_module: 1 veya 2
+  * sat_section: "math" (NULL OLAMAZ, sabit "math")
+  * sat_module: 1 veya 2 — NULL OLAMAZ; emin değilsen soruyu atla
   * sat_module_variant: null
   * sat_difficulty: null
 
@@ -405,8 +416,6 @@ KURAL: SAT Math'te grafik veya tablo varsa sol panel = SADECE PDF crop (bbox ile
 - Math için aynı yapı (Module 1 + Module A/Easy + Module B/Hard)
 ÖNEMLİ: MCQ cevap şıkları A,B,C,D modül adı DEĞİLDİR. Module A/B yalnızca bölüm başlıklarında geçer.
 PDF başlıklarında "Easy", "Hard", "Module A", "Module B", "Below the bar", "Above the bar" arayın. Cutoff: R&W=${cutoffRw ?? "(AI tahmin)"} / Math=${cutoffMath ?? "(AI tahmin)"}.`
-        : adaptiveMode === "pool"
-        ? `**POOL ADAPTİF FORMAT**: M2 soruları tek havuzda; her birine zorluk etiketi "sat_difficulty": "easy" | "medium" | "hard" koy. sat_module_variant = null kalır.`
         : `**NON-ADAPTİF FORMAT**: Sadece 4 modül (R&W M1, R&W M2, Math M1, Math M2). sat_module_variant = null, sat_difficulty = null. Module 2 = ikinci modül (Module 2 / Part 2 / Form 2).`;
 
     return `Sen bir Digital SAT FULL TEST PDF analiz asistanısın. Bu bir tam SAT sınavıdır: Reading & Writing + Math, her biri 2 modül.
@@ -427,6 +436,7 @@ MODÜL TESPİTİ (ZORUNLU):
 - Tipik başlıklar: "Module 1", "Module 2", "Module A", "Module B", "Módulo 1", "Modul A", "Module facile", "Part 1", "Part 2", "Easy", "Hard", "Section 1 Module 1: Reading and Writing", "Section 2 Module 2: Math", "模块 1", "وحدة 1".
 - MCQ answer choices A/B/C/D are NOT module names — only section headings identify modules.
 - Soru numaralandırması her modülde yeniden 1'den başlayabilir; section başlığına göre etiketleme yap.
+- **sat_section ve sat_module NULL bırakılamaz.** Bir soruyu emin şekilde bir modüle atayamıyorsan, o soruyu tamamen ATLA (JSON'a ekleme). Yanlış modüle atamak, atlamaktan daha kötüdür.
 - Reading & Writing → sat_section = "rw"; Math → sat_section = "math".
 
 GÖREV:

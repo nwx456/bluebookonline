@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminBroadcastEmail } from "@/lib/admin-mail";
+import { createSignedPdfUrl, PDF_BUCKET } from "@/lib/signed-pdf-url";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
-const PDF_BUCKET = "pdf_uploads";
 const GRAPHS_BUCKET = "exam-graphs";
-const SIGNED_URL_EXPIRY_SEC = 3600; // 1 hour
 
 async function getAuthUser(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -53,7 +53,8 @@ export async function GET(
     const uploadOwner = (upload.user_email as string)?.trim().toLowerCase();
     const isPublished = upload.is_published === true;
     const isOwner = uploadOwner === userEmail;
-    if (!isOwner && !isPublished) {
+    const isAdmin = isAdminBroadcastEmail(userEmail);
+    if (!isOwner && !isPublished && !isAdmin) {
       return NextResponse.json(
         { error: "You can only access your own exams or published exams." },
         { status: 403 }
@@ -61,44 +62,15 @@ export async function GET(
     }
 
     const storagePath = upload.storage_path as string | null;
-    if (!storagePath || !storagePath.endsWith(".pdf")) {
+    const { url, error: signErr } = await createSignedPdfUrl(supabase, uploadId, storagePath);
+    if (signErr || !url) {
       return NextResponse.json(
-        { error: "PDF not available for this exam." },
-        { status: 404 }
+        { error: signErr ?? "Could not generate PDF link. Please try again." },
+        { status: signErr?.includes("not available") ? 404 : 500 }
       );
     }
 
-    let signData: { signedUrl: string } | null = null;
-    let signError: { message?: string } | null = null;
-
-    const { data: d1, error: e1 } = await supabase.storage
-      .from(PDF_BUCKET)
-      .createSignedUrl(storagePath, SIGNED_URL_EXPIRY_SEC);
-
-    signData = d1;
-    signError = e1;
-
-    // Fallback for legacy records: pending/... path may not exist; try uploadId.pdf
-    if ((signError || !signData?.signedUrl) && storagePath.startsWith("pending/")) {
-      const fallbackPath = `${uploadId}.pdf`;
-      const { data: d2, error: e2 } = await supabase.storage
-        .from(PDF_BUCKET)
-        .createSignedUrl(fallbackPath, SIGNED_URL_EXPIRY_SEC);
-      if (!e2 && d2?.signedUrl) {
-        signData = d2;
-        signError = null;
-      }
-    }
-
-    if (signError || !signData?.signedUrl) {
-      console.error("Signed URL error:", signError);
-      return NextResponse.json(
-        { error: "Could not generate PDF link. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ url: signData.signedUrl });
+    return NextResponse.json({ url: url });
   } catch (err) {
     console.error("Upload PDF URL error:", err);
     return NextResponse.json(

@@ -4,11 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, Loader2, Mail } from "lucide-react";
-import { SiteHeader } from "@/components/SiteHeader";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
 type Recipient = { email: string; username: string };
+
+type MailConfig = {
+  mailConfigured: boolean;
+  mailError: string | null;
+  provider: string | null;
+  workerKickConfigured: boolean;
+  workerBaseUrl: string | null;
+  mailOpsTablesReady: boolean;
+  mailOpsTablesError: string | null;
+};
 
 type AdminStats = {
   registeredUsers: number;
@@ -42,6 +51,11 @@ export default function AdminMailPage() {
   const [testTo, setTestTo] = useState("");
   const [adminSessionEmail, setAdminSessionEmail] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [sendToAllRegistered, setSendToAllRegistered] = useState(false);
+  const [mailConfig, setMailConfig] = useState<MailConfig | null>(null);
+  const [mailConfigLoading, setMailConfigLoading] = useState(false);
+  const [jobPollStartedAt, setJobPollStartedAt] = useState<number | null>(null);
+  const [lastJobProgress, setLastJobProgress] = useState<number | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -97,6 +111,39 @@ export default function AdminMailPage() {
     if (!accessToken || checking) return;
     loadRecipients(accessToken);
   }, [accessToken, checking, loadRecipients]);
+
+  const loadMailConfig = useCallback(async (token: string) => {
+    setMailConfigLoading(true);
+    try {
+      const res = await fetch("/api/admin/mail/config", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMailConfig(null);
+        return;
+      }
+      setMailConfig({
+        mailConfigured: data.mailConfigured === true,
+        mailError: typeof data.mailError === "string" ? data.mailError : null,
+        provider: typeof data.provider === "string" ? data.provider : null,
+        workerKickConfigured: data.workerKickConfigured === true,
+        workerBaseUrl: typeof data.workerBaseUrl === "string" ? data.workerBaseUrl : null,
+        mailOpsTablesReady: data.mailOpsTablesReady === true,
+        mailOpsTablesError:
+          typeof data.mailOpsTablesError === "string" ? data.mailOpsTablesError : null,
+      });
+    } catch {
+      setMailConfig(null);
+    } finally {
+      setMailConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken || checking) return;
+    loadMailConfig(accessToken);
+  }, [accessToken, checking, loadMailConfig]);
 
   const loadStats = useCallback(async (token: string) => {
     setStatsLoading(true);
@@ -160,6 +207,7 @@ export default function AdminMailPage() {
             }
           | undefined;
         if (!job?.status) return;
+        const cursor = job.cursor_index ?? 0;
         if (job.status === "done" || job.status === "failed") {
           const parts: string[] = [
             `Job ${job.status}. Sent: ${job.sent ?? 0}`,
@@ -169,10 +217,13 @@ export default function AdminMailPage() {
           if (job.first_error) parts.push(`First error: ${job.first_error}`);
           setSendResult(parts.join(". ") + ".");
           setActiveJobId(null);
+          setJobPollStartedAt(null);
+          setLastJobProgress(null);
         } else {
+          setLastJobProgress(cursor);
           setSendResult(
             `Queued… ${job.status}. Progress: ${job.sent ?? 0} sent, ` +
-              `${job.cursor_index ?? 0} / ${job.total_recipients ?? "?"} processed.`
+              `${cursor} / ${job.total_recipients ?? "?"} processed.`
           );
         }
       } catch {
@@ -215,8 +266,8 @@ export default function AdminMailPage() {
     setSendResult(null);
     setActiveJobId(null);
 
-    if (!testOnly && selected.size === 0) {
-      setSendError("Select at least one recipient (or enable test send).");
+    if (!testOnly && !sendToAllRegistered && selected.size === 0) {
+      setSendError("Select at least one recipient, use send to all, or enable test send.");
       return;
     }
     if (!subject.trim()) {
@@ -238,7 +289,8 @@ export default function AdminMailPage() {
         body: JSON.stringify({
           subject: subject.trim(),
           body: body.trim(),
-          recipientEmails: testOnly ? [] : [...selected],
+          recipientEmails: testOnly || sendToAllRegistered ? [] : [...selected],
+          sendToAllRegistered: !testOnly && sendToAllRegistered,
           testOnly,
           testTo: testOnly && testTo.trim() ? testTo.trim().toLowerCase() : undefined,
         }),
@@ -250,9 +302,14 @@ export default function AdminMailPage() {
       }
       if (res.status === 202 && data.jobId) {
         setActiveJobId(String(data.jobId));
+        setJobPollStartedAt(Date.now());
+        setLastJobProgress(0);
+        const total =
+          typeof data.totalRecipients === "number" ? data.totalRecipients : recipients.length;
         setSendResult(
-          `Queued broadcast (job ${String(data.jobId).slice(0, 8)}…). ` +
-            `${typeof data.skipped === "number" ? `Skipped addresses: ${data.skipped}. ` : ""}` +
+          `Queued broadcast to ${total} user(s) (job ${String(data.jobId).slice(0, 8)}…). ` +
+            `${typeof data.skipped === "number" && data.skipped > 0 ? `Skipped addresses: ${data.skipped}. ` : ""}` +
+            `${typeof data.workerWarning === "string" ? `${data.workerWarning} ` : ""}` +
             "Progress updates every few seconds."
         );
         return;
@@ -279,19 +336,22 @@ export default function AdminMailPage() {
     }
   };
 
+  const jobStalled =
+    activeJobId &&
+    jobPollStartedAt &&
+    Date.now() - jobPollStartedAt > 5 * 60 * 1000 &&
+    (lastJobProgress ?? 0) === 0;
+
   if (checking) {
     return (
-      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
+      <div className="flex items-center justify-center py-24">
         <div className="text-sm text-gray-500">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-      <SiteHeader />
-
-      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 space-y-6">
+    <main className="space-y-6">
         <div className="rounded-md border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-blue-600" />
@@ -301,6 +361,37 @@ export default function AdminMailPage() {
             Send email to registered users. Each message starts with{" "}
             <span className="font-medium text-gray-800">Hello [username]</span> and your text below.
           </p>
+
+          {mailConfigLoading && !mailConfig ? (
+            <p className="mt-3 text-sm text-gray-500">Checking mail configuration…</p>
+          ) : mailConfig ? (
+            <div className="mt-3 space-y-2">
+              {!mailConfig.mailConfigured && (
+                <p className="text-sm text-red-600" role="alert">
+                  Mail not configured: {mailConfig.mailError ?? "Unknown error."}
+                </p>
+              )}
+              {mailConfig.mailConfigured && mailConfig.provider && (
+                <p className="text-sm text-gray-600">
+                  Provider: <span className="font-medium">{mailConfig.provider}</span>
+                </p>
+              )}
+              {!mailConfig.mailOpsTablesReady && (
+                <p className="text-sm text-red-600" role="alert">
+                  Mail queue tables missing. Run docs/schema_mail_ops.sql in Supabase.
+                  {mailConfig.mailOpsTablesError ? ` (${mailConfig.mailOpsTablesError})` : ""}
+                </p>
+              )}
+              {mailConfig.mailConfigured &&
+                mailConfig.mailOpsTablesReady &&
+                !mailConfig.workerKickConfigured && (
+                  <p className="text-sm text-amber-800 bg-amber-50 rounded-md px-3 py-2">
+                    Worker auto-kick is off. Set MAIL_WORKER_SECRET and NEXT_PUBLIC_BASE_URL on
+                    Vercel, or rely on the cron job (CRON_SECRET).
+                  </p>
+                )}
+            </div>
+          ) : null}
 
           <div className="mt-6 space-y-3">
             <div>
@@ -335,7 +426,11 @@ export default function AdminMailPage() {
                 <input
                   type="checkbox"
                   checked={testOnly}
-                  onChange={(e) => setTestOnly(e.target.checked)}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setTestOnly(next);
+                    if (next) setSendToAllRegistered(false);
+                  }}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
                 />
                 <span className="text-sm font-medium text-gray-800">Test send only (one email)</span>
@@ -382,8 +477,38 @@ export default function AdminMailPage() {
             </div>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {selected.size} selected · {recipients.length} registered
+            {sendToAllRegistered
+              ? `All ${recipients.length} registered users will receive this message`
+              : `${selected.size} selected · ${recipients.length} registered`}
           </p>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setSendToAllRegistered(true);
+                setTestOnly(false);
+              }}
+              disabled={recipients.length === 0 || listLoading || sendLoading}
+              className={`w-full rounded-md border px-3 py-2.5 text-sm font-medium disabled:opacity-50 sm:w-auto sm:py-1.5 ${
+                sendToAllRegistered
+                  ? "border-blue-600 bg-blue-50 text-blue-800"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Send to all registered ({recipients.length})
+            </button>
+            {sendToAllRegistered && (
+              <button
+                type="button"
+                onClick={() => setSendToAllRegistered(false)}
+                disabled={sendLoading}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto sm:py-1.5"
+              >
+                Use manual selection
+              </button>
+            )}
+          </div>
 
           {listError && (
             <p className="mt-3 text-sm text-red-600" role="alert">
@@ -440,8 +565,21 @@ export default function AdminMailPage() {
               {sendError}
             </p>
           )}
+          {jobStalled && (
+            <p className="mt-4 text-sm text-amber-900 bg-amber-50 rounded-md px-3 py-2" role="alert">
+              Job has not progressed in 5+ minutes. Check MAIL_WORKER_SECRET, NEXT_PUBLIC_BASE_URL,
+              and Vercel cron (CRON_SECRET) for /api/internal/mail-worker.
+            </p>
+          )}
           {sendResult && (
-            <p className="mt-4 text-sm text-green-800 bg-green-50 rounded-md px-3 py-2" role="status">
+            <p
+              className={`mt-4 text-sm rounded-md px-3 py-2 ${
+                sendResult.includes("Failed:") || sendResult.includes("First error:")
+                  ? "text-red-800 bg-red-50"
+                  : "text-green-800 bg-green-50"
+              }`}
+              role="status"
+            >
               {sendResult}
             </p>
           )}
@@ -453,9 +591,15 @@ export default function AdminMailPage() {
               disabled={
                 sendLoading ||
                 listLoading ||
-                (!testOnly && (recipients.length === 0 || selected.size === 0))
+                mailConfigLoading ||
+                (mailConfig !== null && !mailConfig.mailConfigured) ||
+                (mailConfig !== null && !mailConfig.mailOpsTablesReady) ||
+                (!testOnly &&
+                  !sendToAllRegistered &&
+                  (recipients.length === 0 || selected.size === 0)) ||
+                (!testOnly && sendToAllRegistered && recipients.length === 0)
               }
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 sm:w-auto"
             >
               {sendLoading ? (
                 <>
@@ -465,7 +609,11 @@ export default function AdminMailPage() {
               ) : (
                 <>
                   <Mail className="h-4 w-4" />
-                  Send to selected
+                  {sendToAllRegistered
+                    ? `Send to all (${recipients.length})`
+                    : testOnly
+                      ? "Send test"
+                      : "Send to selected"}
                 </>
               )}
             </button>
@@ -501,7 +649,7 @@ export default function AdminMailPage() {
             </div>
           ) : stats ? (
             <>
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 {[
                   { label: "Registered users", value: stats.registeredUsers },
                   { label: "Pending signups", value: stats.pendingRegistrations },
@@ -564,7 +712,6 @@ export default function AdminMailPage() {
             </>
           ) : null}
         </div>
-      </main>
-    </div>
+    </main>
   );
 }

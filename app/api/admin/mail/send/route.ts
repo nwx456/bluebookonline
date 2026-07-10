@@ -6,25 +6,36 @@ import { getAuthUser } from "@/lib/admin-mail-auth";
 import {
   checkAdminMailRateLimits,
   getJobThreshold,
+  getWorkerBatchSize,
 } from "@/lib/admin-mail-limits";
 import {
   ADMIN_BROADCAST_SEND_GAP_MS,
   displayNameForRow,
 } from "@/lib/admin-broadcast-helpers";
+import {
+  fetchAllRegisteredRecipients,
+  lookupRecipientsByEmail,
+  type MailRecipientRow,
+} from "@/lib/admin-mail-recipients";
+import {
+  getMailWorkerBaseUrl,
+  isMailWorkerKickConfigured,
+} from "@/lib/admin-mail-worker-auth";
+import { getMailConfigError } from "@/lib/mail/from-address";
 import { sendBroadcastMessage } from "@/lib/nodemailer";
 
 const BODY_PREVIEW_LEN = 200;
 
-function scheduleMailWorkerKick(jobId: string) {
+function scheduleMailWorkerKick(jobId: string, totalRecipients: number) {
   const secret = (process.env.MAIL_WORKER_SECRET ?? "").trim();
-  const base =
-    (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  const base = getMailWorkerBaseUrl();
   if (!secret || !base) return;
+
+  const batchSize = getWorkerBatchSize();
+  const maxRounds = Math.min(Math.ceil(totalRecipients / batchSize) + 2, 50);
 
   after(async () => {
     try {
-      const maxRounds = 12;
       for (let i = 0; i < maxRounds; i++) {
         const res = await fetch(`${base}/api/internal/mail-worker`, {
           method: "POST",
@@ -52,9 +63,44 @@ function scheduleMailWorkerKick(jobId: string) {
   });
 }
 
+async function sendToRecipientList(
+  list: MailRecipientRow[],
+  subject: string,
+  trimmedMessage: string
+): Promise<{ sent: number; failed: number; firstError: string | null }> {
+  let sent = 0;
+  let failed = 0;
+  let firstError: string | null = null;
+
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    const email = row.email;
+    const greeting = displayNameForRow(email, row.username);
+    try {
+      await sendBroadcastMessage({
+        to: email,
+        subject,
+        username: greeting,
+        messageBody: trimmedMessage,
+      });
+      sent++;
+    } catch (err) {
+      failed++;
+      if (!firstError) {
+        firstError = err instanceof Error ? err.message : "Send failed.";
+      }
+    }
+    if (i < list.length - 1) {
+      await new Promise((r) => setTimeout(r, ADMIN_BROADCAST_SEND_GAP_MS));
+    }
+  }
+
+  return { sent, failed, firstError };
+}
+
 /**
  * POST /api/admin/mail/send
- * Body: { subject, body, recipientEmails?, testOnly?, testTo? }
+ * Body: { subject, body, recipientEmails?, sendToAllRegistered?, testOnly?, testTo? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -66,10 +112,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
+    const mailConfigError = getMailConfigError();
+    if (mailConfigError) {
+      return NextResponse.json(
+        { error: `Mail is not configured: ${mailConfigError}` },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const subject = typeof body?.subject === "string" ? body.subject.trim() : "";
     const messageBody = typeof body?.body === "string" ? body.body : "";
     const rawList = Array.isArray(body?.recipientEmails) ? body.recipientEmails : [];
+    const sendToAllRegistered = body?.sendToAllRegistered === true;
     const testOnly = body?.testOnly === true;
     const testToRaw =
       typeof body?.testTo === "string" ? body.testTo.trim().toLowerCase() : "";
@@ -128,41 +183,59 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const normalizedSet = new Set<string>();
-    for (const item of rawList) {
-      if (typeof item !== "string") continue;
-      const e = item.trim().toLowerCase();
-      if (e) normalizedSet.add(e);
-    }
-    const normalizedList = [...normalizedSet];
-    if (normalizedList.length === 0) {
-      return NextResponse.json({ error: "Select at least one recipient." }, { status: 400 });
+    let list: MailRecipientRow[] = [];
+    let skipped = 0;
+
+    if (sendToAllRegistered) {
+      try {
+        list = await fetchAllRegisteredRecipients(supabase);
+      } catch (dbError) {
+        console.error("admin/mail/send fetchAll:", dbError);
+        return NextResponse.json({ error: "Could not load recipients." }, { status: 500 });
+      }
+      if (list.length === 0) {
+        return NextResponse.json({ error: "No registered users to email." }, { status: 400 });
+      }
+    } else {
+      const normalizedSet = new Set<string>();
+      for (const item of rawList) {
+        if (typeof item !== "string") continue;
+        const e = item.trim().toLowerCase();
+        if (e) normalizedSet.add(e);
+      }
+      const normalizedList = [...normalizedSet];
+      if (normalizedList.length === 0) {
+        return NextResponse.json({ error: "Select at least one recipient." }, { status: 400 });
+      }
+
+      try {
+        const lookup = await lookupRecipientsByEmail(supabase, normalizedList);
+        list = lookup.rows;
+        skipped = lookup.skipped;
+      } catch (dbError) {
+        console.error("admin/mail/send lookup:", dbError);
+        return NextResponse.json({ error: "Could not resolve recipients." }, { status: 500 });
+      }
+
+      if (list.length === 0) {
+        return NextResponse.json(
+          { error: "None of the selected addresses exist in usertable.", skipped },
+          { status: 400 }
+        );
+      }
     }
 
-    const rateErr = await checkAdminMailRateLimits(normalizedList.length);
+    const rateErr = await checkAdminMailRateLimits(list.length);
     if (rateErr) {
       return NextResponse.json({ error: rateErr }, { status: 429 });
     }
 
-    const { data: rows, error: dbError } = await supabase
-      .from("usertable")
-      .select("email, username")
-      .in("email", normalizedList);
-
-    if (dbError) {
-      console.error("admin/mail/send lookup:", dbError);
-      return NextResponse.json({ error: "Could not resolve recipients." }, { status: 500 });
-    }
-
-    const foundEmails = new Set((rows ?? []).map((r) => String(r.email).toLowerCase()));
-    const skipped = normalizedList.filter((e) => !foundEmails.has(e)).length;
-    const list = rows ?? [];
     const threshold = getJobThreshold();
 
     if (list.length >= threshold) {
       const payload = list.map((r) => ({
-        email: String(r.email).trim().toLowerCase(),
-        username: (r.username as string | null) ?? null,
+        email: r.email,
+        username: r.username,
       }));
 
       const { data: jobRow, error: jobInsErr } = await supabase
@@ -206,13 +279,19 @@ export async function POST(request: NextRequest) {
       });
       if (logErr) console.error("admin_mail_log queue insert:", logErr);
 
-      scheduleMailWorkerKick(jobId);
+      scheduleMailWorkerKick(jobId, list.length);
+
+      const workerWarning = isMailWorkerKickConfigured()
+        ? null
+        : "Worker auto-kick is not configured (set MAIL_WORKER_SECRET and NEXT_PUBLIC_BASE_URL). Cron will still process the job if CRON_SECRET is set on Vercel.";
 
       return NextResponse.json(
         {
           queued: true,
           jobId,
           skipped,
+          totalRecipients: list.length,
+          workerWarning,
           message:
             "Broadcast queued. Progress updates as the worker runs (cron or automatic kick).",
         },
@@ -220,32 +299,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let sent = 0;
-    let failed = 0;
-    let firstError: string | null = null;
-
-    for (let i = 0; i < list.length; i++) {
-      const row = list[i];
-      const email = String(row.email).trim().toLowerCase();
-      const greeting = displayNameForRow(email, row.username as string | null | undefined);
-      try {
-        await sendBroadcastMessage({
-          to: email,
-          subject,
-          username: greeting,
-          messageBody: trimmedMessage,
-        });
-        sent++;
-      } catch (err) {
-        failed++;
-        if (!firstError) {
-          firstError = err instanceof Error ? err.message : "Send failed.";
-        }
-      }
-      if (i < list.length - 1) {
-        await new Promise((r) => setTimeout(r, ADMIN_BROADCAST_SEND_GAP_MS));
-      }
-    }
+    const { sent, failed, firstError } = await sendToRecipientList(
+      list,
+      subject,
+      trimmedMessage
+    );
 
     const { error: logErr } = await supabase.from("admin_mail_log").insert({
       admin_email: adminEmail,

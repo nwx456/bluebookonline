@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Part } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
+import { countRowsWithPdfAnswerKey } from "@/lib/answer-key-label";
 import { getSystemPrompt, isCodeSubject, SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
-import { buildPdfPart, generateWithFallback } from "@/lib/gemini-client";
+import { buildPdfPart } from "@/lib/gemini-client";
 import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
 import {
   GEMINI_INLINE_LIMIT_BYTES,
@@ -14,37 +14,38 @@ import {
   getExamProgram,
   isSatFullTest,
   isSatSectionTest,
-  isSatSectionUpload,
   satSectionForSubject,
   type SatAdaptiveMode,
   type SatFormat,
 } from "@/lib/exam-program";
 import {
   applySatIngestPostProcess,
-  isPlaceholderMcqOptions,
   partitionSatStemAndPassage,
 } from "@/lib/sat-ingest-postprocess";
+import { runSatBucketExtractPipeline } from "@/lib/sat-extract-pipeline";
+import { runSatGeminiExtraction } from "@/lib/sat-gemini-extract";
 import {
-  buildSatBucketExtractionPrompt,
-  buildSatExtractionPlan,
+  dropRowsWithoutSection,
+  salvageFilterSatQuestions,
+} from "@/lib/sat-question-filter";
+import {
   buildSatModuleReport,
-  buildStructureDiscoveryPrompt,
   formatSatModuleReport,
-  getDetectedLabels,
-  getModeMismatchWarning,
-  parseStructureDiscovery,
+  formatTurkishModuleCountWarning,
+  reportCountForBucketKey,
   reportToLegacyModuleCounts,
   validateSatModuleReport,
-  type SatStructureDetected,
 } from "@/lib/sat-extraction";
-import { applyBucketToQuestion, bucketKey } from "@/lib/sat-module-normalizer";
+import {
+  getSatUploadModuleFields,
+  parseSatModuleQuestionCounts,
+  sumModuleCounts,
+} from "@/lib/sat-upload-module-fields";
 import { handleApAnalyze } from "@/lib/ap-analyze";
 import {
-  bucketPhaseId,
   buildClientAnalyzePhases,
   createPhaseTracker,
   formatFriendlyAnalyzeError,
-  PHASE_DISCOVERY,
   PHASE_EXTRACT,
   PHASE_SAVE,
   PHASE_VALIDATE,
@@ -68,6 +69,7 @@ interface AnalyzeInput {
   satAdaptiveMode: SatAdaptiveMode | null;
   satCutoffRw: number | null;
   satCutoffMath: number | null;
+  satModuleQuestionCounts: Record<string, number> | null;
   /** Already-uploaded storage path the file was downloaded from, when present. */
   prefetchedStoragePath: string | null;
   streamProgress?: boolean;
@@ -89,8 +91,7 @@ export interface AnalyzeSuccessResult {
   questionCount: number;
   moduleCounts?: ReturnType<typeof reportToLegacyModuleCounts>;
   moduleReport?: ReturnType<typeof buildSatModuleReport>;
-  modeMismatchWarning?: string;
-  detectedLabels?: string[];
+  moduleCountWarning?: string;
   moduleSummary?: string;
 }
 
@@ -108,7 +109,8 @@ function parseProvider(value: string | null | undefined): "gemini" | "claude" {
 
 function parseSatAdaptiveMode(value: string | null | undefined): SatAdaptiveMode | null {
   const v = value?.trim();
-  return v === "none" || v === "pool" || v === "six_module" ? (v as SatAdaptiveMode) : null;
+  if (v === "pool") return "none";
+  return v === "none" || v === "six_module" ? (v as SatAdaptiveMode) : null;
 }
 
 function parseSatFormat(value: string | null | undefined): SatFormat | null {
@@ -173,10 +175,27 @@ async function readJsonStorageInput(request: NextRequest): Promise<AnalyzeInput 
 
   const buffer = Buffer.from(arrayBuffer);
 
+  const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+  const satFormat = parseSatFormat(typeof body.satFormat === "string" ? body.satFormat : null);
+  const satAdaptiveMode = parseSatAdaptiveMode(
+    typeof body.satAdaptiveMode === "string" ? body.satAdaptiveMode : null
+  );
+  const resolvedSatFormat: SatFormat =
+    satFormat ?? (isSatFullTest(subject) ? "full_test" : "single_module");
+  const moduleFields = getSatUploadModuleFields({
+    subject,
+    satFormat: resolvedSatFormat,
+    satAdaptiveMode: satAdaptiveMode ?? "none",
+  });
+  const satModuleQuestionCounts =
+    body.satModuleQuestionCounts != null
+      ? parseSatModuleQuestionCounts(body.satModuleQuestionCounts, moduleFields)
+      : null;
+
   return {
     buffer,
     filename,
-    subject: typeof body.subject === "string" ? body.subject.trim() : "",
+    subject,
     questionCount:
       typeof body.questionCount === "number"
         ? body.questionCount
@@ -184,10 +203,8 @@ async function readJsonStorageInput(request: NextRequest): Promise<AnalyzeInput 
     hasVisuals: body.hasVisuals === true || body.hasVisuals === "true",
     aiProvider: parseProvider(typeof body.aiProvider === "string" ? body.aiProvider : null),
     userEmail: typeof body.userEmail === "string" ? body.userEmail.trim() : "",
-    satFormat: parseSatFormat(typeof body.satFormat === "string" ? body.satFormat : null),
-    satAdaptiveMode: parseSatAdaptiveMode(
-      typeof body.satAdaptiveMode === "string" ? body.satAdaptiveMode : null
-    ),
+    satFormat,
+    satAdaptiveMode,
     satCutoffRw:
       typeof body.satCutoffRw === "number"
         ? body.satCutoffRw
@@ -196,6 +213,7 @@ async function readJsonStorageInput(request: NextRequest): Promise<AnalyzeInput 
       typeof body.satCutoffMath === "number"
         ? body.satCutoffMath
         : parseIntOrNull(typeof body.satCutoffMath === "string" ? body.satCutoffMath : null),
+    satModuleQuestionCounts,
     prefetchedStoragePath: storagePath,
     streamProgress: body.streamProgress === true,
   };
@@ -269,45 +287,6 @@ function parseJsonFromResponse(raw: string): GeminiQuestion[] {
     return [];
   }
 }
-
-/**
- * Run a single Gemini extraction call with explicit JSON-mode + high output token
- * cap so long SAT/AP responses don't get truncated mid-JSON. Returns both the
- * parsed questions and the raw text so the caller can aggregate raw output
- * across batched calls for diagnostics.
- */
-async function runGeminiExtraction(args: {
-  apiKey: string;
-  systemInstruction: string;
-  userPrompt: string;
-  pdfPart: Part;
-  maxOutputTokens: number;
-  temperature?: number;
-}): Promise<{ questions: GeminiQuestion[]; rawText: string }> {
-  const { text } = await generateWithFallback({
-    apiKey: args.apiKey,
-    systemInstruction: args.systemInstruction,
-    contents: [{ text: args.userPrompt }, args.pdfPart],
-    generationConfig: {
-      maxOutputTokens: args.maxOutputTokens,
-      responseMimeType: "application/json",
-      temperature: args.temperature ?? 0.2,
-    },
-  });
-  if (!text?.trim()) return { questions: [], rawText: text ?? "" };
-  let parsed: GeminiQuestion[] = [];
-  try {
-    parsed = parseJsonFromResponse(text);
-  } catch {
-    parsed = [];
-  }
-  return { questions: parsed, rawText: text };
-}
-
-const SAT_MODULE_MIN_QUESTIONS: Record<"rw" | "math", number> = {
-  rw: 20,
-  math: 18,
-};
 
 function normalizeCorrect(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -573,10 +552,9 @@ export async function POST(request: NextRequest) {
               examId: result.examId,
               questionCount: result.questionCount,
               moduleSummary: result.moduleSummary,
-              modeMismatchWarning: result.modeMismatchWarning,
+              moduleCountWarning: result.moduleCountWarning,
               moduleCounts: result.moduleCounts,
               moduleReport: result.moduleReport,
-              detectedLabels: result.detectedLabels,
             });
           } catch (e) {
             if (e instanceof AnalyzeFailError) {
@@ -586,10 +564,6 @@ export async function POST(request: NextRequest) {
                   moduleSummary:
                     typeof e.payload.moduleSummary === "string"
                       ? e.payload.moduleSummary
-                      : undefined,
-                  modeMismatchWarning:
-                    typeof e.payload.modeMismatchWarning === "string"
-                      ? e.payload.modeMismatchWarning
                       : undefined,
                   emptyBuckets: Array.isArray(e.payload.emptyBucketKeys)
                     ? (e.payload.emptyBucketKeys as string[])
@@ -648,6 +622,7 @@ async function performAnalyze(
     satAdaptiveMode,
     satCutoffRw,
     satCutoffMath,
+    satModuleQuestionCounts: userModuleCounts,
     prefetchedStoragePath,
   } = input;
 
@@ -664,33 +639,37 @@ async function performAnalyze(
   const sectionFilter = isSatSectionTest(subject, resolvedSatFormat)
     ? satSectionForSubject(subject)
     : null;
+  // For SAT: user counts are the source of truth. Bucket pipeline gets its own
+  // per-bucket targets internally; single-module upload uses one number.
   const questionCount = usesBucketPipeline
-    ? questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
-      ? questionCountRaw
-      : 100
-    : questionCountRaw;
+    ? userModuleCounts
+      ? sumModuleCounts(userModuleCounts)
+      : questionCountRaw ?? 100
+    : (userModuleCounts?.rw1 ?? userModuleCounts?.math1 ?? questionCountRaw);
 
   const subjectKey = subject as SubjectKey;
     const isCode = isCodeSubject(subjectKey);
-    const useHasVisuals = isCode ? true : hasVisuals;
+    // SAT always has visuals possibilities (Math figures, R&W passages/tables),
+    // so let Gemini know to emit page_number/bbox when needed.
+    const useHasVisuals = isCode ? true : isSatFull ? true : hasVisuals;
     const examProgram = getExamProgram(subjectKey);
     const isSat = true;
 
     let userPrompt: string;
     if (isSatFull) {
-        const modeLabel = satAdaptiveMode === "six_module"
-          ? "six-module adaptive (PDF contains M1 + M2-easy + M2-hard per section)"
-          : satAdaptiveMode === "pool"
-            ? "pool adaptive (tag each M2 question with sat_difficulty)"
+        const modeLabel =
+          satAdaptiveMode === "six_module"
+            ? "six-module adaptive (PDF contains M1 + M2-easy + M2-hard per section)"
             : "non-adaptive (only one version of each module)";
         userPrompt = `Analyze the attached Digital SAT FULL TEST PDF and extract ALL multiple-choice + grid-in questions across all 4 modules (Reading & Writing M1, R&W M2, Math M1, Math M2). Adaptive mode: ${modeLabel}. ${
           satCutoffRw != null ? `R&W M1 cutoff = ${satCutoffRw}. ` : ""
-        }${satCutoffMath != null ? `Math M1 cutoff = ${satCutoffMath}. ` : ""}Return ONLY a JSON array of objects. Every object MUST include: sat_section ("rw" | "math"), sat_module (1 | 2), sat_module_variant ("easy" | "hard" | null), sat_difficulty ("easy" | "medium" | "hard" | null), question_type ("mcq" | "grid_in"), accepted_answers (array of strings for grid-in or null), options (4 elements A-D for MCQ, [] for grid-in), correct (A/B/C/D for MCQ OR numeric string for grid-in OR null when no answer key in PDF). Preserve original question order. Do NOT include markdown or explanation, only the JSON array.`;
+        }${satCutoffMath != null ? `Math M1 cutoff = ${satCutoffMath}. ` : ""}Return ONLY a JSON array of objects. Every object MUST include: sat_section ("rw" | "math"), sat_module (1 | 2), sat_module_variant ("easy" | "hard" | null), sat_difficulty (null), question_type ("mcq" | "grid_in"), accepted_answers (array of strings for grid-in or null), options (4 elements A-D for MCQ, [] for grid-in), correct (A/B/C/D for MCQ OR numeric string for grid-in OR null when no answer key in PDF). sat_section and sat_module are MANDATORY and must never be null. Preserve original question order. Do NOT include markdown or explanation, only the JSON array.`;
       } else if (subject === "SAT_RW") {
-        userPrompt = `Analyze the attached SAT Reading & Writing PDF and extract up to ${questionCount} multiple-choice questions. Each object: "type" ("text"), "content" (ONLY the question stem—e.g. "Which choice…", "As used in the passage…"), "image_description" (passage / excerpt; or null), "options" (a JSON array of exactly 4 STRINGS; each string is the FULL TEXT of one answer choice in order A,B,C,D—NEVER just the letters like ["A","B","C","D"]; if you cannot read a choice clearly, write your best transcription, do NOT leave an empty string), "correct" (the letter A/B/C/D that matches the answer key for this exact question; null when the PDF has no answer key; do NOT guess), "question_type": "mcq", "sat_section": "rw", "sat_module": 1 or 2 (from PDF header; if single-module practice use 1), "sat_module_variant": null, "sat_difficulty": null, "accepted_answers": null. NO E option ever. Do NOT include has_graph/page_number/bbox. Do NOT include any markdown or explanation, only the JSON array.`;
+        const rwTarget = userModuleCounts?.rw1 ?? questionCount ?? 27;
+        userPrompt = `Analyze the attached SAT Reading & Writing PDF and extract exactly ${rwTarget} multiple-choice questions (required count: ${rwTarget}; do not return fewer than ${rwTarget} and do not exceed ${rwTarget + 1}). Each object: "type" ("text"), "content" (ONLY the question stem), "image_description" (passage / excerpt; or null), "options" (a JSON array of exactly 4 FULL-TEXT strings A,B,C,D), "correct" (A/B/C/D from the PDF answer key or null; do NOT guess), "question_type": "mcq", "sat_section": "rw" (MANDATORY), "sat_module": 1 or 2 from the PDF header (single-module practice = 1; MANDATORY, never null), "sat_module_variant": null, "sat_difficulty": null, "accepted_answers": null. NO E option ever. Do NOT include has_graph/page_number/bbox. Return only the JSON array.`;
       } else {
-        // SAT_MATH
-        userPrompt = `Analyze the attached SAT Math PDF and extract up to ${questionCount} questions (MCQ + grid-in). Each object: "type" ("text" | "image"), "content" (question text), "image_description" (figure description or null), "has_graph" (boolean), "page_number" (1-based if has_graph), "bbox" (0-1 normalized if has_graph), "options" (for MCQ: a JSON array of exactly 4 STRINGS where each string is the FULL TEXT of one answer choice in order A,B,C,D—NEVER just labels; for grid-in: []), "correct" (A/B/C/D matching the actual choices for MCQ OR numeric string like "3/2" for grid-in OR null if no answer key; do NOT guess), "question_type" ("mcq" | "grid_in"), "accepted_answers" (string array of equivalent numeric forms for grid-in, e.g. ["3/2","1.5"]; null for MCQ), "sat_section": "math", "sat_module": 1 or 2, "sat_module_variant": null, "sat_difficulty": null. NO E option ever. Detect grid-in questions by absence of A-D choices and presence of a numeric answer prompt. Do NOT include any markdown, only the JSON array.`;
+        const mathTarget = userModuleCounts?.math1 ?? questionCount ?? 22;
+        userPrompt = `Analyze the attached SAT Math PDF and extract exactly ${mathTarget} questions (required count: ${mathTarget}; do not return fewer than ${mathTarget} and do not exceed ${mathTarget + 1}; MCQ + grid-in). Each object: "type" ("text" | "image"), "content" (question text), "image_description" (figure description or null), "has_graph" (boolean), "page_number" (1-based when has_graph is true), "bbox" (0-1 normalized when has_graph is true), "options" (MCQ: 4 FULL-TEXT strings A,B,C,D; grid-in: []), "correct" (A/B/C/D for MCQ OR numeric string like "3/2" for grid-in OR null; do NOT guess), "question_type" ("mcq" | "grid_in"), "accepted_answers" (string array of equivalent numeric forms for grid-in; null for MCQ), "sat_section": "math" (MANDATORY), "sat_module": 1 or 2 (MANDATORY, never null), "sat_module_variant": null, "sat_difficulty": null. NO E option ever. Return only the JSON array.`;
     }
 
     const systemInstruction = getSystemPrompt(
@@ -701,15 +680,20 @@ async function performAnalyze(
             satAdaptiveMode: satAdaptiveMode ?? "none",
             satCutoffRw,
             satCutoffMath,
+            satFormat: resolvedSatFormat,
+            usesBucketPipeline,
           }
         : undefined
     );
     // Aggregate raw model output across batched SAT calls for diagnostic logging.
     const rawAggregate: string[] = [];
     let questions: GeminiQuestion[] = [];
-    let structureDetected: SatStructureDetected | null = null;
-    let modeMismatchWarning: string | null = null;
+    let moduleCountWarning: string | undefined;
+    let bucketCountsDuringExtract: Record<string, number> = {};
+    let bucketCountsAfterFilter: Record<string, number> = {};
     const effectiveAdaptiveMode: SatAdaptiveMode = satAdaptiveMode ?? "none";
+    const ingestSection: "rw" | "math" | null =
+      subjectKey === "SAT_RW" ? "rw" : subjectKey === "SAT_MATH" ? "math" : null;
 
     if (aiProvider === "claude") {
       if (buffer.length > GEMINI_INLINE_LIMIT_BYTES) {
@@ -778,102 +762,29 @@ async function performAnalyze(
       });
 
       if (usesBucketPipeline) {
-        tracker?.start(PHASE_DISCOVERY);
-        const discovery = await runGeminiExtraction({
-          apiKey: process.env.GEMINI_API_KEY!,
+        const pipelineResult = await runSatBucketExtractPipeline({
+          subject,
+          sectionFilter,
+          effectiveAdaptiveMode,
+          userModuleCounts,
           systemInstruction,
-          userPrompt: buildStructureDiscoveryPrompt(),
+          apiKey: process.env.GEMINI_API_KEY!,
           pdfPart,
-          maxOutputTokens: 4096,
-          temperature: 0.1,
+          tracker,
         });
-        rawAggregate.push(
-          `--- STRUCTURE DISCOVERY ---\n${discovery.rawText.slice(0, 3000)}`
-        );
-        structureDetected = parseStructureDiscovery(discovery.rawText);
-        modeMismatchWarning = getModeMismatchWarning(
-          effectiveAdaptiveMode,
-          structureDetected
-        );
-        if (process.env.NODE_ENV === "development" && structureDetected) {
-          console.info("[upload/analyze] structure discovery", {
-            suggested: structureDetected.suggestedAdaptiveMode,
-            namingStyle: structureDetected.namingStyle,
-            blocks: structureDetected.sections.flatMap((s) => s.blocks.map((b) => b.detectedTitle)),
-          });
+        rawAggregate.push(...pipelineResult.rawAggregate);
+        questions = pipelineResult.questions as GeminiQuestion[];
+        bucketCountsDuringExtract = pipelineResult.bucketCountsDuringExtract;
+        bucketCountsAfterFilter = pipelineResult.bucketCountsAfterFilter;
+        if (pipelineResult.auditWarnings.length > 0) {
+          const auditText = pipelineResult.auditWarnings.join("; ");
+          moduleCountWarning = moduleCountWarning
+            ? `${moduleCountWarning}; ${auditText}`
+            : auditText;
         }
-        const blockCount = structureDetected?.sections.reduce((n, s) => n + s.blocks.length, 0) ?? 0;
-        tracker?.done(PHASE_DISCOVERY, `${blockCount} module blocks detected`);
-
-        const plan = buildSatExtractionPlan(
-          effectiveAdaptiveMode,
-          structureDetected,
-          sectionFilter
-        );
-        const allQuestions: GeminiQuestion[] = [];
-        const bucketCountsDuringExtract: Record<string, number> = {};
-
-        for (const bucket of plan) {
-          const phaseId = bucketPhaseId(bucket);
-          tracker?.start(phaseId);
-          const priorCountKey =
-            bucket.section === "rw" && bucket.module === 2
-              ? `${bucket.section}1`
-              : bucket.section === "math" && bucket.module === 2
-                ? `${bucket.section}1`
-                : null;
-          const priorCount =
-            priorCountKey != null
-              ? bucketCountsDuringExtract[priorCountKey]
-              : undefined;
-
-          const runBatch = async (retry: boolean) => {
-            const modulePrompt = buildSatBucketExtractionPrompt(bucket, {
-              adaptiveMode: effectiveAdaptiveMode,
-              priorModuleCount: priorCount,
-              retry,
-            });
-            return runGeminiExtraction({
-              apiKey: process.env.GEMINI_API_KEY!,
-              systemInstruction,
-              userPrompt: modulePrompt,
-              pdfPart,
-              maxOutputTokens: 32768,
-              temperature: retry ? 0.4 : 0.2,
-            });
-          };
-
-          let result = await runBatch(false);
-          const minExpected = SAT_MODULE_MIN_QUESTIONS[bucket.section];
-          if (
-            result.questions.length < minExpected &&
-            (bucket.module === 2 || result.questions.length === 0)
-          ) {
-            const retryResult = await runBatch(true);
-            if (retryResult.questions.length > result.questions.length) {
-              result = retryResult;
-            }
-          }
-
-          const bucketLabel = bucketKey(bucket);
-          rawAggregate.push(
-            `--- ${bucketLabel} (raw len=${result.rawText.length}, parsed=${result.questions.length}) ---\n${result.rawText.slice(0, 2000)}`
-          );
-          if (process.env.NODE_ENV === "development") {
-            console.info(
-              `[upload/analyze] SAT bucket ${bucketLabel}: parsed ${result.questions.length} questions`
-            );
-          }
-          for (const q of result.questions) {
-            allQuestions.push(applyBucketToQuestion(q, bucket));
-          }
-          bucketCountsDuringExtract[bucketLabel] = result.questions.length;
-          tracker?.done(phaseId, `${result.questions.length} questions`);
-        }
-        questions = allQuestions;
       } else {
         tracker?.start(PHASE_EXTRACT);
-        const result = await runGeminiExtraction({
+        const result = await runSatGeminiExtraction({
           apiKey: process.env.GEMINI_API_KEY!,
           systemInstruction,
           userPrompt,
@@ -881,7 +792,7 @@ async function performAnalyze(
           maxOutputTokens: 32768,
         });
         rawAggregate.push(result.rawText);
-        questions = result.questions;
+        questions = result.questions as GeminiQuestion[];
         tracker?.done(PHASE_EXTRACT, `${questions.length} questions`);
       }
 
@@ -896,50 +807,25 @@ async function performAnalyze(
       }
     }
 
-    if (isSat) {
+    if (isSat && !usesBucketPipeline) {
       for (const q of questions) {
-        applySatIngestPostProcess(q);
+        applySatIngestPostProcess(q, { section: ingestSection });
+      }
+      // Force-tag section from subject when the model omitted it (single-module).
+      if (ingestSection) {
+        for (const q of questions) {
+          if (!q.sat_section) q.sat_section = ingestSection;
+          if (!q.sat_module) q.sat_module = 1;
+        }
+      }
+      const salvaged = salvageFilterSatQuestions(questions);
+      questions = dropRowsWithoutSection(salvaged.kept);
+      if (process.env.NODE_ENV === "development" && salvaged.dropped.length > 0) {
+        console.info(
+          `[upload/analyze] salvage filter dropped ${salvaged.dropped.length} empty rows`
+        );
       }
     }
-
-    // Skip items with no options (avoid irrelevant/instruction-only entries).
-    // EXCEPTIONS:
-    //   - SAT grid-in: no options but must have accepted_answers / numeric correct / stem text
-    //   - SAT MCQ: keep when stem is present AND at least 2 options were returned (the
-    //     last option(s) may be cut off by token truncation; we still want the question)
-    questions = questions.filter((q) => {
-      const qtype = normalizeQuestionType(q.question_type);
-      if (isSat && qtype === "grid_in") {
-        const hasAccepted = Array.isArray(q.accepted_answers) && q.accepted_answers.length > 0;
-        const hasNumericCorrect = typeof q.correct === "string" && /\d/.test(q.correct);
-        const hasStem =
-          (typeof q.question === "string" && q.question.trim() !== "") ||
-          (typeof q.content === "string" && q.content.trim() !== "");
-        return hasAccepted || hasNumericCorrect || hasStem;
-      }
-      const opts = optionsToColumns(q.options, isSat);
-      const optionCount = [
-        opts.option_a,
-        opts.option_b,
-        opts.option_c,
-        opts.option_d,
-        opts.option_e,
-      ].filter((o) => o != null && o.trim() !== "").length;
-      if (isSat) {
-        const stemRaw =
-          typeof q.content === "string"
-            ? q.content
-            : typeof q.question === "string"
-              ? q.question
-              : "";
-        const hasStem = stemRaw.trim().length > 5;
-        if (isPlaceholderMcqOptions(q.options) && qtype !== "grid_in") {
-          return false;
-        }
-        return hasStem && optionCount >= 2;
-      }
-      return false;
-    });
 
     // Aggregate raw model output for the upload record + diagnostics.
     const rawText = rawAggregate.join("\n---\n");
@@ -950,18 +836,28 @@ async function performAnalyze(
       tracker?.start(PHASE_VALIDATE);
       moduleReport = buildSatModuleReport(questions);
       moduleCounts = reportToLegacyModuleCounts(moduleReport);
+      if (process.env.NODE_ENV === "development") {
+        for (const [key, parsed] of Object.entries(bucketCountsDuringExtract)) {
+          const afterSalvage =
+            bucketCountsAfterFilter[key] ?? reportCountForBucketKey(moduleReport, key);
+          console.info(
+            `[upload/analyze] SAT bucket ${key}: parsed ${parsed} → after salvage ${afterSalvage}`
+          );
+        }
+      }
+
       const validation = validateSatModuleReport(
         moduleReport,
         effectiveAdaptiveMode,
-        structureDetected,
-        sectionFilter
+        null,
+        sectionFilter,
+        userModuleCounts ? { userModuleCounts } : undefined
       );
       if (!validation.ok) {
         if (process.env.NODE_ENV === "development") {
-          console.error("[upload/analyze] SAT_FULL_TEST incomplete module extraction", {
+          console.error("[upload/analyze] SAT incomplete module extraction", {
             moduleReport,
             emptyBuckets: validation.emptyBucketKeys,
-            modeMismatchWarning,
           });
         }
         throwFail(
@@ -970,13 +866,16 @@ async function performAnalyze(
             error: validation.error,
             moduleCounts,
             moduleReport,
-            modeMismatchWarning,
-            detectedLabels: getDetectedLabels(structureDetected),
             emptyBucketKeys: validation.emptyBucketKeys,
             moduleSummary: moduleReport ? formatSatModuleReport(moduleReport) : undefined,
           },
           PHASE_VALIDATE
         );
+      }
+      if (validation.ok && validation.warnings?.length) {
+        moduleCountWarning = userModuleCounts
+          ? formatTurkishModuleCountWarning(moduleReport, userModuleCounts)
+          : `Bazı modüllerde hedef sayıya ulaşılamadı: ${validation.warnings.join("; ")}`;
       }
       tracker?.done(PHASE_VALIDATE);
     }
@@ -1020,6 +919,15 @@ async function performAnalyze(
       is_published: true,
       exam_program: examProgram,
     };
+    const requestedAtUpload =
+      questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
+        ? questionCountRaw
+        : userModuleCounts
+          ? Object.values(userModuleCounts).reduce((a, b) => a + (Number(b) || 0), 0) || null
+          : null;
+    if (requestedAtUpload != null && requestedAtUpload > 0) {
+      uploadInsertPayload.requested_question_count = requestedAtUpload;
+    }
     if (isSat) {
       uploadInsertPayload.sat_format = resolvedSatFormat;
       uploadInsertPayload.sat_adaptive_mode = usesBucketPipeline
@@ -1030,9 +938,6 @@ async function performAnalyze(
       }
       if (satCutoffMath != null && Number.isFinite(satCutoffMath)) {
         uploadInsertPayload.sat_cutoff_math = satCutoffMath;
-      }
-      if (structureDetected) {
-        uploadInsertPayload.sat_structure_detected = structureDetected;
       }
     }
 
@@ -1102,10 +1007,11 @@ async function performAnalyze(
       await supabase.from("pdf_uploads").update({ storage_path: storageKey }).eq("id", uploadId);
     }
 
-    // SAT_FULL_TEST is not limited to questionCount because AI auto-detects all modules.
-    const sliceLimit: number = isSatFull
+    // Bucket pipeline keeps everything extracted. Single-module SAT trims to
+    // the user-provided target (default 100) to stop runaway extractions.
+    const sliceLimit: number = usesBucketPipeline
       ? questions.length
-      : (questionCount ?? questions.length);
+      : questionCount ?? questions.length;
     const rows = questions.slice(0, sliceLimit).map((q, i) => {
       const qtype = normalizeQuestionType(q.question_type);
       const opts = optionsToColumns(q.options, isSat);
@@ -1257,6 +1163,20 @@ async function performAnalyze(
       }
     }
 
+    const answerKeyFromPdfCount = countRowsWithPdfAnswerKey(rows);
+    const requestedQuestionCount = userModuleCounts
+      ? sumModuleCounts(userModuleCounts)
+      : questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
+        ? questionCountRaw
+        : rows.length;
+    await supabase
+      .from("pdf_uploads")
+      .update({
+        requested_question_count: requestedQuestionCount,
+        answer_key_from_pdf_count: answerKeyFromPdfCount,
+      })
+      .eq("id", uploadId);
+
     tracker?.done(PHASE_SAVE);
 
     return {
@@ -1264,12 +1184,9 @@ async function performAnalyze(
       questionCount: rows.length,
       ...(moduleCounts ? { moduleCounts } : {}),
       ...(moduleReport ? { moduleReport } : {}),
-      ...(modeMismatchWarning ? { modeMismatchWarning } : undefined),
-      ...(structureDetected
-        ? {
-            detectedLabels: getDetectedLabels(structureDetected),
-            moduleSummary: moduleReport ? formatSatModuleReport(moduleReport) : undefined,
-          }
+      ...(moduleCountWarning ? { moduleCountWarning } : undefined),
+      ...(moduleReport
+        ? { moduleSummary: formatSatModuleReport(moduleReport) }
         : {}),
     };
 }

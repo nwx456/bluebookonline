@@ -134,7 +134,7 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
 
       <SiteHeader />
 
-      <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-8">
+      <main className="flex-1 mx-auto w-full max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-gray-500">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
@@ -147,9 +147,9 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
           </ol>
         </nav>
 
-        <section className="mb-8 rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-6 py-10 shadow-sm border border-gray-100 text-center">
-          <BookOpen className="mx-auto h-12 w-12 text-blue-600" />
-          <h1 className="mt-3 text-2xl font-semibold text-gray-900 sm:text-3xl">{heroTitle}</h1>
+        <section className="mb-8 rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-4 py-8 shadow-sm border border-gray-100 text-center sm:px-6 sm:py-10">
+          <BookOpen className="mx-auto h-10 w-10 text-blue-600 sm:h-12 sm:w-12" />
+          <h1 className="mt-3 text-xl font-semibold text-gray-900 sm:text-2xl">{heroTitle}</h1>
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto leading-relaxed">{heroDescription}</p>
         </section>
 
@@ -169,12 +169,12 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
                     <Link
                       key={s.key}
                       href={`/exams/${s.slug}${programQuery}`}
-                      className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all flex flex-col"
+                      className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all flex flex-col sm:p-4"
                     >
                       <div className="flex items-start gap-3">
                         <BookOpen className="h-7 w-7 shrink-0 text-blue-600" />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 leading-snug">{s.fullName}</h3>
+                          <h3 className="font-medium text-gray-900 leading-snug line-clamp-2">{s.fullName}</h3>
                           <p className="mt-1 text-xs text-gray-500">
                             {s.examFormat.mcqCount} MCQ &middot; {s.examFormat.durationMin} min
                           </p>

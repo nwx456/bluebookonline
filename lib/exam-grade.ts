@@ -304,6 +304,11 @@ export function filterQuestionsForSatModule(
   questions: GradeQuestionRow[],
   moduleId: SatModuleId,
   opts: {
+    /**
+     * When true, apply strict section/module filtering. This should be true for
+     * SAT full tests AND section tests (any upload that uses the module flow).
+     * Single-module uploads should pass false and receive all questions.
+     */
     isSatFull: boolean;
     satAdaptiveMode: string | null | undefined;
     selectedRwM2Variant: SatModuleVariant | null;
@@ -314,12 +319,30 @@ export function filterQuestionsForSatModule(
   const target = SAT_MODULES.find((m) => m.id === moduleId);
   if (!target) return [];
   return questions.filter((q) => {
-    const section = (q.sat_section === "math" ? "math" : "rw") as SatSection;
-    const moduleNumber = (q.sat_module === 2 ? 2 : 1) as 1 | 2;
+    // STRICT match: a question without an explicit section or module MUST be
+    // excluded rather than silently attached to "rw"/"1". Extraction is
+    // responsible for tagging every row. Trim + lowercase to defend against
+    // stray whitespace/casing from AI responses.
+    const rawSection =
+      typeof q.sat_section === "string"
+        ? q.sat_section.toLowerCase().trim()
+        : null;
+    if (rawSection !== "rw" && rawSection !== "math") return false;
+    const section = rawSection as SatSection;
+    const moduleNumber = q.sat_module === 1 || q.sat_module === 2 ? q.sat_module : null;
+    if (moduleNumber == null) return false;
     if (section !== target.section || moduleNumber !== target.module) return false;
+
+    // In six-module adaptive mode, M2 must match the selected easy/hard variant
+    // for that section. A question tagged with a different variant is out;
+    // a null variant on an M2 question in six_module is a data problem — drop.
     if (target.module === 2 && opts.satAdaptiveMode === "six_module") {
-      const variant = target.section === "rw" ? opts.selectedRwM2Variant : opts.selectedMathM2Variant;
-      if (q.sat_module_variant && variant && q.sat_module_variant !== variant) return false;
+      const variant =
+        target.section === "rw"
+          ? opts.selectedRwM2Variant
+          : opts.selectedMathM2Variant;
+      if (!variant) return false;
+      if (q.sat_module_variant !== variant) return false;
     }
     return true;
   });

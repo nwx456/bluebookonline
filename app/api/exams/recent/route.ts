@@ -20,9 +20,11 @@ async function getAuthUser(request: NextRequest) {
 }
 
 const SELECT_WITH_SKIP_AI =
-  "id, upload_id, completed_at, correct_count, incorrect_count, unanswered_count, total_questions, skip_ai_grading";
+  "id, upload_id, completed_at, correct_count, incorrect_count, unanswered_count, total_questions, skip_ai_grading, module_progress, rw_scaled_score, math_scaled_score, total_scaled_score";
 const SELECT_BASE =
   "id, upload_id, completed_at, correct_count, incorrect_count, unanswered_count, total_questions";
+
+type ModuleProgressEntry = { correct: number; total: number };
 
 type RecentAttemptRow = {
   id: string;
@@ -33,6 +35,10 @@ type RecentAttemptRow = {
   unanswered_count: number | null;
   total_questions: number | null;
   skip_ai_grading?: boolean | null;
+  module_progress?: Record<string, ModuleProgressEntry> | null;
+  rw_scaled_score?: number | null;
+  math_scaled_score?: number | null;
+  total_scaled_score?: number | null;
 };
 
 /**
@@ -139,6 +145,17 @@ export async function GET(request: NextRequest) {
         skipAiGrading,
         totalQuestions: total,
         percentage,
+        // SAT-specific extras (null for AP or older SAT attempts).
+        moduleProgress:
+          a.module_progress && typeof a.module_progress === "object"
+            ? (a.module_progress as Record<string, ModuleProgressEntry>)
+            : null,
+        rwScaledScore:
+          typeof a.rw_scaled_score === "number" ? a.rw_scaled_score : null,
+        mathScaledScore:
+          typeof a.math_scaled_score === "number" ? a.math_scaled_score : null,
+        totalScaledScore:
+          typeof a.total_scaled_score === "number" ? a.total_scaled_score : null,
       };
     });
 

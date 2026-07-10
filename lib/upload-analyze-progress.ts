@@ -38,11 +38,21 @@ export type ProgressEvent =
   | { type: "phase_done"; phaseId: string; at: number; durationMs: number; detail?: string }
   | { type: "phase_error"; phaseId: string; at: number; message: string }
   | { type: "heartbeat"; activePhaseId: string; at: number }
-  | { type: "complete"; examId: string; questionCount: number; moduleSummary?: string; modeMismatchWarning?: string; moduleCounts?: unknown; moduleReport?: unknown; detectedLabels?: string[] }
+  | {
+      type: "complete";
+      examId: string;
+      questionCount: number;
+      moduleSummary?: string;
+      modeMismatchWarning?: string;
+      moduleCountWarning?: string;
+      detectedStructureSummary?: string;
+      moduleCounts?: unknown;
+      moduleReport?: unknown;
+      detectedLabels?: string[];
+    }
   | ({ type: "error" } & AnalyzeErrorDisplay);
 
 export const PHASE_UPLOAD = "upload";
-export const PHASE_DISCOVERY = "discovery";
 export const PHASE_VALIDATE = "validate";
 export const PHASE_SAVE = "save";
 export const PHASE_EXTRACT = "extract";
@@ -77,8 +87,9 @@ function bucketDisplayLabel(bucket: SatModuleBucket): { label: string; shortLabe
 function totalPredictedLabel(phases: AnalyzePhase[], subject?: string): string {
   const serverPhases = phases.filter((p) => p.id !== PHASE_UPLOAD);
   const bucketCount = serverPhases.filter((p) => p.id.startsWith("bucket:")).length;
-  if (bucketCount >= 6) return "About 8–10 min total";
-  if (bucketCount >= 4) return "About 6–8 min total";
+  if (bucketCount >= 6) return "About 6–8 min total";
+  if (bucketCount >= 4) return "About 4–6 min total";
+  if (bucketCount >= 2) return "About 2–4 min total";
   if (bucketCount === 0 && serverPhases.some((p) => p.id === PHASE_EXTRACT)) {
     const extract = serverPhases.find((p) => p.id === PHASE_EXTRACT);
     if (
@@ -98,15 +109,6 @@ function uploadPhase(): AnalyzePhase {
     label: "Uploading PDF",
     shortLabel: "Upload",
     predictedTimeLabel: "~15 sec",
-  };
-}
-
-function discoveryPhase(): AnalyzePhase {
-  return {
-    id: PHASE_DISCOVERY,
-    label: "Scanning PDF structure",
-    shortLabel: "Structure",
-    predictedTimeLabel: "~30 sec",
   };
 }
 
@@ -156,7 +158,6 @@ export function buildSatFullAnalyzePhases(adaptiveMode: SatAdaptiveMode): Analyz
   const plan = buildSatExtractionPlan(adaptiveMode, null);
   return [
     uploadPhase(),
-    discoveryPhase(),
     ...plan.map(bucketPhase),
     validatePhase(),
     savePhase(),
@@ -168,10 +169,9 @@ export function buildSectionSatAnalyzePhases(
   adaptiveMode: SatAdaptiveMode
 ): AnalyzePhase[] {
   const section = satSectionForSubject(subject);
-  const plan = buildSatExtractionPlan(adaptiveMode, null, section);
+  const plan = buildSatExtractionPlan(adaptiveMode, section);
   return [
     uploadPhase(),
-    discoveryPhase(),
     ...plan.map(bucketPhase),
     validatePhase(),
     savePhase(),

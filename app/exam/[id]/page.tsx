@@ -56,6 +56,7 @@ import {
   satSectionForSubject,
   SAT_MODULES,
   usesSatModuleFlow,
+  type SatAdaptiveMode,
   type SatModuleId,
   type SatSection,
 } from "@/lib/exam-program";
@@ -279,7 +280,15 @@ function questionMatchesSatModuleBase(
   section: SatSection,
   module: 1 | 2
 ): boolean {
-  return q.sat_section === section && q.sat_module === module;
+  // STRICT: a question without an explicit section/module must NOT match. This
+  // mirrors filterQuestionsForSatModule so grading and UI stay in sync.
+  const rawSection =
+    typeof q.sat_section === "string" ? q.sat_section.toLowerCase().trim() : null;
+  if (rawSection !== "rw" && rawSection !== "math") return false;
+  if (rawSection !== section) return false;
+  const moduleNumber = q.sat_module === 1 || q.sat_module === 2 ? q.sat_module : null;
+  if (moduleNumber == null) return false;
+  return moduleNumber === module;
 }
 
 const OPTION_KEYS = ["A", "B", "C", "D", "E"] as const;
@@ -859,6 +868,12 @@ export default function ExamPage() {
   const [currentModuleId, setCurrentModuleId] = useState<SatModuleId | null>(null);
   const [moduleTransitionShown, setModuleTransitionShown] = useState<SatModuleId | null>(null);
   const [moduleTransitionError, setModuleTransitionError] = useState<string | null>(null);
+  const [lockedRwM2Variant, setLockedRwM2Variant] = useState<"easy" | "hard" | null>(
+    null
+  );
+  const [lockedMathM2Variant, setLockedMathM2Variant] = useState<"easy" | "hard" | null>(
+    null
+  );
   const [showModuleScoreChoice, setShowModuleScoreChoice] = useState(false);
   const [moduleScoreResult, setModuleScoreResult] = useState<ModuleScoreResult | null>(null);
   const [scoringModule, setScoringModule] = useState(false);
@@ -1328,18 +1343,22 @@ export default function ExamPage() {
   const usesSatModules = usesSatModuleFlow({ subject, satFormat });
   const satSectionOnly = satSectionForSubject(subject);
   const satResultGroups = useMemo(
-    () => (isSat ? getSatModuleGroups(questions, subject) : []),
-    [isSat, questions, subject]
+    () =>
+      isSat
+        ? getSatModuleGroups(questions, subject, {
+            satFormat,
+            satAdaptiveMode: upload?.sat_adaptive_mode,
+          })
+        : [],
+    [isSat, questions, subject, satFormat, upload?.sat_adaptive_mode]
   );
   const needsDesmos = satRequiresDesmos(subject);
   const isCalculatorAllowed = !isSat && CALCULATOR_ALLOWED_SUBJECTS.has(subject);
   const isCalculatorScientific =
     isCalculatorAllowed &&
     !["AP_MICROECONOMICS", "AP_MACROECONOMICS"].includes(subject);
-  const satAdaptiveMode =
-    (upload?.sat_adaptive_mode === "six_module" || upload?.sat_adaptive_mode === "pool" || upload?.sat_adaptive_mode === "none")
-      ? upload.sat_adaptive_mode
-      : "none";
+  const satAdaptiveMode: SatAdaptiveMode =
+    upload?.sat_adaptive_mode === "six_module" ? "six_module" : "none";
 
   // -----------------------------------------------------------------------
   // SAT module flow: split the loaded questions into modules and present them
@@ -1390,19 +1409,34 @@ export default function ExamPage() {
     [questions]
   );
 
-  const m2RwVariant = useMemo(
+  const liveRwM2Variant = useMemo(
     () =>
       satAdaptiveMode === "six_module"
         ? pickSatM2Variant(m1RwCorrectCount, rwM1Total, upload?.sat_cutoff_rw ?? null)
         : null,
     [satAdaptiveMode, m1RwCorrectCount, rwM1Total, upload?.sat_cutoff_rw]
   );
-  const m2MathVariant = useMemo(
+  const liveMathM2Variant = useMemo(
     () =>
       satAdaptiveMode === "six_module"
         ? pickSatM2Variant(m1MathCorrectCount, mathM1Total, upload?.sat_cutoff_math ?? null)
         : null,
     [satAdaptiveMode, m1MathCorrectCount, mathM1Total, upload?.sat_cutoff_math]
+  );
+  const m2RwVariant = lockedRwM2Variant ?? liveRwM2Variant;
+  const m2MathVariant = lockedMathM2Variant ?? liveMathM2Variant;
+
+  const questionMatchesModule = useCallback(
+    (q: Question, mod: { section: SatSection; module: 1 | 2 }): boolean => {
+      if (!questionMatchesSatModuleBase(q, mod.section, mod.module)) return false;
+      if (satAdaptiveMode === "six_module" && mod.module === 2) {
+        const variant = mod.section === "rw" ? m2RwVariant : m2MathVariant;
+        if (!variant) return false;
+        if (q.sat_module_variant !== variant) return false;
+      }
+      return true;
+    },
+    [satAdaptiveMode, m2RwVariant, m2MathVariant]
   );
 
   const availableModules = useMemo(() => {
@@ -1410,9 +1444,9 @@ export default function ExamPage() {
     return SAT_MODULES.filter(
       (mod) =>
         (!satSectionOnly || mod.section === satSectionOnly) &&
-        questions.some((q) => questionMatchesSatModuleBase(q, mod.section, mod.module))
+        questions.some((q) => questionMatchesModule(q, mod))
     );
-  }, [usesSatModules, satSectionOnly, questions]);
+  }, [usesSatModules, satSectionOnly, questions, questionMatchesModule]);
 
   const matchesCurrentModule = useCallback(
     (q: Question, modId: SatModuleId | null): boolean => {
@@ -1421,11 +1455,19 @@ export default function ExamPage() {
       if (!usesSatModules) return true;
       const target = SAT_MODULES.find((m) => m.id === modId);
       if (!target) return false;
-      if (q.sat_section !== target.section) return false;
-      if (q.sat_module !== target.module) return false;
+      const rawSection =
+        typeof q.sat_section === "string"
+          ? q.sat_section.toLowerCase().trim()
+          : null;
+      if (rawSection !== "rw" && rawSection !== "math") return false;
+      if (rawSection !== target.section) return false;
+      const moduleNumber = q.sat_module === 1 || q.sat_module === 2 ? q.sat_module : null;
+      if (moduleNumber == null) return false;
+      if (moduleNumber !== target.module) return false;
       if (target.module === 2 && satAdaptiveMode === "six_module") {
         const variant = target.section === "rw" ? m2RwVariant : m2MathVariant;
-        if (q.sat_module_variant && variant && q.sat_module_variant !== variant) return false;
+        if (!variant) return false;
+        if (q.sat_module_variant !== variant) return false;
       }
       return true;
     },
@@ -1590,6 +1632,12 @@ export default function ExamPage() {
           percentage: data.percentage ?? 0,
           breakdown: data.breakdown ?? [],
         });
+        if (satAdaptiveMode === "six_module" && modId === "rw1" && liveRwM2Variant) {
+          setLockedRwM2Variant(liveRwM2Variant);
+        }
+        if (satAdaptiveMode === "six_module" && modId === "math1" && liveMathM2Variant) {
+          setLockedMathM2Variant(liveMathM2Variant);
+        }
         setShowModuleScoreChoice(false);
       } catch (e) {
         console.error(e);
@@ -1609,8 +1657,8 @@ export default function ExamPage() {
       saveAnswer,
       markedForReview,
       satAdaptiveMode,
-      m2RwVariant,
-      m2MathVariant,
+      liveRwM2Variant,
+      liveMathM2Variant,
     ]
   );
 

@@ -12,7 +12,7 @@ export type ExamProgram = "AP" | "SAT";
 export type SatSection = "rw" | "math";
 export type SatModuleNumber = 1 | 2;
 export type SatModuleId = "rw1" | "rw2" | "math1" | "math2";
-export type SatAdaptiveMode = "none" | "pool" | "six_module";
+export type SatAdaptiveMode = "none" | "six_module";
 export type SatFormat = "single_module" | "section_test" | "full_test";
 export type SatModuleVariant = "easy" | "hard";
 export type SatDifficulty = "easy" | "medium" | "hard";
@@ -25,6 +25,8 @@ export interface SatModuleBucket {
   variant: SatModuleVariant | null;
   pdfLabels: string[];
   detectedTitle?: string | null;
+  /** From structure discovery; guides extraction count for this bucket. */
+  expectedCount?: number;
 }
 
 export interface SatModuleDef {

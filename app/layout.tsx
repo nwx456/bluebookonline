@@ -17,6 +17,12 @@ const defaultTitle = "Bluebook Online – AP Exam Practice Platform";
 const defaultDescription =
   "Practice AP exams online with the real Bluebook experience. Upload PDFs, solve questions, get instant AI scoring. Free for AP CSA, AP CSP, AP Economics, AP Calculus and more. For students worldwide.";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
+};
+
 export const metadata: Metadata = {
   title: { default: defaultTitle, template: "%s | Bluebook Online" },
   description: defaultDescription,

@@ -56,7 +56,7 @@ const ABOUT_FAQ_SAT = [
   },
   {
     q: "What SAT formats are supported?",
-    a: "SAT Reading & Writing modules, SAT Math modules (with built-in Desmos graphing calculator), and full Digital SAT tests (4 modules). Adaptive Module 2 routing is supported in three modes: non-adaptive, six-module (M2 easy + M2 hard variants), and pool (per-question difficulty tags).",
+    a: "SAT Reading & Writing modules, SAT Math modules (with built-in Desmos graphing calculator), and full Digital SAT tests (4 modules). Adaptive Module 2 routing is supported in two modes: non-adaptive and six-module (M2 easy + M2 hard variants).",
   },
   {
     q: "Are grid-in (Student-Produced Response) questions supported?",

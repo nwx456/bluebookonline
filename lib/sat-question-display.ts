@@ -2,7 +2,10 @@ import {
   isSatFullTest,
   isSatMath,
   isSatRw,
+  isSatSectionTest,
   SAT_MODULES,
+  type SatAdaptiveMode,
+  type SatFormat,
   type SatModuleId,
   type SatModuleVariant,
   type SatSection,
@@ -74,56 +77,90 @@ function groupLabel(
   };
 }
 
+export interface SatModuleGroupOptions {
+  satFormat?: SatFormat | string | null;
+  satAdaptiveMode?: SatAdaptiveMode | string | null;
+}
+
+function buildModuleBucketGroups(
+  satQs: SatQuestionLike[],
+  sectionFilter?: SatSection | null
+): SatModuleGroup[] {
+  const hasVariants = satQs.some((q) => q.sat_module === 2 && q.sat_module_variant);
+  const buckets: Array<{
+    section: SatSection;
+    module: 1 | 2;
+    variant: SatModuleVariant | null;
+  }> = [];
+
+  for (const mod of SAT_MODULES) {
+    if (sectionFilter && mod.section !== sectionFilter) continue;
+    if (mod.module === 2 && hasVariants) {
+      buckets.push({ section: mod.section, module: 2, variant: "easy" });
+      buckets.push({ section: mod.section, module: 2, variant: "hard" });
+    } else {
+      buckets.push({ section: mod.section, module: mod.module, variant: null });
+    }
+  }
+
+  const groups: SatModuleGroup[] = [];
+  for (const b of buckets) {
+    const inBucket = satQs
+      .filter(
+        (q) =>
+          q.sat_section === b.section &&
+          q.sat_module === b.module &&
+          (b.module === 2 && hasVariants
+            ? q.sat_module_variant === b.variant
+            : !q.sat_module_variant || !hasVariants)
+      )
+      .sort(sortByQuestionNumber);
+    if (!inBucket.length) continue;
+    const meta = groupLabel(b.section, b.module, b.variant, hasVariants);
+    groups.push({
+      id: meta.id,
+      label: meta.label,
+      shortLabel: meta.shortLabel,
+      questions: inBucket,
+    });
+  }
+  return groups;
+}
+
 /**
  * Group SAT questions for results accordion (Full Test modules or single RW/Math upload).
  */
 export function getSatModuleGroups(
   questions: SatQuestionLike[],
-  subject: string | null | undefined
+  subject: string | null | undefined,
+  opts?: SatModuleGroupOptions
 ): SatModuleGroup[] {
   const satQs = questions.filter((q) => q.sat_section && q.sat_module);
   if (!satQs.length) return [];
 
   const hasVariants = satQs.some((q) => q.sat_module === 2 && q.sat_module_variant);
+  const usesSectionModules =
+    isSatSectionTest(subject, opts?.satFormat) &&
+    (opts?.satAdaptiveMode === "six_module" || hasVariants);
 
   if (isSatFullTest(subject)) {
-    const buckets: Array<{
-      section: SatSection;
-      module: 1 | 2;
-      variant: SatModuleVariant | null;
-    }> = [];
+    return buildModuleBucketGroups(satQs);
+  }
 
-    for (const mod of SAT_MODULES) {
-      if (mod.module === 2 && hasVariants) {
-        buckets.push({ section: mod.section, module: 2, variant: "easy" });
-        buckets.push({ section: mod.section, module: 2, variant: "hard" });
-      } else {
-        buckets.push({ section: mod.section, module: mod.module, variant: null });
-      }
-    }
+  if (isSatRw(subject) && usesSectionModules) {
+    return buildModuleBucketGroups(satQs, "rw");
+  }
 
-    const groups: SatModuleGroup[] = [];
-    for (const b of buckets) {
-      const inBucket = satQs
-        .filter(
-          (q) =>
-            q.sat_section === b.section &&
-            q.sat_module === b.module &&
-            (b.module === 2 && hasVariants
-              ? q.sat_module_variant === b.variant
-              : !q.sat_module_variant || !hasVariants)
-        )
-        .sort(sortByQuestionNumber);
-      if (!inBucket.length) continue;
-      const meta = groupLabel(b.section, b.module, b.variant, hasVariants);
-      groups.push({
-        id: meta.id,
-        label: meta.label,
-        shortLabel: meta.shortLabel,
-        questions: inBucket,
-      });
-    }
-    return groups;
+  if (isSatMath(subject) && usesSectionModules) {
+    return buildModuleBucketGroups(satQs, "math");
+  }
+
+  if (isSatRw(subject) && isSatSectionTest(subject, opts?.satFormat)) {
+    return buildModuleBucketGroups(satQs, "rw");
+  }
+
+  if (isSatMath(subject) && isSatSectionTest(subject, opts?.satFormat)) {
+    return buildModuleBucketGroups(satQs, "math");
   }
 
   if (isSatRw(subject)) {

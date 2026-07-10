@@ -17,7 +17,7 @@ ALTER TABLE pdf_uploads
 
 ALTER TABLE pdf_uploads
   ADD COLUMN IF NOT EXISTS sat_adaptive_mode text NULL;
--- sat_adaptive_mode: 'none' | 'pool' | 'six_module'
+-- sat_adaptive_mode: 'none' | 'six_module' (legacy 'pool' treated as 'none')
 
 ALTER TABLE pdf_uploads
   ADD COLUMN IF NOT EXISTS sat_cutoff_rw integer NULL;
@@ -55,7 +55,7 @@ ALTER TABLE pdf_uploads
 
 ALTER TABLE questions
   ADD COLUMN IF NOT EXISTS sat_difficulty text NULL;
--- sat_difficulty: 'easy' | 'medium' | 'hard' (only for pool adaptive)
+-- sat_difficulty: 'easy' | 'medium' | 'hard' (reserved; generally null)
 
 ALTER TABLE questions
   ADD COLUMN IF NOT EXISTS question_type text DEFAULT 'mcq';

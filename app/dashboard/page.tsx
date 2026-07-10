@@ -55,6 +55,12 @@ import {
   formatMathTextIfNeeded,
   shouldFormatMathNotation,
 } from "@/lib/math-notation-display";
+import {
+  defaultSatModuleCounts,
+  getSatUploadModuleFields,
+  parseSatModuleQuestionCounts,
+  sumModuleCounts,
+} from "@/lib/sat-upload-module-fields";
 import { useProgram } from "@/lib/use-program";
 import { UploadAnalyzeProgress, type PhaseTiming } from "@/components/UploadAnalyzeProgress";
 import {
@@ -79,7 +85,6 @@ function formatSatModuleCounts(moduleCounts: Partial<Record<SatModuleId, number>
   return SAT_MODULES.map((mod) => `${mod.shortLabel}: ${moduleCounts[mod.id] ?? 0}`).join(" | ");
 }
 const SAT_SUBJECT_OPTIONS = SUBJECTS.filter((s) => getExamProgram(s.value) === "SAT");
-const SAT_AUTO_COUNT = 100;
 
 const UNPUBLISH_CONFIRM_COOLDOWN_SEC = 3;
 
@@ -93,6 +98,11 @@ interface UploadedExam {
   questionCount: number;
   uploadedAt: string;
   isPublished: boolean;
+}
+
+interface ModuleProgressEntry {
+  correct: number;
+  total: number;
 }
 
 interface RecentAttempt {
@@ -109,6 +119,10 @@ interface RecentAttempt {
   skipAiGrading?: boolean;
   totalQuestions: number;
   percentage: number | null;
+  moduleProgress?: Record<string, ModuleProgressEntry> | null;
+  rwScaledScore?: number | null;
+  mathScaledScore?: number | null;
+  totalScaledScore?: number | null;
 }
 
 interface InProgressAttempt {
@@ -145,9 +159,125 @@ interface AttemptBreakdownRow {
 }
 
 interface ExpandedAttemptData {
-  upload: { id: string; subject: string; filename: string };
+  upload: {
+    id: string;
+    subject: string;
+    filename: string;
+    sat_format?: string | null;
+    sat_adaptive_mode?: string | null;
+  };
   questions: AttemptQuestion[];
   result: { breakdown: AttemptBreakdownRow[] };
+}
+
+/**
+ * Compact SAT results summary shown at the top of the expanded attempt view.
+ * Renders scaled scores and a module-by-module accordion with correct/total,
+ * wrong count, unanswered count, and per-module percentage.
+ */
+function SatAttemptSummary(props: {
+  attempt: RecentAttempt;
+  groups: ReturnType<typeof getSatModuleGroups>;
+  wrongAnswers: AttemptBreakdownRow[];
+}) {
+  const { attempt, groups, wrongAnswers } = props;
+  const wrongByQuestion = useMemo(
+    () => new Set(wrongAnswers.map((w) => w.questionNumber)),
+    [wrongAnswers]
+  );
+
+  const showScaled = attempt.totalScaledScore != null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-blue-200 bg-white p-3 shadow-sm">
+      {showScaled && (
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold text-gray-900 tabular-nums">
+              {attempt.totalScaledScore}
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+              total scaled
+            </span>
+          </div>
+          {attempt.rwScaledScore != null && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-semibold text-gray-800 tabular-nums">
+                {attempt.rwScaledScore}
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                R&amp;W
+              </span>
+            </div>
+          )}
+          {attempt.mathScaledScore != null && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-semibold text-gray-800 tabular-nums">
+                {attempt.mathScaledScore}
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                Math
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {groups.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+            Module breakdown
+          </p>
+          <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+            {groups.map((group) => {
+              const total = group.questions.length;
+              // group.id is "rw1", "rw2", "math1", "math2" OR "rw2-easy"/"rw2-hard" when
+              // six_module variants are present. module_progress keys are just section+module.
+              const progressKey = group.id.split("-")[0];
+              const progress = attempt.moduleProgress?.[progressKey];
+              const wrongCount = group.questions.filter((gq) =>
+                wrongByQuestion.has(gq.question_number)
+              ).length;
+              const correct = progress?.correct ?? Math.max(0, total - wrongCount);
+              const percent = total > 0 ? Math.round((correct / total) * 100) : 0;
+              return (
+                <details key={group.id} className="bg-white">
+                  <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-3 hover:bg-gray-50">
+                    <span className="text-sm font-medium text-gray-900 truncate">
+                      {group.label}
+                    </span>
+                    <span className="text-xs text-gray-600 tabular-nums whitespace-nowrap">
+                      {correct} / {total} · {percent}% · {wrongCount} wrong
+                    </span>
+                  </summary>
+                  <div className="px-3 py-2 text-xs text-gray-600 bg-gray-50/50 border-t border-gray-100">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-500">Correct</div>
+                        <div className="font-semibold text-gray-900 tabular-nums">{correct}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-500">Total</div>
+                        <div className="font-semibold text-gray-900 tabular-nums">{total}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-500">Wrong</div>
+                        <div className="font-semibold text-red-600 tabular-nums">{wrongCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-500">Percent</div>
+                        <div className="font-semibold text-gray-900 tabular-nums">{percent}%</div>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -186,6 +316,9 @@ function DashboardPageInner() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccessDetail, setUploadSuccessDetail] = useState<string | null>(null);
   const [uploadModeWarning, setUploadModeWarning] = useState<string | null>(null);
+  const [uploadModuleCountWarning, setUploadModuleCountWarning] = useState<string | null>(null);
+  const [uploadStructureSummary, setUploadStructureSummary] = useState<string | null>(null);
+  const [satModuleCounts, setSatModuleCounts] = useState<Record<string, string>>({});
   const [uploads, setUploads] = useState<UploadedExam[]>([]);
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<SubjectValue | "">("");
@@ -225,14 +358,57 @@ function DashboardPageInner() {
     isSatFull || (isSatSection && satSectionFormat === "section_test");
   const isCode = subject !== "" && !isSat && isCodeSubject(subject as SubjectKey);
 
+  const satUploadFormat: SatFormat = isSatFull
+    ? "full_test"
+    : isSatSection && satSectionFormat === "section_test"
+      ? "section_test"
+      : "single_module";
+
+  const satModuleFields = useMemo(() => {
+    if (!isProgramSat || !subject) return [];
+    return getSatUploadModuleFields({
+      subject,
+      satFormat: satUploadFormat,
+      satAdaptiveMode: usesSatModuleUpload ? satAdaptiveMode : "none",
+    });
+  }, [isProgramSat, subject, satUploadFormat, usesSatModuleUpload, satAdaptiveMode]);
+
+  useEffect(() => {
+    if (satModuleFields.length === 0) return;
+    const defaults = defaultSatModuleCounts(satModuleFields);
+    setSatModuleCounts((prev) => {
+      const next: Record<string, string> = {};
+      for (const field of satModuleFields) {
+        const existing = prev[field.key];
+        const n = parseInt(existing ?? "", 10);
+        next[field.key] =
+          Number.isInteger(n) && n >= 1 && n <= 99 ? existing! : String(defaults[field.key]);
+      }
+      return next;
+    });
+  }, [satModuleFields]);
+
+  const parsedSatModuleCounts = useMemo(() => {
+    if (!isProgramSat || satModuleFields.length === 0) return null;
+    const raw: Record<string, unknown> = {};
+    for (const field of satModuleFields) {
+      raw[field.key] = satModuleCounts[field.key];
+    }
+    return parseSatModuleQuestionCounts(raw, satModuleFields);
+  }, [isProgramSat, satModuleFields, satModuleCounts]);
+
   const questionCountNum = parseInt(questionCount, 10);
   const isQuestionCountValid = Number.isInteger(questionCountNum) && questionCountNum >= 1;
   const effectiveQuestionCount = isProgramSat
-    ? SAT_AUTO_COUNT
+    ? parsedSatModuleCounts
+      ? sumModuleCounts(parsedSatModuleCounts)
+      : NaN
     : isQuestionCountValid
       ? questionCountNum
       : NaN;
-  const isQuestionCountValidEffective = isProgramSat ? true : isQuestionCountValid;
+  const isQuestionCountValidEffective = isProgramSat
+    ? parsedSatModuleCounts !== null
+    : isQuestionCountValid;
 
   const uploadSubjectOptions = isProgramSat ? SAT_SUBJECT_OPTIONS : AP_SUBJECT_OPTIONS;
 
@@ -851,6 +1027,8 @@ function DashboardPageInner() {
     setUploadError(null);
     setUploadSuccessDetail(null);
     setUploadModeWarning(null);
+    setUploadModuleCountWarning(null);
+    setUploadStructureSummary(null);
     setAnalyzeError(null);
     setAnalyzePhases(phases);
     setPhaseTimings({
@@ -955,6 +1133,9 @@ function DashboardPageInner() {
         satFormat: uploadSatFormat,
         satAdaptiveMode: usesSatModuleUpload ? satAdaptiveMode : "none",
       };
+      if (parsedSatModuleCounts) {
+        analyzeBody.satModuleQuestionCounts = parsedSatModuleCounts;
+      }
       if (usesSatModuleUpload) {
         if (satCutoffRw.trim() && (isSatFull || isSatRw(subject))) {
           analyzeBody.satCutoffRw = parseInt(satCutoffRw.trim(), 10);
@@ -1021,6 +1202,16 @@ function DashboardPageInner() {
         setUploadModeWarning(completeData.modeMismatchWarning);
       } else {
         setUploadModeWarning(null);
+      }
+      if (completeData.moduleCountWarning) {
+        setUploadModuleCountWarning(completeData.moduleCountWarning);
+      } else {
+        setUploadModuleCountWarning(null);
+      }
+      if (completeData.detectedStructureSummary) {
+        setUploadStructureSummary(completeData.detectedStructureSummary);
+      } else {
+        setUploadStructureSummary(null);
       }
 
       setUploads((prev) => [
@@ -1094,8 +1285,16 @@ function DashboardPageInner() {
 
   const wrongSatGroups = useMemo(() => {
     if (!expandedAttemptData || !expandedAttemptIsSat) return [];
-    return getSatModuleGroups(expandedAttemptData.questions, expandedAttemptData.upload.subject);
+    return getSatModuleGroups(expandedAttemptData.questions, expandedAttemptData.upload.subject, {
+      satFormat: expandedAttemptData.upload.sat_format,
+      satAdaptiveMode: expandedAttemptData.upload.sat_adaptive_mode,
+    });
   }, [expandedAttemptData, expandedAttemptIsSat]);
+
+  const expandedAttemptRecent = useMemo(() => {
+    if (!expandedAttemptId) return null;
+    return recentAttempts.find((r) => r.id === expandedAttemptId) ?? null;
+  }, [expandedAttemptId, recentAttempts]);
 
   const subjectFilterLabel =
     subjectFilter === ""
@@ -1114,7 +1313,7 @@ function DashboardPageInner() {
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
       <SiteHeader />
 
-      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8">
+      <main className="flex-1 mx-auto w-full max-w-5xl px-3 py-6 sm:px-4 sm:py-8">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-gray-900">
             Upload exam PDF
@@ -1214,14 +1413,32 @@ function DashboardPageInner() {
                       {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
                     </p>
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 mt-0.5">
-                      <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
-                        {a.percentage != null ? `${a.percentage}%` : "—"}
-                      </span>
-                      <span className="text-[11px] text-gray-600 tabular-nums leading-snug">
-                        {a.skipAiGrading
-                          ? `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.notGradedCount ?? 0} not graded · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`
-                          : `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`}
-                      </span>
+                      {a.examProgram === "SAT" && a.totalScaledScore != null ? (
+                        <>
+                          <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
+                            {a.totalScaledScore}
+                          </span>
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500 leading-none">
+                            scaled
+                          </span>
+                          {(a.rwScaledScore != null || a.mathScaledScore != null) && (
+                            <span className="text-[11px] text-gray-600 tabular-nums leading-snug">
+                              R&amp;W {a.rwScaledScore ?? "—"} · Math {a.mathScaledScore ?? "—"}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
+                            {a.percentage != null ? `${a.percentage}%` : "—"}
+                          </span>
+                          <span className="text-[11px] text-gray-600 tabular-nums leading-snug">
+                            {a.skipAiGrading
+                              ? `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.notGradedCount ?? 0} not graded · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`
+                              : `${a.correctCount} correct · ${a.incorrectCount} incorrect · ${a.unansweredCount ?? 0} unanswered · ${a.totalQuestions} total`}
+                          </span>
+                        </>
+                      )}
                     </div>
                     {a.skipAiGrading ? (
                       <p className="text-[10px] text-amber-700 font-medium">No AI grading</p>
@@ -1268,6 +1485,13 @@ function DashboardPageInner() {
                         <p className="text-sm text-gray-500">Loading…</p>
                       ) : expandedAttemptData ? (
                         <>
+                          {expandedAttemptIsSat && expandedAttemptRecent ? (
+                            <SatAttemptSummary
+                              attempt={expandedAttemptRecent}
+                              groups={wrongSatGroups}
+                              wrongAnswers={wrongAnswersFromAttempt}
+                            />
+                          ) : null}
                           <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                             <XCircle className="h-4 w-4 text-red-600" />
                             Wrong answers ({wrongAnswersFromAttempt.length})
@@ -1517,7 +1741,7 @@ function DashboardPageInner() {
             <button
               type="button"
               onClick={() => setShowUploadForm(true)}
-              className="inline-flex items-center gap-3 rounded-xl border-2 border-blue-600 bg-blue-600 px-8 py-5 text-base font-semibold text-white shadow-md hover:bg-blue-700 hover:border-blue-700 hover:shadow-lg transition-all"
+              className="inline-flex w-full items-center justify-center gap-3 rounded-xl border-2 border-blue-600 bg-blue-600 px-6 py-4 text-base font-semibold text-white shadow-md hover:bg-blue-700 hover:border-blue-700 hover:shadow-lg transition-all sm:w-auto sm:px-8 sm:py-5"
             >
               <Upload className="h-6 w-6" />
               Upload & Analyze with AI
@@ -1530,7 +1754,7 @@ function DashboardPageInner() {
           <div className="grid lg:grid-cols-[1fr,380px] gap-8">
             <div>
             {/* Step indicator */}
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mb-6">
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-semibold">1</span>
               <span className="text-sm text-gray-500">Select PDF</span>
               <span className="text-gray-300">→</span>
@@ -1766,6 +1990,44 @@ function DashboardPageInner() {
                 </div>
               )}
 
+              {isProgramSat && satModuleFields.length > 0 && (
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Question count per module
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    How many questions does each module have in your PDF? Enter the same counts
+                    (e.g. M1: 27, Module A: 27, Module B: 27).
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {satModuleFields.map((field) => (
+                      <div key={field.key} className="flex items-center gap-2">
+                        <label
+                          className="text-sm text-gray-700 shrink-0 min-w-[7rem]"
+                          htmlFor={`sat-module-count-${field.key}`}
+                        >
+                          {field.shortLabel}
+                        </label>
+                        <input
+                          id={`sat-module-count-${field.key}`}
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={satModuleCounts[field.key] ?? ""}
+                          onChange={(e) =>
+                            setSatModuleCounts((prev) => ({
+                              ...prev,
+                              [field.key]: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none bg-white"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {usesSatModuleUpload && (
                 <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
                   <div className="flex items-start gap-2 mb-3">
@@ -1802,7 +2064,6 @@ function DashboardPageInner() {
                             ? "Non-adaptive (4 modules: M1 + M2 per section)"
                             : "Non-adaptive (2 modules: M1 + M2)"}
                         </option>
-                        <option value="pool">Pool adaptive (M2 questions tagged with difficulty)</option>
                         <option value="six_module">
                           {isSatFull
                             ? "Six-module adaptive (Module 1 + Module A/B or Easy/Hard per section)"
@@ -1901,6 +2162,16 @@ function DashboardPageInner() {
               {uploadModeWarning && (
                 <p className="mb-3 text-sm text-amber-700" role="status">
                   {uploadModeWarning}
+                </p>
+              )}
+              {uploadModuleCountWarning && (
+                <p className="mb-3 text-sm text-amber-700" role="status">
+                  {uploadModuleCountWarning}
+                </p>
+              )}
+              {uploadStructureSummary && (
+                <p className="mb-3 text-sm text-gray-600" role="status">
+                  PDF structure detected: {uploadStructureSummary}
                 </p>
               )}
               {uploadSuccessDetail && (
@@ -2083,7 +2354,7 @@ function DashboardPageInner() {
               {uploads.length === 0 ? "No exams yet. Upload a PDF above." : "No exams match this filter."}
             </div>
           ) : (
-            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm overflow-x-auto -mx-3 sm:mx-0">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -2332,7 +2603,7 @@ function DashboardPageInner() {
             {filteredUploads.length === 0 ? (
               <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">{uploads.length === 0 ? "No exams yet. Upload a PDF above." : "No exams match this filter."}</div>
             ) : (
-              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm overflow-x-auto -mx-3 sm:mx-0">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
