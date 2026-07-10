@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -164,30 +164,32 @@ function HomeInner() {
     }
   }, []);
 
-  const fetchExams = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("program", program);
-      if (subjectFilter) params.set("subject", subjectFilter);
-      const url = `/api/exams/published?${params.toString()}`;
-      const res = await fetch(url);
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setExams(data.exams ?? []);
-      } else {
-        setExams([]);
-      }
-    } catch {
-      setExams([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [subjectFilter, program]);
-
   useEffect(() => {
-    fetchExams();
-  }, [fetchExams]);
+    // Cancellation guard: when program/subject changes quickly (e.g. AP<->SAT
+    // toggle or the localStorage hydration on first load), a slow stale
+    // response must not overwrite the list for the current selection.
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set("program", program);
+        if (subjectFilter) params.set("subject", subjectFilter);
+        const url = `/api/exams/published?${params.toString()}`;
+        const res = await fetch(url);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setExams(res.ok ? (data.exams ?? []) : []);
+      } catch {
+        if (!cancelled) setExams([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [subjectFilter, program]);
 
   const subjectLabel = SUBJECTS.find((s) => s.value === subjectFilter)?.label ?? "All subjects";
 

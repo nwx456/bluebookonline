@@ -230,14 +230,12 @@ function formatSatMarkedReviewLabel(
   return `${short} #${num}`;
 }
 
-function SatMarkedForReviewWarning({
+function MarkedForReviewWarning({
   items,
-  allQuestions,
-  isSatFullExam,
+  formatLabel,
 }: {
   items: Question[];
-  allQuestions: Question[];
-  isSatFullExam: boolean;
+  formatLabel: (q: Question) => string;
 }) {
   if (items.length === 0) return null;
   return (
@@ -253,7 +251,7 @@ function SatMarkedForReviewWarning({
             key={q.id}
             className="inline-block rounded border border-amber-200 bg-white px-2 py-1 text-sm font-medium text-amber-900"
           >
-            {formatSatMarkedReviewLabel(q, allQuestions, isSatFullExam)}
+            {formatLabel(q)}
           </span>
         ))}
       </div>
@@ -1509,12 +1507,11 @@ export default function ExamPage() {
   const isEmptySatModule =
     usesSatModules && currentModuleId != null && activeQuestions.length === 0;
 
-  const satMarkedForReviewQuestions = useMemo(() => {
-    if (!isSat) return [];
+  const markedForReviewQuestions = useMemo(() => {
     return questions
       .filter((q) => markedForReview.has(q.id))
       .sort((a, b) => a.question_number - b.question_number);
-  }, [isSat, questions, markedForReview]);
+  }, [questions, markedForReview]);
 
   const satCurrentModuleMarkedForReview = useMemo(() => {
     if (!isSat) return [];
@@ -3687,10 +3684,9 @@ export default function ExamPage() {
           <div className="max-w-md w-full rounded-xl bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Module complete</h2>
             {isSat ? (
-              <SatMarkedForReviewWarning
+              <MarkedForReviewWarning
                 items={satCurrentModuleMarkedForReview}
-                allQuestions={questions}
-                isSatFullExam={usesSatModules}
+                formatLabel={(q) => formatSatMarkedReviewLabel(q, questions, usesSatModules)}
               />
             ) : null}
             <p className="text-sm text-gray-600 mb-4">
@@ -3818,20 +3814,22 @@ export default function ExamPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-2">
               {isSat ? "Finish SAT exam?" : "Finish exam?"}
             </h2>
-            {isSat ? (
-              <SatMarkedForReviewWarning
-                items={satMarkedForReviewQuestions}
-                allQuestions={questions}
-                isSatFullExam={usesSatModules}
+            {markedForReviewQuestions.length > 0 ? (
+              <MarkedForReviewWarning
+                items={markedForReviewQuestions}
+                formatLabel={(q) =>
+                  isSat
+                    ? formatSatMarkedReviewLabel(q, questions, usesSatModules)
+                    : `Question ${q.question_number}`
+                }
               />
-            ) : null}
-            {!isSat ? (
-              <p className="mb-4 text-sm text-gray-700">Choose how you want to complete this attempt.</p>
-            ) : satMarkedForReviewQuestions.length === 0 ? (
+            ) : isSat ? (
               <p className="mb-4 text-sm text-gray-700">
                 You are about to submit this attempt for scoring.
               </p>
-            ) : null}
+            ) : (
+              <p className="mb-4 text-sm text-gray-700">Choose how you want to complete this attempt.</p>
+            )}
             <p className="mb-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Scoring</p>
             <div className="flex flex-col gap-3 mb-4">
               <div className="rounded-lg border border-gray-200 bg-gray-50/80 p-3">

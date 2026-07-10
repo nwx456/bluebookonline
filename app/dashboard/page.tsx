@@ -9,6 +9,7 @@ import {
   Trash2,
   Play,
   ChevronDown,
+  ChevronUp,
   BookOpen,
   X,
   AlertTriangle,
@@ -337,6 +338,8 @@ function DashboardPageInner() {
   const [inProgressAttempts, setInProgressAttempts] = useState<InProgressAttempt[]>([]);
   const [deletingInProgressId, setDeletingInProgressId] = useState<string | null>(null);
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
+  const [continuingExamsOpen, setContinuingExamsOpen] = useState(true);
+  const [recentExamsOpen, setRecentExamsOpen] = useState(true);
   const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
   const [expandedAttemptData, setExpandedAttemptData] = useState<ExpandedAttemptData | null>(null);
   const [expandedAttemptLoading, setExpandedAttemptLoading] = useState(false);
@@ -1327,92 +1330,164 @@ function DashboardPageInner() {
 
         {filteredInProgress.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-amber-600" />
-              Continuing exams
-            </h2>
-            <p className="text-xs text-gray-500 mb-3">
-              Resume where you left off, or discard an attempt to remove it from this list.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {filteredInProgress.map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-lg border border-amber-200 bg-amber-50/40 p-2.5 flex flex-col gap-2 shadow-sm"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <p
-                      className="text-xs font-medium text-gray-900 line-clamp-2 leading-snug"
-                      title={a.filename}
-                    >
-                      {a.filename}
+            <div className="rounded-lg border border-amber-200 bg-white shadow-sm overflow-hidden">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={continuingExamsOpen}
+                onClick={() => setContinuingExamsOpen((o) => !o)}
+                onKeyDown={(e) => e.key === "Enter" && setContinuingExamsOpen((o) => !o)}
+                className="flex cursor-pointer items-center justify-between p-4 hover:bg-amber-50/40"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-5 w-5 text-amber-600 shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      Continuing exams
+                      <span className="inline-flex items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 tabular-nums">
+                        {filteredInProgress.length}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Resume where you left off, or discard an attempt to remove it from this list.
                     </p>
-                    <p className="text-[10px] text-gray-500 truncate">
-                      {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
-                    </p>
-                    <p className="text-[10px] text-gray-400">
-                      Started{" "}
-                      {new Date(a.startedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-1 pt-1.5 border-t border-amber-100">
-                    <Link
-                      href={`/exam/${a.uploadId}?resume=${a.id}`}
-                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                    >
-                      <Play className="h-3 w-3" />
-                      Continue
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={deletingInProgressId === a.id}
-                      onClick={() => void handleDiscardInProgress(a.id)}
-                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      aria-label="Discard in-progress exam"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                      Discard
-                    </button>
                   </div>
                 </div>
-              ))}
+                {continuingExamsOpen ? (
+                  <ChevronUp className="h-5 w-5 text-gray-500 shrink-0" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-gray-500 shrink-0" />
+                )}
+              </div>
+              {continuingExamsOpen && (
+                <div className="border-t border-amber-100 divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+                  {filteredInProgress.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 hover:bg-amber-50/40 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="text-sm font-medium text-gray-900 line-clamp-1"
+                          title={a.filename}
+                        >
+                          {a.filename}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
+                          <span className="text-gray-400">
+                            {" · "}Started{" "}
+                            {new Date(a.startedAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Link
+                          href={`/exam/${a.uploadId}?resume=${a.id}`}
+                          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                        >
+                          <Play className="h-3.5 w-3.5" />
+                          Continue
+                        </Link>
+                        <button
+                          type="button"
+                          disabled={deletingInProgressId === a.id}
+                          onClick={() => void handleDiscardInProgress(a.id)}
+                          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          aria-label="Discard in-progress exam"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
         )}
 
         {filteredRecent.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
-              Recent exams
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={recentExamsOpen}
+                onClick={() => setRecentExamsOpen((o) => !o)}
+                onKeyDown={(e) => e.key === "Enter" && setRecentExamsOpen((o) => !o)}
+                className="flex cursor-pointer items-center justify-between p-4 hover:bg-gray-50"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Clock className="h-5 w-5 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                      Recent exams
+                      <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 tabular-nums">
+                        {filteredRecent.length}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Click an attempt to review its score and wrong answers.
+                    </p>
+                  </div>
+                </div>
+                {recentExamsOpen ? (
+                  <ChevronUp className="h-5 w-5 text-gray-500 shrink-0" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-gray-500 shrink-0" />
+                )}
+              </div>
+              {recentExamsOpen && (
+              <div className="border-t border-gray-200 divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
               {filteredRecent.map((a) => (
                 <div
                   key={a.id}
                   className={cn(
-                    "rounded-lg border bg-white p-2.5 flex flex-col gap-2 shadow-sm overflow-hidden transition-colors",
-                    expandedAttemptId === a.id
-                      ? "border-blue-400 ring-1 ring-blue-200"
-                      : "border-gray-200 hover:border-gray-300"
+                    "transition-colors",
+                    expandedAttemptId === a.id && "border-l-2 border-l-blue-500 bg-blue-50/30"
                   )}
                 >
-                  <div className="flex flex-col gap-0.5">
-                    <p
-                      className="text-xs font-medium text-gray-900 line-clamp-2 leading-snug"
-                      title={a.filename}
-                    >
-                      {a.filename}
-                    </p>
-                    <p className="text-[10px] text-gray-500 truncate">
-                      {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
-                    </p>
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 mt-0.5">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandedAttemptId === a.id}
+                    onClick={() => setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)
+                    }
+                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium text-gray-900 line-clamp-1"
+                        title={a.filename}
+                      >
+                        {a.filename}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {SUBJECT_LABELS[a.subject as SubjectKey] ?? a.subject}
+                        <span className="text-gray-400">
+                          {" · "}
+                          {new Date(a.completedAt).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </p>
+                      {a.skipAiGrading ? (
+                        <p className="text-[10px] text-amber-700 font-medium">No AI grading</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 shrink-0 sm:justify-end sm:text-right">
                       {a.examProgram === "SAT" && a.totalScaledScore != null ? (
                         <>
                           <span className="text-lg font-bold text-gray-900 tabular-nums leading-none">
@@ -1440,47 +1515,37 @@ function DashboardPageInner() {
                         </>
                       )}
                     </div>
-                    {a.skipAiGrading ? (
-                      <p className="text-[10px] text-amber-700 font-medium">No AI grading</p>
-                    ) : null}
-                    <p className="text-[10px] text-gray-400">
-                      {new Date(a.completedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </p>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link
+                        href={`/exam/${a.uploadId}?attempt=${a.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Results
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={deletingAttemptId === a.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAttempt(a.id);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        aria-label="Delete attempt"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 text-gray-400 transition-transform",
+                          expandedAttemptId === a.id && "rotate-180"
+                        )}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-1 pt-1.5 border-t border-gray-100">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedAttemptId(expandedAttemptId === a.id ? null : a.id)}
-                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                    >
-                      <Play className="h-3 w-3" />
-                      View
-                    </button>
-                    <Link
-                      href={`/exam/${a.uploadId}?attempt=${a.id}`}
-                      className="rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-                    >
-                      Results
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={deletingAttemptId === a.id}
-                      onClick={() => handleDeleteAttempt(a.id)}
-                      className="inline-flex items-center gap-0.5 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      aria-label="Delete attempt"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {expandedAttemptId && (
-              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+            {expandedAttemptId === a.id && (
+              <div className="border-t border-gray-200 bg-gray-50/50 p-4">
                       {expandedAttemptLoading ? (
                         <p className="text-sm text-gray-500">Loading…</p>
                       ) : expandedAttemptData ? (
@@ -1733,6 +1798,11 @@ function DashboardPageInner() {
                       ) : null}
               </div>
             )}
+                </div>
+              ))}
+              </div>
+              )}
+            </div>
           </section>
         )}
 

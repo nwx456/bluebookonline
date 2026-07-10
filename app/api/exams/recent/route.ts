@@ -43,7 +43,7 @@ type RecentAttemptRow = {
 
 /**
  * GET /api/exams/recent
- * Returns the user's last 3 completed exam attempts.
+ * Returns all of the user's completed exam attempts, newest first.
  * Requires Authorization: Bearer <session_token>
  */
 export async function GET(request: NextRequest) {
@@ -65,8 +65,7 @@ export async function GET(request: NextRequest) {
         .select(columns)
         .eq("user_email", userEmail)
         .not("completed_at", "is", null)
-        .order("completed_at", { ascending: false })
-        .limit(3);
+        .order("completed_at", { ascending: false });
 
     const { data: attempts, error: attemptsError } = await buildRecentQuery(SELECT_WITH_SKIP_AI);
 

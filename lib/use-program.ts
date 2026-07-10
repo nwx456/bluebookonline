@@ -67,6 +67,11 @@ export function useProgram(): {
   const searchParams = useSearchParams();
 
   const urlProgram = parseProgram(searchParams?.get("program"));
+  // The initial value must match what the server rendered (URL param or "AP");
+  // reading localStorage here would cause a hydration mismatch that React
+  // refuses to patch, leaving the toggle visually stuck on the wrong program.
+  // The stored preference is applied in the effect below, which triggers a
+  // proper re-render.
   const [program, setProgramState] = useState<ExamProgram>(urlProgram ?? "AP");
 
   useEffect(() => {
@@ -80,8 +85,17 @@ export function useProgram(): {
     if (stored) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setProgramState(stored);
+      // Reflect the restored preference in the URL so server-rendered pages
+      // (/exams, /about, /blog) and every useProgram instance agree.
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      params.set("program", stored.toLowerCase());
+      try {
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      } catch {
+        // ignore navigation errors (no-op)
+      }
     }
-  }, [urlProgram]);
+  }, [urlProgram, pathname, router, searchParams]);
 
   const setProgram = useCallback(
     (next: ExamProgram) => {
