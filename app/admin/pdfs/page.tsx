@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown,
@@ -69,6 +69,20 @@ function formatDate(iso: string): string {
 }
 
 export default function AdminPdfsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-[40vh] max-w-6xl items-center justify-center px-4 py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-label="Loading" />
+        </main>
+      }
+    >
+      <AdminPdfsPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPdfsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
