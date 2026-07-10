@@ -75,17 +75,13 @@ export default function AdminPdfsClient() {
   const [checking, setChecking] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
-  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
-  const [subject, setSubject] = useState(() => searchParams.get("subject") ?? "");
-  const [user, setUser] = useState(() => searchParams.get("user") ?? "");
-  const [program, setProgram] = useState(() => searchParams.get("program") ?? "");
-  const [mismatchOnly, setMismatchOnly] = useState(
-    () => searchParams.get("mismatch") === "1" || searchParams.get("mismatch") === "true"
-  );
-  const [offset, setOffset] = useState(() => {
-    const raw = Number(searchParams.get("offset"));
-    return Number.isFinite(raw) && raw >= 0 ? raw : 0;
-  });
+  const [q, setQ] = useState("");
+  const [subject, setSubject] = useState("");
+  const [user, setUser] = useState("");
+  const [program, setProgram] = useState("");
+  const [mismatchOnly, setMismatchOnly] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [filtersReady, setFiltersReady] = useState(false);
 
   const [pdfs, setPdfs] = useState<AdminPdfRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -100,6 +96,19 @@ export default function AdminPdfsClient() {
 
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQ(searchParams.get("q") ?? "");
+    setSubject(searchParams.get("subject") ?? "");
+    setUser(searchParams.get("user") ?? "");
+    setProgram(searchParams.get("program") ?? "");
+    setMismatchOnly(
+      searchParams.get("mismatch") === "1" || searchParams.get("mismatch") === "true"
+    );
+    const raw = Number(searchParams.get("offset"));
+    setOffset(Number.isFinite(raw) && raw >= 0 ? raw : 0);
+    setFiltersReady(true);
+  }, [searchParams]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -237,9 +246,9 @@ export default function AdminPdfsClient() {
   }, [accessToken, q, subject, user, program, mismatchOnly, offset]);
 
   useEffect(() => {
-    if (!accessToken || checking) return;
+    if (!accessToken || checking || !filtersReady) return;
     loadPdfs();
-  }, [accessToken, checking, loadPdfs]);
+  }, [accessToken, checking, filtersReady, loadPdfs]);
 
   const applyFilters = (resetOffset = true) => {
     const nextOffset = resetOffset ? 0 : offset;
