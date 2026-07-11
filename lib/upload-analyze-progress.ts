@@ -5,12 +5,10 @@ import {
   isSatRw,
   isSatSectionUpload,
   satSectionForSubject,
-  SAT_MODULES,
   type SatAdaptiveMode,
   type SatFormat,
+  type SatSection,
 } from "@/lib/exam-program";
-import { buildSatExtractionPlan } from "@/lib/sat-extraction";
-import { bucketKey, type SatModuleBucket } from "@/lib/sat-module-normalizer";
 
 export type PhaseStatus = "pending" | "active" | "done" | "error";
 
@@ -57,8 +55,8 @@ export const PHASE_VALIDATE = "validate";
 export const PHASE_SAVE = "save";
 export const PHASE_EXTRACT = "extract";
 
-export function bucketPhaseId(bucket: SatModuleBucket): string {
-  return `bucket:${bucketKey(bucket)}`;
+export function sectionPhaseId(section: SatSection): string {
+  return `section:${section}`;
 }
 
 export function formatDuration(ms: number): string {
@@ -70,27 +68,28 @@ export function formatDuration(ms: number): string {
   return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
 }
 
-function bucketDisplayLabel(bucket: SatModuleBucket): { label: string; shortLabel: string } {
-  const base = SAT_MODULES.find((m) => m.section === bucket.section && m.module === bucket.module);
-  const baseLabel = base?.label ?? `${bucket.section === "rw" ? "Reading & Writing" : "Math"} – Module ${bucket.module}`;
-  const short = base?.shortLabel ?? `${bucket.section === "rw" ? "R&W" : "Math"} M${bucket.module}`;
-  if (bucket.module === 2 && bucket.variant) {
-    const v = bucket.variant === "easy" ? "Easy" : "Hard";
+function sectionDisplayLabel(section: SatSection): {
+  label: string;
+  shortLabel: string;
+} {
+  if (section === "rw") {
     return {
-      label: `${baseLabel} (${v})`,
-      shortLabel: `${short} ${v}`,
+      label: "Extracting Reading & Writing questions",
+      shortLabel: "Extract R&W",
     };
   }
-  return { label: baseLabel, shortLabel: short };
+  return {
+    label: "Extracting Math questions",
+    shortLabel: "Extract Math",
+  };
 }
 
 function totalPredictedLabel(phases: AnalyzePhase[], subject?: string): string {
   const serverPhases = phases.filter((p) => p.id !== PHASE_UPLOAD);
-  const bucketCount = serverPhases.filter((p) => p.id.startsWith("bucket:")).length;
-  if (bucketCount >= 6) return "About 6–8 min total";
-  if (bucketCount >= 4) return "About 4–6 min total";
-  if (bucketCount >= 2) return "About 2–4 min total";
-  if (bucketCount === 0 && serverPhases.some((p) => p.id === PHASE_EXTRACT)) {
+  const sectionCount = serverPhases.filter((p) => p.id.startsWith("section:")).length;
+  if (sectionCount >= 2) return "About 3–5 min total";
+  if (sectionCount === 1) return "About 2–3 min total";
+  if (serverPhases.some((p) => p.id === PHASE_EXTRACT)) {
     const extract = serverPhases.find((p) => p.id === PHASE_EXTRACT);
     if (
       (subject && getExamProgram(subject) === "AP") ||
@@ -112,13 +111,13 @@ function uploadPhase(): AnalyzePhase {
   };
 }
 
-function bucketPhase(bucket: SatModuleBucket): AnalyzePhase {
-  const { label, shortLabel } = bucketDisplayLabel(bucket);
+function sectionPhase(section: SatSection): AnalyzePhase {
+  const { label, shortLabel } = sectionDisplayLabel(section);
   return {
-    id: bucketPhaseId(bucket),
-    label: `Extracting ${label}`,
-    shortLabel: `Extract ${shortLabel}`,
-    predictedTimeLabel: "~1 min",
+    id: sectionPhaseId(section),
+    label,
+    shortLabel,
+    predictedTimeLabel: "~2 min",
   };
 }
 
@@ -154,11 +153,13 @@ function extractPhase(subject: string): AnalyzePhase {
   };
 }
 
-export function buildSatFullAnalyzePhases(adaptiveMode: SatAdaptiveMode): AnalyzePhase[] {
-  const plan = buildSatExtractionPlan(adaptiveMode, null);
+export function buildSatFullAnalyzePhases(
+  _adaptiveMode: SatAdaptiveMode
+): AnalyzePhase[] {
   return [
     uploadPhase(),
-    ...plan.map(bucketPhase),
+    sectionPhase("rw"),
+    sectionPhase("math"),
     validatePhase(),
     savePhase(),
   ];
@@ -166,16 +167,13 @@ export function buildSatFullAnalyzePhases(adaptiveMode: SatAdaptiveMode): Analyz
 
 export function buildSectionSatAnalyzePhases(
   subject: string,
-  adaptiveMode: SatAdaptiveMode
+  _adaptiveMode: SatAdaptiveMode
 ): AnalyzePhase[] {
   const section = satSectionForSubject(subject);
-  const plan = buildSatExtractionPlan(adaptiveMode, section);
-  return [
-    uploadPhase(),
-    ...plan.map(bucketPhase),
-    validatePhase(),
-    savePhase(),
-  ];
+  if (!section) {
+    return [uploadPhase(), validatePhase(), savePhase()];
+  }
+  return [uploadPhase(), sectionPhase(section), validatePhase(), savePhase()];
 }
 
 export function buildSingleSatAnalyzePhases(subject: string): AnalyzePhase[] {

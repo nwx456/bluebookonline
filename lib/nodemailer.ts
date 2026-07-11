@@ -30,6 +30,28 @@ export async function sendBroadcastMessage(params: {
   });
 }
 
+export async function sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
+  const safeLink = escapeHtml(resetLink);
+  await sendMail({
+    to,
+    subject: "Bluebook Online – Reset your password",
+    text: `Reset your Bluebook Online password using this link (valid for 1 hour):\n\n${resetLink}\n\nIf you did not request this, you can ignore this email.`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
+        <p>Hello,</p>
+        <p>We received a request to reset your Bluebook Online password.</p>
+        <p style="margin: 24px 0;">
+          <a href="${safeLink}" style="display: inline-block; background-color: #2563EB; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+            Reset password
+          </a>
+        </p>
+        <p style="color: #6B7280; font-size: 14px;">This link is valid for 1 hour.</p>
+        <p style="color: #6B7280; font-size: 14px;">If you did not request this, you can ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
   await sendMail({
     to,

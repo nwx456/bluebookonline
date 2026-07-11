@@ -13,11 +13,13 @@ function LoginFormInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [verified, setVerified] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get("verified") === "1") setVerified(true);
+    if (searchParams.get("reset") === "1") setResetSuccess(true);
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -63,6 +65,11 @@ function LoginFormInner() {
           Your account has been verified. You can sign in now.
         </p>
       )}
+      {resetSuccess && (
+        <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800" role="status">
+          Your password has been reset. You can sign in now.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
@@ -81,9 +88,14 @@ function LoginFormInner() {
           />
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="password"
             type="password"

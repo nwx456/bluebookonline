@@ -243,12 +243,28 @@ docs/
    ├── supabase.auth.signInWithPassword
    └── access_token + refresh_token → client setSession
 
-4. Oturum Kullanımı
+4. Şifre sıfırlama
+   ├── POST /api/auth/forgot-password → generateLink (recovery) + custom e-posta
+   ├── /reset-password → recovery session (URL hash)
+   ├── POST /api/auth/reset-password → Supabase Auth + usertable bcrypt güncelle
+   └── signOut → /login?reset=1
+
+5. Oturum Kullanımı
    ├── API route'larında: Authorization: Bearer <access_token>
    └── Client: supabase.auth.getSession() → email + token
 ```
 
 **Çift kullanıcı katmanı tasarım kararı:** Supabase Auth kullanıcı adı ve bcrypt hash saklamaz. `usertable` bu eksiklikleri kapatır. `/api/upload/analyze`, `usertable`'da kaydı olmayan kullanıcılara 403 döner — böylece yalnızca tam kayıt tamamlanmış kullanıcılar sınav yükleyebilir.
+
+**Şifre sıfırlama — Supabase Dashboard (Authentication → URL Configuration):**
+
+| Ayar | Değer |
+|------|-------|
+| Site URL | `https://apbluebookonline.com` |
+| Redirect URLs | `https://apbluebookonline.com/reset-password` |
+| Local dev | `http://localhost:3000/reset-password` |
+
+Recovery linki bu redirect URL'lerinden biri olmadan çalışmaz. `NEXT_PUBLIC_BASE_URL` forgot-password API'de `redirectTo` için kullanılır.
 
 ---
 
@@ -417,6 +433,8 @@ Büyük ölçüde `"use client"` — sınav sayfası 200+ satır state barındı
 | `POST` | `/api/auth/signup` | — | E-posta + username + şifre; OTP gönder |
 | `POST` | `/api/auth/verify-otp` | — | OTP doğrula; Supabase user + usertable oluştur |
 | `POST` | `/api/auth/login` | — | signInWithPassword; token döndür |
+| `POST` | `/api/auth/forgot-password` | — | Recovery link üret; custom e-posta gönder |
+| `POST` | `/api/auth/reset-password` | Bearer (recovery) | Auth + usertable parolasını güncelle |
 | `POST` | `/api/auth/clean-email` | — | E-posta ile ilgili tüm veriyi sil (geliştirici) |
 
 ### Upload

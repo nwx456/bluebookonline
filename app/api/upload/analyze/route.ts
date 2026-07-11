@@ -22,7 +22,7 @@ import {
   applySatIngestPostProcess,
   partitionSatStemAndPassage,
 } from "@/lib/sat-ingest-postprocess";
-import { runSatBucketExtractPipeline } from "@/lib/sat-extract-pipeline";
+import { runSatSectionExtractPipeline } from "@/lib/sat-extract-pipeline";
 import { runSatGeminiExtraction } from "@/lib/sat-gemini-extract";
 import {
   dropRowsWithoutSection,
@@ -491,16 +491,16 @@ export async function POST(request: NextRequest) {
     const isSatFull = isSatFullTest(subject);
     const resolvedSatFormat: SatFormat =
       satFormat ?? (isSatFull ? "full_test" : "single_module");
-    const usesBucketPipeline =
+    const usesSectionPipeline =
       isSatFull || isSatSectionTest(subject, resolvedSatFormat);
 
-    // Full test and section_test use bucket extraction; question count is optional.
-    const questionCount = usesBucketPipeline
+    // Full test and section_test use section extraction; question count is optional.
+    const questionCount = usesSectionPipeline
       ? (questionCountRaw != null && Number.isInteger(questionCountRaw) && questionCountRaw > 0
           ? questionCountRaw
           : 100)
       : questionCountRaw;
-    if (!usesBucketPipeline && (questionCount == null || !Number.isInteger(questionCount) || questionCount < 1)) {
+    if (!usesSectionPipeline && (questionCount == null || !Number.isInteger(questionCount) || questionCount < 1)) {
       return NextResponse.json(
         { error: "Question count must be a positive number." },
         { status: 400 }
@@ -634,14 +634,14 @@ async function performAnalyze(
   const isSatFull = isSatFullTest(subject);
   const resolvedSatFormat: SatFormat =
     satFormat ?? (isSatFull ? "full_test" : "single_module");
-  const usesBucketPipeline =
+  const usesSectionPipeline =
     isSatFull || isSatSectionTest(subject, resolvedSatFormat);
   const sectionFilter = isSatSectionTest(subject, resolvedSatFormat)
     ? satSectionForSubject(subject)
     : null;
-  // For SAT: user counts are the source of truth. Bucket pipeline gets its own
-  // per-bucket targets internally; single-module upload uses one number.
-  const questionCount = usesBucketPipeline
+  // For SAT: user counts are the source of truth. Section pipeline gets its own
+  // per-module targets internally; single-module upload uses one number.
+  const questionCount = usesSectionPipeline
     ? userModuleCounts
       ? sumModuleCounts(userModuleCounts)
       : questionCountRaw ?? 100
@@ -681,7 +681,6 @@ async function performAnalyze(
             satCutoffRw,
             satCutoffMath,
             satFormat: resolvedSatFormat,
-            usesBucketPipeline,
           }
         : undefined
     );
@@ -761,8 +760,8 @@ async function performAnalyze(
         displayName: filename,
       });
 
-      if (usesBucketPipeline) {
-        const pipelineResult = await runSatBucketExtractPipeline({
+      if (usesSectionPipeline) {
+        const pipelineResult = await runSatSectionExtractPipeline({
           subject,
           sectionFilter,
           effectiveAdaptiveMode,
@@ -807,7 +806,7 @@ async function performAnalyze(
       }
     }
 
-    if (isSat && !usesBucketPipeline) {
+    if (isSat && !usesSectionPipeline) {
       for (const q of questions) {
         applySatIngestPostProcess(q, { section: ingestSection });
       }
@@ -832,7 +831,7 @@ async function performAnalyze(
 
     let moduleReport: ReturnType<typeof buildSatModuleReport> | undefined;
     let moduleCounts: ReturnType<typeof reportToLegacyModuleCounts> | undefined;
-    if (usesBucketPipeline) {
+    if (usesSectionPipeline) {
       tracker?.start(PHASE_VALIDATE);
       moduleReport = buildSatModuleReport(questions);
       moduleCounts = reportToLegacyModuleCounts(moduleReport);
@@ -930,7 +929,7 @@ async function performAnalyze(
     }
     if (isSat) {
       uploadInsertPayload.sat_format = resolvedSatFormat;
-      uploadInsertPayload.sat_adaptive_mode = usesBucketPipeline
+      uploadInsertPayload.sat_adaptive_mode = usesSectionPipeline
         ? (satAdaptiveMode ?? "none")
         : "none";
       if (satCutoffRw != null && Number.isFinite(satCutoffRw)) {
@@ -1007,9 +1006,9 @@ async function performAnalyze(
       await supabase.from("pdf_uploads").update({ storage_path: storageKey }).eq("id", uploadId);
     }
 
-    // Bucket pipeline keeps everything extracted. Single-module SAT trims to
+    // Section pipeline keeps everything extracted. Single-module SAT trims to
     // the user-provided target (default 100) to stop runaway extractions.
-    const sliceLimit: number = usesBucketPipeline
+    const sliceLimit: number = usesSectionPipeline
       ? questions.length
       : questionCount ?? questions.length;
     const rows = questions.slice(0, sliceLimit).map((q, i) => {

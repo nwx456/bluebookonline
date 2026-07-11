@@ -281,26 +281,6 @@ export function inferModuleNumberFromLabel(label: string): 1 | 2 | null {
   return inferModuleFromNormalized(normalizeLabelForMatch(label));
 }
 
-export function buildBucketPromptLabels(bucket: SatModuleBucket): string {
-  const section =
-    bucket.section === "rw" ? "Reading & Writing / English" : "Math";
-  const base =
-    bucket.module === 1
-      ? [...M1_LABELS]
-      : bucket.variant === "easy"
-        ? [...M2_EASY_LABELS]
-        : bucket.variant === "hard"
-          ? [...M2_HARD_LABELS]
-          : [...M2_SINGLE_LABELS, ...M2_EASY_LABELS, ...M2_HARD_LABELS];
-
-  if (bucket.detectedTitle?.trim()) {
-    base.unshift(bucket.detectedTitle.trim());
-  }
-
-  const unique = [...new Set(base.map((s) => s.trim()).filter(Boolean))];
-  return `${section} — look for headings like: ${unique.map((l) => `"${l}"`).join(", ")}`;
-}
-
 export function bucketKey(bucket: SatModuleBucket): string {
   return `${bucket.section}${bucket.module}${bucket.variant ?? ""}`;
 }

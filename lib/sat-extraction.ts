@@ -2,9 +2,15 @@ import {
   SAT_MODULES,
   type SatAdaptiveMode,
   type SatModuleId,
+  type SatModuleVariant,
   type SatSection,
 } from "@/lib/exam-program";
-import { buildBucketPromptLabels } from "@/lib/sat-module-normalizer";
+import {
+  applyBucketToQuestion,
+  bucketKey,
+  inferModuleNumberFromLabel,
+  inferVariantFromLabel,
+} from "@/lib/sat-module-normalizer";
 import type { SatModuleBucket } from "@/lib/sat-module-normalizer";
 
 export interface SatModuleReport {
@@ -402,66 +408,196 @@ function validateUserModuleCounts(
 const MCQ_VS_MODULE_RULE =
   "CRITICAL: Multiple-choice answer options A, B, C, D are NOT module identifiers. Only section/module HEADINGS identify modules.";
 
-export function buildSatBucketExtractionPrompt(
-  bucket: SatModuleBucket,
+/**
+ * Section-level extraction prompt. One Gemini call handles all questions in a
+ * single SAT section (R&W or Math). Gemini tags every question with
+ * sat_module + sat_pdf_module_label; a local splitter reorganizes them into
+ * bucket groups afterwards.
+ */
+export function buildSatSectionExtractionPrompt(
+  section: SatSection,
   opts: {
     adaptiveMode: SatAdaptiveMode;
+    expectedCounts?: {
+      m1?: number;
+      m2?: number;
+      m2Easy?: number;
+      m2Hard?: number;
+    };
     retry?: boolean;
   }
 ): string {
-  const sectionLabel = bucket.section === "rw" ? "Reading & Writing" : "Math";
-  const labelGuide = buildBucketPromptLabels(bucket);
+  const sectionLabel =
+    section === "rw" ? "Reading & Writing (English)" : "Math";
+  const otherSection =
+    section === "rw" ? "Math (any Math module)" : "Reading & Writing";
+
   const mathExtraFields =
-    bucket.section === "math"
+    section === "math"
       ? `, "has_graph" (boolean), "page_number" (1-based, only when has_graph is true), "bbox" (0-1 normalized {x,y,width,height}, only when has_graph is true)`
       : "";
 
-  let bucketDesc: string;
-  if (bucket.module === 1) {
-    bucketDesc = `${sectionLabel} FIRST module (Module 1 / Module One / Part 1 — NOT answer choice letters)`;
-  } else if (bucket.variant === "easy") {
-    bucketDesc = `${sectionLabel} SECOND-STAGE EASY path ONLY (Module A / Easy / Below the bar — NOT Module 1, NOT Module B/Hard)`;
-  } else if (bucket.variant === "hard") {
-    bucketDesc = `${sectionLabel} SECOND-STAGE HARD path ONLY (Module B / Hard / Above the bar — NOT Module 1, NOT Module A/Easy)`;
-  } else {
-    bucketDesc = `${sectionLabel} SECOND module (Module 2 / Module B / Part 2 — single M2, not adaptive split)`;
-  }
+  const counts = opts.expectedCounts ?? {};
+  const totalExpected =
+    opts.adaptiveMode === "six_module"
+      ? (counts.m1 ?? 0) + (counts.m2Easy ?? 0) + (counts.m2Hard ?? 0)
+      : (counts.m1 ?? 0) + (counts.m2 ?? 0);
 
-  const variantField =
-    bucket.variant != null
-      ? `"sat_module_variant": "${bucket.variant}"`
-      : `"sat_module_variant": null`;
+  const countLine =
+    totalExpected > 0
+      ? `Expected total for this section: ~${totalExpected} questions. Do not stop early; extract every ${sectionLabel} question in the PDF.`
+      : `Extract every ${sectionLabel} question in the PDF (a typical Digital SAT has 27 R&W or 22 Math per module).`;
 
-  const expected =
-    bucket.expectedCount ?? defaultExpectedCount(bucket.section, bucket.module);
-
-  const countHint = `Extract exactly ${expected} questions for this bucket (required count: ${expected}; do not return fewer than ${expected} and do not exceed ${expected + 2}).`;
-
-  const stopHint =
-    bucket.module === 1
-      ? "STOP as soon as the next module heading appears (Module A/B, Module 2, Easy/Hard, Part 2). Do NOT include questions from any later module."
-      : "IGNORE questions from Module 1 and from the OTHER second-stage variant.";
+  const perModuleHint =
+    opts.adaptiveMode === "six_module"
+      ? `In six-module adaptive PDFs this section has THREE blocks:
+- Module 1 (sat_module=1, sat_module_variant=null) — always present
+- Module 2 Easy path — sat_module=2, sat_module_variant="easy" (aka Module A / Below the bar / Route A / Easy)
+- Module 2 Hard path — sat_module=2, sat_module_variant="hard" (aka Module B / Above the bar / Route B / Hard)
+Both easy AND hard second-stage blocks appear in the PDF for practice tests; include ALL of them.`
+      : `This section has TWO blocks: Module 1 (sat_module=1) and Module 2 (sat_module=2). sat_module_variant is null.`;
 
   const retryHint = opts.retry
-    ? "RETRY: previous attempt returned zero questions for this bucket. Scan the PDF more carefully for this specific module heading."
+    ? `RETRY (previous attempt returned zero questions): scan the PDF from page 1 again; look for section headings in any language ("Reading and Writing", "Math", "Módulo", "Modul", "Modül", "模块", "وحدة"); include every visible MCQ + grid-in from this section.`
     : "";
 
   return `${MCQ_VS_MODULE_RULE}
 
-Analyze the attached Digital SAT PDF and extract ONLY questions in this bucket:
-${bucketDesc}
+Analyze the attached Digital SAT PDF and extract EVERY question in the ${sectionLabel} section.
+- IGNORE ${otherSection} questions entirely; they will be extracted in a separate call.
+- Do NOT skip questions. If a module heading is unclear, use the NEAREST PRECEDING heading you saw. If you never saw a heading, use sat_module=1.
+- Preserve PDF order; questions must appear top-to-bottom the way they do in the PDF.
+- ${countLine}
 
-${labelGuide}
+${perModuleHint}
 
-${countHint}
-${stopHint}
+Every returned object MUST include:
+  "sat_section": "${section}"       (constant for this call)
+  "sat_module": 1 | 2               (never null; use nearest preceding heading if unsure)
+  "sat_module_variant": "easy" | "hard" | null   (null for Module 1 or non-adaptive M2)
+  "sat_pdf_module_label": string    (exact PDF heading text you saw, e.g. "Section 1, Module 1: Reading and Writing", "Module A — Easy"; use "unknown" if none seen)
+  "sat_difficulty": null
 
-Every object MUST set "sat_section": "${bucket.section}", "sat_module": ${bucket.module}, ${variantField}, "sat_difficulty": null.
-The "sat_section" and "sat_module" fields are MANDATORY and must never be null.
-Include optional "sat_pdf_module_label" with the exact PDF heading for this block.
 ${retryHint}
 
 If text is unreadable, transcribe from the PDF; never return empty option strings when A-D choices are visible in the PDF.
 
-Return ONLY a JSON array. Each object: "type", "content", "image_description", "options" (4 full-text strings for MCQ, [] for grid-in), "correct", "question_type", "accepted_answers"${mathExtraFields}. NO option E.`;
+Return ONLY a JSON array. Each object: "type", "content", "image_description", "options" (4 full-text strings for MCQ, [] for grid-in), "correct", "question_type", "accepted_answers", "sat_section", "sat_module", "sat_module_variant", "sat_pdf_module_label"${mathExtraFields}. NO option E. NO markdown, NO commentary.`;
+}
+
+// ---------------------------------------------------------------------------
+// Local bucket splitter (post-Gemini)
+// ---------------------------------------------------------------------------
+
+type SplitInputQuestion = {
+  sat_section?: string | null;
+  sat_module?: number | null;
+  sat_module_variant?: string | null;
+  sat_pdf_module_label?: string | null;
+  pdf_module_label?: string | null;
+  [key: string]: unknown;
+};
+
+function normalizeModuleValue(v: unknown): 1 | 2 | null {
+  if (v === 1 || v === 2) return v;
+  const n = Number(v);
+  return n === 1 || n === 2 ? (n as 1 | 2) : null;
+}
+
+function normalizeVariantValue(v: unknown): SatModuleVariant | null {
+  if (typeof v !== "string") return null;
+  const x = v.toLowerCase().trim();
+  return x === "easy" || x === "hard" ? x : null;
+}
+
+function pickLabel(q: SplitInputQuestion): string {
+  const raw =
+    (typeof q.sat_pdf_module_label === "string" && q.sat_pdf_module_label) ||
+    (typeof q.pdf_module_label === "string" && q.pdf_module_label) ||
+    "";
+  return raw.trim();
+}
+
+/**
+ * Assign each question in a section to a concrete SatModuleBucket. Priority:
+ *   1) Gemini's sat_module + sat_module_variant tag (if valid)
+ *   2) Label-based inference from sat_pdf_module_label
+ *   3) State machine: propagate the last confidently-detected module forward
+ *   4) Fallback to Module 1 (never drop the question)
+ *
+ * The returned buckets carry force-tagged questions via applyBucketToQuestion.
+ */
+export function splitSectionQuestionsIntoBuckets<T extends SplitInputQuestion>(
+  questions: T[],
+  section: SatSection,
+  adaptiveMode: SatAdaptiveMode
+): Array<{ bucket: SatModuleBucket; questions: T[] }> {
+  const buckets: Array<{ bucket: SatModuleBucket; questions: T[] }> =
+    adaptiveMode === "six_module"
+      ? [
+          { bucket: { section, module: 1, variant: null, pdfLabels: [] }, questions: [] },
+          { bucket: { section, module: 2, variant: "easy", pdfLabels: [] }, questions: [] },
+          { bucket: { section, module: 2, variant: "hard", pdfLabels: [] }, questions: [] },
+        ]
+      : [
+          { bucket: { section, module: 1, variant: null, pdfLabels: [] }, questions: [] },
+          { bucket: { section, module: 2, variant: null, pdfLabels: [] }, questions: [] },
+        ];
+
+  const findBucket = (
+    modNum: 1 | 2,
+    variant: SatModuleVariant | null
+  ): { bucket: SatModuleBucket; questions: T[] } => {
+    if (adaptiveMode === "six_module") {
+      if (modNum === 1) return buckets[0];
+      if (variant === "easy") return buckets[1];
+      if (variant === "hard") return buckets[2];
+      return buckets[1];
+    }
+    return modNum === 1 ? buckets[0] : buckets[1];
+  };
+
+  let lastModule: 1 | 2 = 1;
+  let lastVariant: SatModuleVariant | null = null;
+
+  for (const q of questions) {
+    let modNum = normalizeModuleValue(q.sat_module);
+    let variant = normalizeVariantValue(q.sat_module_variant);
+
+    const label = pickLabel(q);
+    if (label) {
+      const labelModule = inferModuleNumberFromLabel(label);
+      const labelVariant = inferVariantFromLabel(label);
+      if (modNum == null && labelModule != null) modNum = labelModule;
+      if (variant == null && labelVariant != null) variant = labelVariant;
+      if (labelModule != null) modNum = labelModule;
+      if (labelVariant != null && (modNum === 2 || labelModule === 2)) {
+        variant = labelVariant;
+        modNum = 2;
+      }
+    }
+
+    if (modNum == null) modNum = lastModule;
+    if (adaptiveMode === "six_module" && modNum === 2 && variant == null) {
+      variant = lastVariant ?? "easy";
+    }
+    if (adaptiveMode !== "six_module") {
+      variant = null;
+    }
+
+    lastModule = modNum;
+    if (modNum === 2 && variant != null) lastVariant = variant;
+    if (modNum === 1) lastVariant = null;
+
+    const target = findBucket(modNum, variant);
+    const tagged = applyBucketToQuestion(q as unknown as object, target.bucket) as unknown as T;
+    target.questions.push(tagged);
+  }
+
+  return buckets;
+}
+
+/** Kept only for downstream typing / test compatibility. */
+export function bucketKeyForLegacy(bucket: SatModuleBucket): string {
+  return bucketKey(bucket);
 }
