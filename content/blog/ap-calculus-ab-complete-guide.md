@@ -2,7 +2,7 @@
 title: "AP Calculus AB Complete Study Guide (2026 Exam)"
 description: "Everything you need for the May 2026 AP Calculus AB exam: format, unit-by-unit breakdown, FRQ strategy, calculator policy, the questions students actually ask, and a 12-week study plan."
 date: "2026-04-10"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP Calculus AB"
   - "AP Math"
@@ -140,13 +140,21 @@ You do not need a $30 prep book. The best free resources are:
 - **Released FRQs** at AP Central (every year from 1998 to 2024 has full questions and rubrics).
 - **The CED PDF** — over 200 pages of every learning objective with examples.
 - **Khan Academy AP Calculus AB course** — free, full coverage, official partner of College Board.
-- **Bluebook Online** — practice digital MCQs in a Bluebook-style interface, then upload your own AB PDF and let our AI generate the answer key and explanations. [Browse all AP Calculus AB practice tests](/exams/ap-calculus-ab) to start.
+- **AP Practice Exam Online** — practice digital MCQs in a Bluebook-style interface, then upload your own AB PDF and let our AI generate the answer key and explanations. [Browse all AP Calculus AB practice tests](/exams/ap-calculus-ab) to start.
 
 ## Take a Mock Exam Today
 
 The single highest-yield action between now and May 11 is to **complete one full timed Section I and grade it honestly**. Whether you score 25/45 or 40/45, you will know exactly which two units to attack first.
 
 [Practice AP Calculus AB now](/exams/ap-calculus-ab) — free, no credit card, instant scoring with explanations.
+
+## Related Guides and Tools
+
+- [AP Calculus AB score calculator](/tools/ap-score-calculator/ap-calculus-ab)
+- [AP Calculus AB vs BC](/blog/ap-calculus-ab-vs-bc) — which exam should you take?
+- [Hybrid FRQ booklets](/blog/hybrid-ap-exam-frq-booklets) — Calc uses handwritten FRQs in 2026
+- [How AP exams are scored](/blog/how-ap-exams-are-scored)
+- [Bluebook interface guide](/blog/bluebook-interface-explained)
 
 ---
 

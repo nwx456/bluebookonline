@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseAdmin } from "@/lib/supabase/server";
-import {
+import { computeIsLate } from "@/lib/late-submission";
+import { createServerSupabaseAdmin } from "@/lib/supabase/server";import {
   filterQuestionsForSatModule,
   gradeAndPersistQuestionSubset,
   type GradeQuestionRow,
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const { data: attempt, error: attemptError } = await supabase
       .from("attempts")
-      .select("id, upload_id, started_at, completed_at, module_progress")
+      .select("id, upload_id, started_at, completed_at, module_progress, assignment_id")
       .eq("id", attemptId)
       .single();
 
@@ -153,6 +153,16 @@ export async function POST(request: NextRequest) {
       Math.floor((completedAt.getTime() - startedAt.getTime()) / 1000)
     );
 
+    let isLate = false;
+    if (attempt.assignment_id) {
+      const { data: assignment } = await supabase
+        .from("class_assignments")
+        .select("due_at")
+        .eq("id", attempt.assignment_id)
+        .maybeSingle();
+      isLate = computeIsLate(completedAt, assignment?.due_at as string | null);
+    }
+
     type SatModuleStats = {
       module: string;
       section: SatSection;
@@ -239,6 +249,17 @@ export async function POST(request: NextRequest) {
         } else if (sectionOnly) {
           totalScaled = sectionOnly === "rw" ? rwScaled : mathScaled;
         }
+      } else if (sectionOnly && questionsToGrade.length > 0) {
+        const sectionCorrect = counts.correctCount;
+        const sectionTotal = questionsToGrade.length;
+        const scaled = scaleSectionScore(sectionCorrect, sectionTotal, false, false);
+        if (sectionOnly === "rw") {
+          rwScaled = scaled;
+          totalScaled = scaled;
+        } else {
+          mathScaled = scaled;
+          totalScaled = scaled;
+        }
       }
     }
 
@@ -248,6 +269,7 @@ export async function POST(request: NextRequest) {
       correct_count: counts.correctCount,
       incorrect_count: counts.incorrectCount,
       unanswered_count: counts.unansweredCount,
+      is_late: isLate,
     };
 
     if (isSat) {

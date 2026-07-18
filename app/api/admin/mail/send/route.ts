@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
 
       if (list.length === 0) {
         return NextResponse.json(
-          { error: "None of the selected addresses exist in usertable.", skipped },
+          { error: "None of the selected addresses were found in usertable.", skipped },
           { status: 400 }
         );
       }

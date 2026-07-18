@@ -1,0 +1,52 @@
+---
+description: SAT extraction agent eval loop — unit tests, mock eval, live smoke
+globs:
+  - lib/sat-*.ts
+  - lib/sat-*.mjs
+  - app/api/upload/analyze/**
+  - app/dashboard/**
+  - scripts/sat-pdf-eval.mjs
+---
+
+# SAT Eval Loop (Mock-First)
+
+When fixing SAT PDF extraction, module counts, or upload/analyze issues, follow this loop.
+
+## Required iteration order
+
+1. **Unit tests** — run first, every iteration:
+   ```bash
+   npm run test:sat
+   ```
+   If any test fails, fix and repeat. Do not run eval until tests pass.
+
+2. **Mock PDF eval** — fast pipeline check (no Gemini cost):
+   ```bash
+   npm run eval:sat -- --pdf fixtures/sat/rw-practice.pdf --subject SAT_RW --format single_module --module-counts '{"rw1":27}'
+   ```
+   Parse the single-line JSON stdout. If `"ok": false`, use `errorCode`, `emptyBucketKeys`, and `hints` to guide fixes.
+
+3. **Live eval** — only after mock passes AND user approves (or explicit request):
+   ```bash
+   npm run eval:sat:live -- --pdf <path> --subject SAT_RW --format single_module --module-counts '{"rw1":27}'
+   ```
+
+## Stop conditions
+
+- **Max 8 iterations** — stop and report status if not resolved.
+- **Same error 2 iterations in a row** — stop; likely needs user input (wrong PDF, scanned PDF, wrong subject/format).
+- **Do not use `/loop`** until harness is stable.
+
+## Error code → action hints
+
+| errorCode | Likely fix |
+|-----------|------------|
+| `MODEL_EMPTY_ARRAY` | single_module format, prompt, fail-fast in gemini-extract |
+| `PDF_SECTION_MISMATCH` | subject vs PDF section; dashboard analyzeBody stripping |
+| `MODULE_REPORT_INVALID` | section_test buckets, adaptive mode, module tagging |
+| `EMPTY_BUCKET` / `emptyBucketKeys` | pipeline fallback, bucket-force tagging |
+
+## Do not touch
+
+- AP analyze pipeline
+- Unrelated exam/dashboard features unless directly caused by SAT extraction bug

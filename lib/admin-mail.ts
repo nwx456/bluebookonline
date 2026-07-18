@@ -1,5 +1,6 @@
-/** Single account that uses the admin mail tools UI and is redirected after login. */
-export const ADMIN_BROADCAST_EMAIL = "info@apbluebookonline.com";
+import { ADMIN_BROADCAST_EMAIL } from "@/lib/site-config";
+
+export { ADMIN_BROADCAST_EMAIL };
 
 export function isAdminBroadcastEmail(email: string | null | undefined): boolean {
   if (!email || typeof email !== "string") return false;

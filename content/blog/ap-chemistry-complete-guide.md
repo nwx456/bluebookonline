@@ -2,7 +2,7 @@
 title: "AP Chemistry Complete Study Guide (2026 Exam)"
 description: "Conquer the May 2026 AP Chemistry exam: all 9 units with weights, hybrid digital format, FRQ point values, calculator and reference-sheet rules, equilibrium and acid-base strategies, and a focused study plan."
 date: "2026-04-05"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP Chemistry"
   - "AP Science"
@@ -143,13 +143,21 @@ That means scoring 100 out of about 145 total points is enough for a 5 in most y
 - **Khan Academy AP Chemistry** — free, official partner.
 - **The CED PDF** with sample MCQs and FRQs.
 - **Released FRQs at AP Central** (2014-2024 with rubrics).
-- **Bluebook Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP Chemistry practice tests](/exams/ap-chemistry).
+- **AP Practice Exam Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP Chemistry practice tests](/exams/ap-chemistry).
 
 ## Take a Diagnostic Today
 
 The fastest way to improve from a projected 3 to a 4 is to identify your weakest unit and focus there. Take a full 60-question Section I and score it by unit; whichever 2 units you score lowest are your top priorities for the next 4 weeks.
 
 [Practice AP Chemistry now](/exams/ap-chemistry) — free Bluebook-style MCQs with instant AI scoring.
+
+## Related Guides and Tools
+
+- [AP Chemistry score calculator](/tools/ap-score-calculator/ap-chemistry)
+- [Hybrid FRQ booklets](/blog/hybrid-ap-exam-frq-booklets) — updated 2026 Chemistry booklet format
+- [How AP exams are scored](/blog/how-ap-exams-are-scored)
+- [Hardest & easiest AP classes](/blog/hardest-easiest-ap-classes)
+- [Upload a Chem PDF](/dashboard/upload) for AI-extracted practice
 
 ---
 

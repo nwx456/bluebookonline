@@ -28,7 +28,20 @@ export const examUi = {
   eliminateCircle: "h-8 w-8 rounded-full border border-gray-400 flex items-center justify-center text-sm font-semibold text-gray-700",
   eliminateCircleActive: "bg-gray-100 text-gray-500 line-through",
   abcToolDecor: "flex h-9 w-9 shrink-0 items-center justify-center rounded-sm bg-blue-600 text-[10px] font-bold leading-none text-white",
+  /** Viewport-locked exam shell (MCQ + FRQ active attempt). */
+  examShellMobile: "fixed inset-0 z-50 flex flex-col overflow-hidden",
+  safeAreaBottom: "pb-[env(safe-area-inset-bottom)]",
+  mobileToolbarBtn:
+    "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded border px-3 py-2 text-xs font-medium shadow-sm",
 } as const;
+
+/** Shared compact toolbar buttons (Show page, Report, etc.). */
+export const examToolbarBtn =
+  "inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium shadow-sm";
+export const examToolbarBtnShowPage =
+  "border-gray-300 bg-white text-gray-600 hover:bg-gray-50";
+export const examToolbarBtnReport =
+  "border-red-200 bg-red-50 text-red-700 hover:bg-red-100";
 
 export const examContentSerifClass =
   "[font-family:var(--font-exam-serif),ui-serif,Georgia,serif]";
@@ -40,14 +53,26 @@ const SAT_HEADER_BY_MODULE: Record<SatModuleId, string> = {
   math2: "Section 2, Module 2: Math",
 };
 
+const SAT_HEADER_SHORT_BY_MODULE: Record<SatModuleId, string> = {
+  rw1: "R&W Module 1",
+  rw2: "R&W Module 2",
+  math1: "Math Module 1",
+  math2: "Math Module 2",
+};
+
 export function formatExamHeaderTitle(
   isSat: boolean,
   subject: SubjectKey,
   currentModuleDef: SatModuleDef | null,
-  currentModuleId: SatModuleId | null
+  currentModuleId: SatModuleId | null,
+  usesModuleChrome = true
 ): string {
   if (!isSat) {
     return SUBJECT_LABELS[subject] ?? subject;
+  }
+  if (!usesModuleChrome) {
+    if (isSatRw(subject)) return "Reading and Writing";
+    if (isSatMath(subject)) return "Math";
   }
   if (currentModuleId && SAT_HEADER_BY_MODULE[currentModuleId]) {
     return SAT_HEADER_BY_MODULE[currentModuleId];
@@ -60,6 +85,36 @@ export function formatExamHeaderTitle(
   if (isSatFullTest(subject)) return "SAT Full Test";
   if (isSatRw(subject)) return SAT_HEADER_BY_MODULE.rw1;
   if (isSatMath(subject)) return SAT_HEADER_BY_MODULE.math1;
+  return "SAT Practice";
+}
+
+/** Shorter header label for narrow viewports (< md). */
+export function formatExamHeaderTitleShort(
+  isSat: boolean,
+  subject: SubjectKey,
+  currentModuleDef: SatModuleDef | null,
+  currentModuleId: SatModuleId | null,
+  usesModuleChrome = true
+): string {
+  if (!isSat) {
+    const full = SUBJECT_LABELS[subject] ?? subject;
+    return full.length > 24 ? `${full.slice(0, 22)}…` : full;
+  }
+  if (!usesModuleChrome) {
+    if (isSatRw(subject)) return "Reading & Writing";
+    if (isSatMath(subject)) return "Math";
+  }
+  if (currentModuleId && SAT_HEADER_SHORT_BY_MODULE[currentModuleId]) {
+    return SAT_HEADER_SHORT_BY_MODULE[currentModuleId];
+  }
+  if (currentModuleDef?.label) {
+    const id = currentModuleDef.id as SatModuleId;
+    if (SAT_HEADER_SHORT_BY_MODULE[id]) return SAT_HEADER_SHORT_BY_MODULE[id];
+    return currentModuleDef.label;
+  }
+  if (isSatFullTest(subject)) return "SAT Full Test";
+  if (isSatRw(subject)) return SAT_HEADER_SHORT_BY_MODULE.rw1;
+  if (isSatMath(subject)) return SAT_HEADER_SHORT_BY_MODULE.math1;
   return "SAT Practice";
 }
 

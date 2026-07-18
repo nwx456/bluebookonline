@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canStartExamAccess } from "@/lib/class-access";
+import { resolveAssignmentExamAccess } from "@/lib/class-server";
+import { isPubliclyVisibleExam } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -6,6 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const uploadId = (body.uploadId ?? body.upload_id) as string | undefined;
     const userEmail = (body.userEmail ?? body.user_email) as string | undefined;
+    const assignmentId = (body.assignmentId ?? body.assignment_id) as string | undefined;
 
     if (!uploadId?.trim() || !userEmail?.trim()) {
       return NextResponse.json(
@@ -18,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const { data: upload, error: uploadError } = await supabase
       .from("pdf_uploads")
-      .select("user_email, is_published")
+      .select("user_email, is_published, moderation_status")
       .eq("id", uploadId)
       .single();
 
@@ -30,11 +34,32 @@ export async function POST(request: NextRequest) {
     }
 
     const ownerEmail = (upload.user_email as string)?.trim().toLowerCase();
-    const isPublished = upload.is_published === true;
+    const isPublished = isPubliclyVisibleExam(upload);
     const requestingEmail = userEmail.trim().toLowerCase();
     const isOwner = ownerEmail === requestingEmail;
 
-    if (!isOwner && !isPublished) {
+    let resolvedAssignmentId: string | null = null;
+    let hasAssignmentAccess = false;
+
+    if (assignmentId?.trim()) {
+      const access = await resolveAssignmentExamAccess(supabase, {
+        assignmentId: assignmentId.trim(),
+        uploadId: uploadId.trim(),
+        studentEmail: requestingEmail,
+      });
+      hasAssignmentAccess = access.allowed;
+      if (hasAssignmentAccess) {
+        resolvedAssignmentId = assignmentId.trim();
+      }
+    }
+
+    if (
+      !canStartExamAccess({
+        isOwner,
+        isPublic: isPublished,
+        hasAssignmentAccess,
+      })
+    ) {
       return NextResponse.json(
         { error: "This exam is not published. Only the owner can start it." },
         { status: 403 }
@@ -43,12 +68,39 @@ export async function POST(request: NextRequest) {
 
     const { data: questions } = await supabase
       .from("questions")
-      .select("id")
+      .select("id, sat_section, sat_module, sat_module_variant")
       .eq("upload_id", uploadId)
       .order("question_number", { ascending: true })
       .order("id", { ascending: true });
 
-    const totalQuestions = questions?.length ?? 0;
+    const { data: uploadMeta } = await supabase
+      .from("pdf_uploads")
+      .select("sat_adaptive_mode, exam_program")
+      .eq("id", uploadId)
+      .single();
+
+    const totalQuestions = (() => {
+      const rows = questions ?? [];
+      if (uploadMeta?.exam_program !== "SAT" || rows.length === 0) return rows.length;
+      if (uploadMeta.sat_adaptive_mode !== "six_module") return rows.length;
+      let total = 0;
+      for (const section of ["rw", "math"] as const) {
+        const sectionRows = rows.filter((r) => r.sat_section === section);
+        if (sectionRows.length === 0) continue;
+        const m1 = sectionRows.filter((r) => r.sat_module !== 2).length;
+        const m2easy = sectionRows.filter(
+          (r) => r.sat_module === 2 && r.sat_module_variant === "easy"
+        ).length;
+        const m2hard = sectionRows.filter(
+          (r) => r.sat_module === 2 && r.sat_module_variant === "hard"
+        ).length;
+        const m2plain = sectionRows.filter(
+          (r) => r.sat_module === 2 && !r.sat_module_variant
+        ).length;
+        total += m1 + Math.max(m2plain, m2easy, m2hard);
+      }
+      return total > 0 ? total : rows.length;
+    })();
     if (totalQuestions === 0) {
       return NextResponse.json(
         { error: "No questions found for this exam." },
@@ -62,6 +114,7 @@ export async function POST(request: NextRequest) {
         user_email: userEmail.trim().toLowerCase(),
         upload_id: uploadId,
         total_questions: totalQuestions,
+        ...(resolvedAssignmentId ? { assignment_id: resolvedAssignmentId } : {}),
       })
       .select("id")
       .single();

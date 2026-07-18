@@ -175,7 +175,9 @@ export function pickSatM2Variant(
   const effectiveCutoff =
     cutoff != null && Number.isFinite(cutoff) && cutoff > 0
       ? cutoff
-      : Math.ceil(m1TotalQuestions * 0.6);
+      : m1TotalQuestions > 0
+        ? Math.ceil(m1TotalQuestions * 0.6)
+        : 1;
   return m1CorrectCount >= effectiveCutoff ? "hard" : "easy";
 }
 

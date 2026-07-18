@@ -4,6 +4,8 @@ import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
+import { BrandLogo } from "@/components/BrandLogo";
+import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload, AlertTriangle, Search, LayoutDashboard, Brain, Share2, PanelLeft, LayoutTemplate, Navigation, HelpCircle } from "lucide-react";
@@ -12,6 +14,8 @@ import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
 import { SUBJECT_META } from "@/lib/subject-meta";
 import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
+import { CONTACT_EMAIL } from "@/lib/site-config";
+import { ExamShareButton } from "@/components/exams/ExamShareButton";
 
 const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");
 const SAT_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "SAT");
@@ -30,7 +34,7 @@ const HOME_FAQ_JSON_LD_AP = {
   mainEntity: [
     {
       "@type": "Question",
-      name: "What is Bluebook Online?",
+      name: "What is AP Practice Exam Online?",
       acceptedAnswer: {
         "@type": "Answer",
         text: "A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP and SAT exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.",
@@ -41,7 +45,7 @@ const HOME_FAQ_JSON_LD_AP = {
       name: "Is it free?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Bluebook Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.",
+        text: "Yes. AP Practice Exam Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.",
       },
     },
     {
@@ -69,7 +73,7 @@ const HOME_FAQ_JSON_LD_SAT = {
   mainEntity: [
     {
       "@type": "Question",
-      name: "What is Bluebook Online SAT practice?",
+      name: "What is AP Practice Exam Online SAT practice?",
       acceptedAnswer: {
         "@type": "Answer",
         text: "A free Digital SAT practice platform mimicking the real Bluebook experience. Upload SAT PDFs (Reading & Writing, Math, or a full test) and solve adaptive modules with grid-in support and a built-in Desmos calculator.",
@@ -195,7 +199,7 @@ function HomeInner() {
 
   const handleSolveClick = (examId: string) => {
     if (!user) {
-      router.push("/login");
+      router.push(`/login?next=${encodeURIComponent(`/exam/${examId}`)}`);
       return;
     }
     router.push(`/exam/${examId}`);
@@ -218,8 +222,8 @@ function HomeInner() {
       : `Practice ${AP_SUBJECT_KEYS.length} AP subjects with AI-scored digital exams. Upload your own PDF or solve community-published mock tests.`;
   const heroDescription =
     program === "SAT"
-      ? "Bluebook Online mimics the real Digital SAT Bluebook interface. Adaptive Module 2 routing, built-in Desmos graphing calculator on Math, grid-in support, and scaled scoring (400–1600). Free for students worldwide."
-      : "Bluebook Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.";
+      ? "AP Practice Exam Online mimics the real Digital SAT Bluebook interface. Adaptive Module 2 routing, built-in Desmos graphing calculator on Math, grid-in support, and scaled scoring (400–1600). Free for students worldwide."
+      : "AP Practice Exam Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.";
   const heroLinkLabel =
     program === "SAT" ? "Browse SAT practice tests →" : "Browse all 24 AP practice tests →";
 
@@ -234,16 +238,15 @@ function HomeInner() {
       <SiteHeader />
 
       <main className="flex-1 mx-auto w-full max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
-        <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-4 py-8 shadow-sm border border-gray-100 sm:px-6 sm:py-10">
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <BookOpen className="h-10 w-10 text-blue-600 shrink-0 sm:h-12 sm:w-12" />
-            <h1 className="text-2xl font-semibold text-gray-900 sm:text-4xl">
+        <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-3 py-6 shadow-sm border border-gray-100 sm:px-6 sm:py-10">
+          <div className="flex flex-col items-center gap-6 w-full">
+            <BrandLogo size="hero" priority />
+            <h1 className="text-xl font-bold tracking-tight leading-tight text-gray-900 sm:text-3xl lg:text-4xl max-w-3xl">
               {heroTitle}
             </h1>
+            <p className="text-base text-gray-600 max-w-2xl">{heroSubtitle}</p>
           </div>
-          <p className="mt-2 text-gray-600">{heroSubtitle}</p>
-          <p className="mt-4 max-w-2xl mx-auto text-sm text-gray-500">{heroDescription}</p>
-          <div className="mt-4">
+          <div className="mt-5">
             <Link
               href={examsHref}
               className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
@@ -282,6 +285,10 @@ function HomeInner() {
           )}
         </section>
 
+        <p className="mb-8 max-w-2xl mx-auto px-4 text-center text-sm leading-relaxed text-gray-500">
+          {heroDescription}
+        </p>
+
         <section className="mb-8">
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div
@@ -319,7 +326,7 @@ function HomeInner() {
                 <div className="rounded-lg border border-gray-200 overflow-hidden bg-gray-50 mb-6">
                   <img
                     src="/exam-interface-preview.png"
-                    alt="Bluebook Online exam interface preview"
+                    alt="AP Practice Exam Online exam interface preview"
                     className="w-full h-auto object-contain max-h-[40vh] sm:max-h-[500px]"
                   />
                 </div>
@@ -638,7 +645,7 @@ function HomeInner() {
                   {program === "SAT" ? (
                     <>
                       <div>
-                        <dt className="text-sm font-semibold text-gray-900">What is Bluebook Online SAT practice?</dt>
+                        <dt className="text-sm font-semibold text-gray-900">What is AP Practice Exam Online SAT practice?</dt>
                         <dd className="mt-1 text-sm text-gray-600">
                           A free Digital SAT practice platform mimicking the real Bluebook experience. Upload SAT PDFs (Reading & Writing, Math, or a full test) and solve adaptive modules with grid-in support and a built-in Desmos calculator.
                         </dd>
@@ -665,7 +672,7 @@ function HomeInner() {
                   ) : (
                     <>
                       <div>
-                        <dt className="text-sm font-semibold text-gray-900">What is Bluebook Online?</dt>
+                        <dt className="text-sm font-semibold text-gray-900">What is AP Practice Exam Online?</dt>
                         <dd className="mt-1 text-sm text-gray-600">
                           A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.
                         </dd>
@@ -673,7 +680,7 @@ function HomeInner() {
                       <div>
                         <dt className="text-sm font-semibold text-gray-900">Is it free?</dt>
                         <dd className="mt-1 text-sm text-gray-600">
-                          Yes. Bluebook Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.
+                          Yes. AP Practice Exam Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.
                         </dd>
                       </div>
                       <div>
@@ -693,7 +700,7 @@ function HomeInner() {
                   <div className="pt-4 border-t border-gray-200">
                     <p className="text-sm text-gray-600">
                       <Link href="/about" className="font-medium text-blue-600 hover:underline">
-                        Learn more about Bluebook Online
+                        Learn more about AP Practice Exam Online
                       </Link>
                     </p>
                   </div>
@@ -845,7 +852,7 @@ function HomeInner() {
                             {exam.ownerUsername}
                           </p>
                         </div>
-                        <div className="mt-4">
+                        <div className="mt-4 space-y-2">
                           <button
                             type="button"
                             onClick={() => handleSolveClick(exam.id)}
@@ -854,6 +861,7 @@ function HomeInner() {
                             <Play className="h-4 w-4" />
                             Solve
                           </button>
+                          <ExamShareButton examId={exam.id} />
                         </div>
                       </div>
                     ))}
@@ -891,7 +899,7 @@ function HomeInner() {
                       {exam.ownerUsername}
                     </p>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 space-y-2">
                     <button
                       type="button"
                       onClick={() => handleSolveClick(exam.id)}
@@ -900,6 +908,7 @@ function HomeInner() {
                       <Play className="h-4 w-4" />
                       Solve
                     </button>
+                    <ExamShareButton examId={exam.id} />
                   </div>
                 </div>
               ))}
@@ -930,7 +939,15 @@ function HomeInner() {
                   About
                 </Link>
                 <span className="text-gray-300">|</span>
-                <a href="mailto:info@apbluebookonline.com" className="text-gray-600 hover:text-blue-600 hover:underline">
+                <Link href="/privacy" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Privacy
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href="/terms" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Terms
+                </Link>
+                <span className="text-gray-300">|</span>
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-gray-600 hover:text-blue-600 hover:underline">
                   Contact
                 </a>
               </>
@@ -952,6 +969,14 @@ function HomeInner() {
                   About
                 </Link>
                 <span className="text-gray-300">|</span>
+                <Link href="/privacy" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Privacy
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href="/terms" className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Terms
+                </Link>
+                <span className="text-gray-300">|</span>
                 <Link href="/login" className="text-gray-600 hover:text-blue-600 hover:underline">
                   Sign in
                 </Link>
@@ -960,7 +985,7 @@ function HomeInner() {
                   Sign up
                 </Link>
                 <span className="text-gray-300">|</span>
-                <a href="mailto:info@apbluebookonline.com" className="text-gray-600 hover:text-blue-600 hover:underline">
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-gray-600 hover:text-blue-600 hover:underline">
                   Contact
                 </a>
               </>
@@ -968,10 +993,11 @@ function HomeInner() {
           </div>
           <p className="mt-3 text-center text-sm text-gray-600">
             If you encounter any issues, you can always email us at{" "}
-            <a href="mailto:info@apbluebookonline.com" className="font-medium text-blue-600 hover:underline">
-              info@apbluebookonline.com
+            <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium text-blue-600 hover:underline">
+              {CONTACT_EMAIL}
             </a>
           </p>
+          <TrademarkDisclaimer variant="compact" className="mt-4 px-2" />
         </div>
       </footer>
     </div>

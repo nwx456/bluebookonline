@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site-config";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+  const baseUrl = getSiteUrl();
   return {
     rules: [
       { userAgent: "*", allow: "/", disallow: ["/api/", "/dashboard", "/exam/"] },

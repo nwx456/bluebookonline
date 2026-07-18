@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { ALL_SUBJECTS, CATEGORY_LABELS, type SubjectCategory } from "@/lib/subject-meta";
 import type { ExamProgram } from "@/lib/exam-program";
+import { CONTACT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
 export const revalidate = 3600;
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "Practice Tests - Free Digital Bluebook Practice (AP + SAT)",
@@ -16,7 +18,7 @@ export const metadata: Metadata = {
     "Browse 24 AP exam practice tests and Digital SAT practice modules with a Bluebook-style interface. Free multiple-choice and grid-in questions with AI scoring.",
   alternates: { canonical: `${baseUrl}/exams` },
   openGraph: {
-    title: "All Practice Tests | Bluebook Online",
+    title: `All Practice Tests | ${SITE_NAME}`,
     description:
       "Browse AP exam and Digital SAT practice tests with Bluebook-style digital interface. Free with AI scoring.",
     url: `${baseUrl}/exams`,
@@ -31,7 +33,8 @@ async function fetchPublishedCounts(): Promise<Record<string, number>> {
     const { data } = await supabase
       .from("pdf_uploads")
       .select("subject")
-      .eq("is_published", true);
+      .eq("is_published", true)
+      .eq("moderation_status", "approved");
     const counts: Record<string, number> = {};
     for (const row of data ?? []) {
       const k = (row.subject as string) ?? "";
@@ -228,13 +231,11 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
               About
             </Link>
             <span className="text-gray-300">|</span>
-            <a href="mailto:info@apbluebookonline.com" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               Contact
             </a>
           </div>
-          <p className="mt-3 text-center text-xs text-gray-500">
-            Not affiliated with College Board. For educational practice only.
-          </p>
+          <TrademarkDisclaimer variant="compact" className="mt-3 px-2" />
         </div>
       </footer>
     </div>

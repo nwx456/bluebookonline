@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isPubliclyVisibleExam } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 const GRAPHS_BUCKET = "exam-graphs";
@@ -57,7 +58,7 @@ export async function POST(
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase
       .from("pdf_uploads")
-      .select("id, user_email, is_published")
+      .select("id, user_email, is_published, moderation_status")
       .eq("id", uploadId)
       .single();
 
@@ -66,7 +67,7 @@ export async function POST(
     }
 
     const uploadOwner = (upload.user_email as string)?.trim().toLowerCase();
-    const isPublished = upload.is_published === true;
+    const isPublished = isPubliclyVisibleExam(upload);
     const isOwner = uploadOwner === userEmail;
     if (!isOwner && !isPublished) {
       return NextResponse.json(

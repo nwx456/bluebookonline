@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolvePostAuthPath } from "@/lib/post-login-redirect";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, next } = body;
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       return NextResponse.json(
@@ -40,8 +41,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const redirectPath = await resolvePostAuthPath(
+      normalizedEmail,
+      typeof next === "string" ? next : null
+    );
+
     return NextResponse.json({
       success: true,
+      redirectPath,
       session: {
         access_token: data.session?.access_token,
         refresh_token: data.session?.refresh_token,

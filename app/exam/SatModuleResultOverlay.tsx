@@ -1,9 +1,10 @@
 "use client";
 
-import { BarChart3, CheckCircle, CircleDashed, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getModuleDisplayNumber, type SatModuleGroup } from "@/lib/sat-question-display";
 import type { SatModuleId } from "@/lib/exam-program";
+import { SatScoreReportCard } from "@/app/exam/components/SatScoreReportCard";
+import { ExamAttemptStatsStrip } from "@/app/exam/components/ExamAttemptStatsStrip";
 
 export type ModuleScoreBreakdownRow = {
   questionNumber: number;
@@ -44,56 +45,37 @@ export function SatModuleResultOverlay({
   const totalInModule = groupQuestions.length || r.breakdown.length;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-3 sm:p-4 overflow-y-auto safe-area-bottom">
       <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">{r.moduleLabel}</h2>
-          <p className="text-sm text-gray-600 mt-0.5">Module preview — your exam is still in progress</p>
-        </div>
+        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-4">
+          <SatScoreReportCard
+            subject="SAT_FULL_TEST"
+            sat={{
+              isFullTest: false,
+              rwScaled: null,
+              mathScaled: null,
+              totalScaled: null,
+            }}
+            modulePreview={{
+              label: r.moduleLabel,
+              correctCount: r.correctCount,
+              totalCount: totalInModule,
+              percentage: r.percentage,
+            }}
+          />
 
-        <div className="px-6 py-4">
-          <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-center">
-            <p className="text-xs font-medium uppercase tracking-wider text-indigo-600">Module score</p>
-            <p className="mt-1 text-4xl font-bold text-indigo-700">{r.percentage}%</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {r.correctCount} correct of {r.correctCount + r.incorrectCount} answered
-              {r.unansweredCount > 0 ? ` · ${r.unansweredCount} unanswered` : ""}
-            </p>
-          </div>
-
-          <div
-            className={cn(
-              "grid grid-cols-2 gap-3 mb-4",
-              r.notGradedCount > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"
-            )}
-          >
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-center">
-              <CheckCircle className="h-6 w-6 mx-auto text-green-600 mb-1" />
-              <p className="text-xl font-bold text-green-700">{r.correctCount}</p>
-              <p className="text-[11px] font-medium text-green-600">Correct</p>
-            </div>
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-center">
-              <XCircle className="h-6 w-6 mx-auto text-red-600 mb-1" />
-              <p className="text-xl font-bold text-red-700">{r.incorrectCount}</p>
-              <p className="text-[11px] font-medium text-red-600">Incorrect</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
-              <CircleDashed className="h-6 w-6 mx-auto text-gray-500 mb-1" />
-              <p className="text-xl font-bold text-gray-600">{r.unansweredCount}</p>
-              <p className="text-[11px] font-medium text-gray-500">Unanswered</p>
-            </div>
-            {r.notGradedCount > 0 ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                <CircleDashed className="h-6 w-6 mx-auto text-amber-600 mb-1" />
-                <p className="text-xl font-bold text-amber-800">{r.notGradedCount}</p>
-                <p className="text-[11px] font-medium text-amber-700">Not graded</p>
-              </div>
-            ) : null}
-          </div>
+          <ExamAttemptStatsStrip
+            correctCount={r.correctCount}
+            incorrectCount={r.incorrectCount}
+            unansweredCount={r.unansweredCount}
+            notGradedCount={r.notGradedCount}
+            total={totalInModule}
+            compact
+          />
 
           <div
             className={cn(
-              "mb-4 rounded-lg border px-3 py-2 text-xs",
+              "rounded-lg border px-3 py-2 text-xs",
               r.skipAiGrading
                 ? "border-slate-200 bg-slate-50 text-slate-800"
                 : "border-amber-200 bg-amber-50 text-amber-800"
@@ -112,12 +94,8 @@ export function SatModuleResultOverlay({
           </div>
 
           <div className="rounded-xl border border-gray-200 overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
               <h3 className="font-medium text-gray-900 text-sm">Question details</h3>
-              <span className="text-xs text-gray-500 flex items-center gap-1">
-                <BarChart3 className="h-3.5 w-3.5" />
-                {totalInModule} questions
-              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -218,11 +196,11 @@ export function SatModuleResultOverlay({
           </div>
         </div>
 
-        <div className="sticky bottom-0 border-t border-gray-200 bg-white px-6 py-4 flex flex-col sm:flex-row gap-2 justify-end">
+        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-gray-200 bg-white px-4 py-3 safe-area-bottom sm:flex-row sm:justify-end sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={onStay}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="w-full rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
           >
             Stay on this module
           </button>
@@ -230,7 +208,7 @@ export function SatModuleResultOverlay({
             <button
               type="button"
               onClick={onContinue}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 sm:w-auto"
             >
               Continue to next module
             </button>

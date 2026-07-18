@@ -1,20 +1,33 @@
+import { SITE_NAME } from "@/lib/site-config";
+
 /**
  * "Display Name" <email@domain.com> for providers.
  * Prefer MAIL_FROM as full RFC value, or MAIL_FROM_NAME + MAIL_FROM_EMAIL / GMAIL_USER.
+ * Gmail SMTP only sends as GMAIL_USER (or a verified alias on that account).
  */
 export function getFormattedFromAddress(): string {
+  const provider = resolveMailProvider();
   const raw = (process.env.MAIL_FROM ?? "").trim();
   if (raw) {
+    if (provider === "gmail") {
+      const gmailUser = (process.env.GMAIL_USER ?? "").trim();
+      if (gmailUser) {
+        const name = (process.env.MAIL_FROM_NAME ?? SITE_NAME).trim();
+        return `"${name}" <${gmailUser}>`;
+      }
+    }
     if (raw.includes("<") && raw.includes(">")) return raw;
     if (/^[^\s<]+@[^\s>]+$/.test(raw)) {
-      const name = (process.env.MAIL_FROM_NAME ?? "Bluebook Online").trim();
+      const name = (process.env.MAIL_FROM_NAME ?? SITE_NAME).trim();
       return `"${name}" <${raw}>`;
     }
     return raw;
   }
-  const name = (process.env.MAIL_FROM_NAME ?? "Bluebook Online").trim();
+  const name = (process.env.MAIL_FROM_NAME ?? SITE_NAME).trim();
   const email =
-    (process.env.MAIL_FROM_EMAIL ?? process.env.GMAIL_USER ?? "").trim();
+    provider === "gmail"
+      ? (process.env.GMAIL_USER ?? "").trim()
+      : (process.env.MAIL_FROM_EMAIL ?? process.env.GMAIL_USER ?? "").trim();
   if (!email) {
     throw new Error(
       "Set MAIL_FROM (full address), or MAIL_FROM_EMAIL / GMAIL_USER for outbound mail."

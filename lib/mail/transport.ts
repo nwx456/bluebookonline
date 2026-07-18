@@ -68,7 +68,7 @@ async function sendViaSmtp(payload: SendMailPayload, from: string): Promise<void
 
 async function sendViaGmail(payload: SendMailPayload, from: string): Promise<void> {
   const user = (process.env.GMAIL_USER ?? "").trim();
-  const pass = (process.env.GMAIL_APP_PASSWORD ?? "").trim();
+  const pass = (process.env.GMAIL_APP_PASSWORD ?? "").trim().replace(/\s+/g, "");
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: { user, pass },

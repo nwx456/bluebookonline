@@ -3,6 +3,8 @@ import { generateOtp } from "@/lib/otp-store";
 import { sendOtpEmail } from "@/lib/nodemailer";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { getMailConfigError } from "@/lib/mail";
+import { isValidCountryCode, resolveLegalRegion } from "@/lib/legal/countries";
+import { encryptPendingPassword } from "@/lib/pending-registration-crypto";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[a-z0-9]{4,20}$/;
@@ -11,7 +13,16 @@ const MIN_PASSWORD_LENGTH = 8;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, username } = body;
+    const {
+      email,
+      password,
+      username,
+      countryCode,
+      ageConfirmed13Plus,
+      termsAccepted,
+      marketingOptIn,
+      role: roleRaw,
+    } = body;
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       return NextResponse.json(
@@ -27,8 +38,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!countryCode || typeof countryCode !== "string" || !isValidCountryCode(countryCode)) {
+      return NextResponse.json(
+        { error: "A valid country selection is required." },
+        { status: 400 }
+      );
+    }
+
+    if (ageConfirmed13Plus !== true) {
+      return NextResponse.json(
+        { error: "You must confirm you are at least 13 years old." },
+        { status: 400 }
+      );
+    }
+
+    if (termsAccepted !== true) {
+      return NextResponse.json(
+        { error: "You must accept the Terms of Service and Privacy Policy." },
+        { status: 400 }
+      );
+    }
+
+    const role =
+      typeof roleRaw === "string" && roleRaw.trim().toUpperCase() === "TEACHER"
+        ? "TEACHER"
+        : "STUDENT";
+
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedUsername = username.trim().toLowerCase();
+    const legalRegion = resolveLegalRegion(countryCode);
+    const normalizedCountry = countryCode.trim().toUpperCase() === "OTHER" ? null : countryCode.trim().toUpperCase();
 
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       return NextResponse.json(
@@ -96,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     if (existingRow) {
       return NextResponse.json(
-        { error: "An account with this email already exists." },
+        { error: "An account with this email already exists. Sign in or delete your account from Privacy settings." },
         { status: 409 }
       );
     }
@@ -124,8 +163,31 @@ export async function POST(request: NextRequest) {
 
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    let passwordEncrypted: string;
+    try {
+      passwordEncrypted = encryptPendingPassword(password);
+    } catch (encErr) {
+      console.error("Signup password encryption error:", encErr);
+      return NextResponse.json(
+        { error: "Server configuration error. Please try again later." },
+        { status: 500 }
+      );
+    }
+
     const { error: insertPendingError } = await supabase.from("pending_registrations").upsert(
-      { email: normalizedEmail, password_hash: password, code: otp, expires_at: expiresAt, username: normalizedUsername },
+      {
+        email: normalizedEmail,
+        password_hash: "",
+        password_encrypted: passwordEncrypted,
+        code: otp,
+        expires_at: expiresAt,
+        username: normalizedUsername,
+        country_code: normalizedCountry,
+        legal_region: legalRegion,
+        age_confirmed_13_plus: true,
+        marketing_opt_in: marketingOptIn === true,
+        role,
+      },
       { onConflict: "email" }
     );
     if (insertPendingError) {
@@ -140,8 +202,25 @@ export async function POST(request: NextRequest) {
       await sendOtpEmail(normalizedEmail, otp);
     } catch (emailErr) {
       console.error("Signup sendOtpEmail error:", emailErr);
+      const isDev = process.env.NODE_ENV !== "production";
+      const detail =
+        emailErr instanceof Error && isDev
+          ? emailErr.message
+          : null;
+      const hint =
+        emailErr instanceof Error &&
+        "code" in emailErr &&
+        (emailErr as NodeJS.ErrnoException).code === "EAUTH"
+          ? " Gmail rejected the credentials (535). Use a @gmail.com or Google Workspace account with a fresh App Password, or switch to Resend/SMTP."
+          : "";
       return NextResponse.json(
-        { error: "Verification email could not be sent. Check GMAIL_USER and GMAIL_APP_PASSWORD in .env.local, or try again later." },
+        {
+          error:
+            (detail
+              ? `Verification email could not be sent: ${detail}.${hint}`
+              : "Verification email could not be sent. Check GMAIL_USER and GMAIL_APP_PASSWORD in .env.local, or try Resend/SMTP. See .env.example.") +
+            (isDev ? "" : " Please try again later."),
+        },
         { status: 500 }
       );
     }
@@ -150,6 +229,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Verification code has been sent to your email.",
       email: normalizedEmail,
+      legalRegion,
     });
   } catch (err) {
     console.error("Signup error:", err);

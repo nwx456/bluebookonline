@@ -1,10 +1,14 @@
-# Bluebook Online — Proje Dökümantasyonu
+# AP Practice Exam Online — Proje Dökümantasyonu
 
 ## Genel Bakış
 
-**Bluebook Online**, College Board'un resmi "Bluebook" dijital sınav deneyimini simüle eden, AP (Advanced Placement) sınavlarına yönelik bir online pratik platformudur. Kullanıcılar kendi PDF soru kitapçıklarını yükleyebilir; yapay zeka bu PDF'leri soruya dönüştürür, öğrenci sınavı çözer, anında puanlama alır ve yanlış yaptığı soruları AI ile açıklatabilir.
+**AP Practice Exam Online**, College Board'un resmi "Bluebook" dijital sınav deneyimini simüle eden, AP (Advanced Placement) sınavlarına yönelik bir online pratik platformudur. Kullanıcılar kendi PDF soru kitapçıklarını yükleyebilir; yapay zeka bu PDF'leri soruya dönüştürür, öğrenci sınavı çözer, anında puanlama alır ve yanlış yaptığı soruları AI ile açıklatabilir.
 
-**Canlı adres:** https://apbluebookonline.com
+**Canlı adres:** https://www.apracticexamonline.com
+
+**Marka sabitleri:** `lib/site-config.ts` (`SITE_NAME`, `SITE_URL`, `CONTACT_EMAIL`, `COPYRIGHT_EMAIL`, `ADMIN_BROADCAST_EMAIL`)
+
+**İletişim:** info@apracticexamonline.com · copyright@apracticexamonline.com
 
 ---
 
@@ -260,8 +264,8 @@ docs/
 
 | Ayar | Değer |
 |------|-------|
-| Site URL | `https://apbluebookonline.com` |
-| Redirect URLs | `https://apbluebookonline.com/reset-password` |
+| Site URL | `https://www.apracticexamonline.com` |
+| Redirect URLs | `https://www.apracticexamonline.com/reset-password` |
 | Local dev | `http://localhost:3000/reset-password` |
 
 Recovery linki bu redirect URL'lerinden biri olmadan çalışmaz. `NEXT_PUBLIC_BASE_URL` forgot-password API'de `redirectTo` için kullanılır.
@@ -353,6 +357,30 @@ Gemini'nin ürettiği doğru cevaplar `questions.correct_answer` kolonuna kalıc
 ---
 
 ## Dashboard Özellikleri
+
+Dashboard artık alt sekmelerle çalışan bir **Exam Library** deneyimidir:
+
+| Rota | Açıklama |
+|------|----------|
+| `/dashboard` | Overview — devam eden denemeler, son 5 skor, kısayol kartları |
+| `/dashboard/library` | Yüklenen sınavlar — etiket, yeniden adlandırma, not, arşiv, paylaşım |
+| `/dashboard/history` | Tamamlanan denemeler — filtre, etiket, CSV export |
+| `/dashboard/mistakes` | Yanlış cevap havuzu — attempt filtresi, review / wrong-only linkleri |
+| `/dashboard/insights` | Skor trendi, konu/section zayıflıkları, JSON/CSV export |
+| `/dashboard/upload` | PDF yükleme ve AI analiz formu |
+
+### Library API
+- `GET/PATCH /api/library/uploads` — sınav listesi ve metadata güncelleme
+- `GET/PATCH /api/library/attempts` — deneme listesi ve metadata
+- `GET/POST/PATCH/DELETE /api/library/tags` — kullanıcı etiketleri
+- `PUT /api/library/taggings` — etiket atama
+- `GET /api/library/insights` — istatistik özeti
+- `GET /api/library/export?format=csv|json` — dışa aktarma
+
+### Veri modeli (library)
+- `pdf_uploads`: `display_title`, `personal_notes`, `archived_at`
+- `attempts`: `display_title`, `personal_notes`, `archived_at`
+- `user_library_tags`, `user_library_taggings`
 
 ### Son Denemeler (Recent Exams)
 - `GET /api/exams/recent` → son **3** tamamlanmış deneme (limit sabit)
@@ -543,6 +571,55 @@ Büyük ölçüde `"use client"` — sınav sayfası 200+ satır state barındı
 - Supabase RLS politikaları kaynak kodda yer almıyor; Supabase Dashboard'da ayrıca yapılandırılmalı.
 - Sınav süresi client-side `setInterval` ile tutulur; sekme kapatılıp açılırsa sayaç sıfırlanabilir.
 - `pending_registrations`'da `password_hash` kolonu adına rağmen OTP süresi içinde plaintext parola da tutulur (Supabase Auth `createUser` için kullanılıyor); OTP doğrulandıktan sonra bu row silinir.
+
+---
+
+## Rebranding — Production Ortam Kontrol Listesi
+
+Deploy öncesi ve sonrası manuel adımlar (kod değişiklikleri tamamlandıktan sonra):
+
+### Vercel Environment Variables (Production + Preview)
+
+```
+NEXT_PUBLIC_BASE_URL=https://www.apracticexamonline.com
+MAIL_FROM_NAME=AP Practice Exam Online
+MAIL_FROM_EMAIL=info@apracticexamonline.com
+MAIL_FROM="AP Practice Exam Online" <info@apracticexamonline.com>
+```
+
+### Supabase Dashboard → Authentication → URL Configuration
+
+- Site URL: `https://www.apracticexamonline.com`
+- Redirect URLs: `https://www.apracticexamonline.com/reset-password`, `http://localhost:3000/reset-password`
+
+### Admin hesabı
+
+- `usertable` içinde admin e-postası `info@apracticexamonline.com` olmalı (`lib/site-config.ts` → `ADMIN_BROADCAST_EMAIL` ile eşleşmeli)
+
+### E-posta DNS
+
+- `info@` ve `copyright@` mailbox'ları oluştur
+- Resend/SMTP domain doğrulama (SPF, DKIM, DMARC)
+
+### Logo / favicon dosyaları (deploy öncesi yerleştir)
+
+| Dosya | Boyut |
+|-------|-------|
+| `public/appicon.png` | 512×512 |
+| `app/icon.png` | 512×512 |
+| `app/favicon.png` | 32×32 veya 48×48 |
+| `public/og-image.png` | 1200×630 |
+
+### Deploy sonrası smoke test
+
+- [ ] Ana sayfa title/meta
+- [ ] Login → dashboard
+- [ ] Signup OTP + forgot-password e-postaları
+- [ ] MCQ/FRQ sınav akışı
+- [ ] `/sitemap.xml`, `/robots.txt`
+- [ ] Legal sayfalar
+- [ ] Admin → `/admin/mail`, moderator panel
+- [ ] Google Search Console yeni property + sitemap submit
 
 ---
 

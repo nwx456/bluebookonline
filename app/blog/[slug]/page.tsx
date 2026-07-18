@@ -1,11 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpen, Calendar, ArrowLeft } from "lucide-react";
+import { Calendar, ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { formatBlogDate, getAllPostMeta, getAllPostSlugs, getPostBySlug } from "@/lib/blog";
+import { BlogPostCta } from "@/components/blog/BlogPostCta";
+import { BlogRelatedPosts } from "@/components/blog/BlogRelatedPosts";
+import { BlogTableOfContents } from "@/components/blog/BlogTableOfContents";
+import {
+  buildFaqPageJsonLd,
+  formatBlogDate,
+  getAllPostSlugs,
+  getPostBySlug,
+  getPostImage,
+  getPostLastModified,
+  getPostMetaDescription,
+  getPostSeoTitle,
+  getRelatedPosts,
+} from "@/lib/blog";
+import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = getSiteUrl();
 
 export function generateStaticParams() {
   return getAllPostSlugs().map((slug) => ({ slug }));
@@ -20,23 +34,27 @@ export async function generateMetadata({
   const post = await getPostBySlug(slug);
   if (!post) return { title: "Post not found" };
   const url = `${baseUrl}/blog/${post.slug}`;
+  const title = getPostSeoTitle(post);
+  const description = getPostMetaDescription(post);
+  const image = getPostImage(post);
   return {
-    title: post.title,
-    description: post.description,
+    title,
+    description,
     alternates: { canonical: url },
     openGraph: {
-      title: `${post.title} | Bluebook Online`,
-      description: post.description,
+      title: `${title} | ${SITE_NAME}`,
+      description,
       url,
       type: "article",
       publishedTime: post.date,
+      modifiedTime: getPostLastModified(post),
       authors: post.author ? [post.author] : undefined,
-      images: ["/og-image.png"],
+      images: [image.startsWith("http") ? image : `${baseUrl}${image}`],
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
-      description: post.description,
+      title,
+      description,
     },
   };
 }
@@ -51,24 +69,28 @@ export default async function BlogPostPage({
   if (!post) notFound();
 
   const url = `${baseUrl}/blog/${post.slug}`;
+  const lastModified = getPostLastModified(post);
+  const image = getPostImage(post);
+  const imageUrl = image.startsWith("http") ? image : `${baseUrl}${image}`;
 
   const blogPostingJsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
-    description: post.description,
+    description: getPostMetaDescription(post),
     datePublished: post.date,
-    dateModified: post.date,
+    dateModified: lastModified,
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
     author: post.author
       ? { "@type": "Person", name: post.author }
-      : { "@type": "Organization", name: "Bluebook Online" },
+      : { "@type": "Organization", name: SITE_NAME },
     publisher: {
       "@type": "Organization",
-      name: "Bluebook Online",
+      name: SITE_NAME,
       url: baseUrl,
     },
-    image: `${baseUrl}/og-image.png`,
+    image: imageUrl,
+    keywords: post.focusKeyword ?? post.tags?.join(", "),
   };
 
   const breadcrumbJsonLd = {
@@ -81,9 +103,8 @@ export default async function BlogPostPage({
     ],
   };
 
-  const otherPosts = getAllPostMeta()
-    .filter((p) => p.slug !== post.slug)
-    .slice(0, 3);
+  const faqJsonLd = buildFaqPageJsonLd(post.faq, url);
+  const relatedPosts = getRelatedPosts(post, 3);
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
@@ -95,6 +116,12 @@ export default async function BlogPostPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
 
       <SiteHeader />
 
@@ -109,10 +136,29 @@ export default async function BlogPostPage({
 
         <article className="rounded-2xl bg-white px-6 py-10 sm:px-10 shadow-sm border border-gray-100">
           <header className="mb-6">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <Calendar className="h-3.5 w-3.5" />
-              {formatBlogDate(post.date)}
-              {post.author && <span className="text-gray-400">&middot; {post.author}</span>}
+              <time dateTime={post.date}>{formatBlogDate(post.date)}</time>
+              {post.updated && post.updated !== post.date && (
+                <>
+                  <span className="text-gray-400">&middot;</span>
+                  <span>
+                    Updated <time dateTime={post.updated}>{formatBlogDate(post.updated)}</time>
+                  </span>
+                </>
+              )}
+              {post.author && (
+                <>
+                  <span className="text-gray-400">&middot;</span>
+                  <span>{post.author}</span>
+                </>
+              )}
+              {post.category && (
+                <>
+                  <span className="text-gray-400">&middot;</span>
+                  <span className="font-medium text-blue-600">{post.category}</span>
+                </>
+              )}
             </div>
             <h1 className="mt-3 text-3xl font-semibold text-gray-900 leading-tight">
               {post.title}
@@ -132,34 +178,31 @@ export default async function BlogPostPage({
             )}
           </header>
 
+          <BlogTableOfContents items={post.toc} />
+
           <div
             className="prose-blog"
             dangerouslySetInnerHTML={{ __html: post.contentHtml }}
           />
+
+          {post.faq && post.faq.length > 0 && (
+            <section className="mt-10 border-t border-gray-100 pt-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Frequently asked questions</h2>
+              <div className="space-y-4">
+                {post.faq.map((item) => (
+                  <div key={item.question} className="rounded-lg bg-gray-50 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-gray-900">{item.question}</h3>
+                    <p className="mt-1 text-sm text-gray-600 leading-relaxed">{item.answer}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <BlogPostCta post={post} />
         </article>
 
-        {otherPosts.length > 0 && (
-          <section className="mt-10">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">More posts</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {otherPosts.map((p) => (
-                <Link
-                  key={p.slug}
-                  href={`/blog/${p.slug}`}
-                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg hover:border-blue-300 transition-all"
-                >
-                  <p className="text-xs text-gray-500">{formatBlogDate(p.date)}</p>
-                  <h3 className="mt-1 text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
-                    {p.title}
-                  </h3>
-                  <p className="mt-2 text-xs text-gray-600 leading-relaxed line-clamp-2">
-                    {p.description}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        <BlogRelatedPosts posts={relatedPosts} />
       </main>
 
       <footer className="border-t border-gray-200 bg-white py-6">
@@ -175,6 +218,10 @@ export default async function BlogPostPage({
             <span className="text-gray-300">|</span>
             <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
               Practice tests
+            </Link>
+            <span className="text-gray-300">|</span>
+            <Link href="/tools/ap-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
+              Score calculator
             </Link>
             <span className="text-gray-300">|</span>
             <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">

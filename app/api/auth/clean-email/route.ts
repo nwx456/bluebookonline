@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deleteUserAccount } from "@/lib/account-deletion";
+import { getAuthUser } from "@/lib/auth-session";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 /**
- * Removes an email from everywhere so the user can sign up again.
- * Order: child tables first (attempts, pdf_uploads), then pending_registrations, usertable, then Auth.
+ * Removes an email from everywhere so signup can be retried.
+ * Protected: requires authenticated owner OR admin secret OR pending-only cleanup.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -14,26 +16,52 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseAdmin();
+    const adminSecret = (process.env.CLEAN_EMAIL_SECRET ?? "").trim();
+    const providedSecret = request.headers.get("x-clean-email-secret")?.trim();
+    const isAdmin = Boolean(adminSecret && providedSecret === adminSecret);
 
-    await supabase.from("attempts").delete().eq("user_email", email);
-    await supabase.from("pdf_uploads").delete().eq("user_email", email);
-    await supabase.from("pending_registrations").delete().eq("email", email);
+    const { user } = await getAuthUser(request);
+    const isOwner = user?.email?.trim().toLowerCase() === email;
 
-    const { error: userTableError } = await supabase.from("usertable").delete().eq("email", email);
-    if (userTableError) {
-      console.error("Clean email usertable delete:", userTableError);
-      return NextResponse.json({ error: "Could not remove user. " + userTableError.message }, { status: 500 });
+    const { data: pending } = await supabase
+      .from("pending_registrations")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle();
+
+    const { data: existingUser } = await supabase
+      .from("usertable")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existingUser && !isOwner && !isAdmin) {
+      return NextResponse.json(
+        { error: "An account exists for this email. Sign in and delete it from Privacy settings." },
+        { status: 403 }
+      );
     }
 
-    const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-    const user = listData?.users?.find((u) => u.email?.toLowerCase() === email);
-    if (user?.id) {
-      await supabase.auth.admin.deleteUser(user.id);
+    if (!pending && !existingUser && !isAdmin) {
+      return NextResponse.json({ error: "No registration found for this email." }, { status: 404 });
+    }
+
+    if (pending && !existingUser) {
+      await supabase.from("pending_registrations").delete().eq("email", email);
+      return NextResponse.json({
+        success: true,
+        message: "Pending registration cleared.",
+      });
+    }
+
+    const { error } = await deleteUserAccount(supabase, email);
+    if (error) {
+      return NextResponse.json({ error: "Could not remove user." }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Email cleared. You can sign up again.",
+      message: "Email cleared.",
     });
   } catch (err) {
     console.error("Clean email error:", err);

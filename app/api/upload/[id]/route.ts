@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
+import { isModeratorEmail, isPubliclyVisibleExam } from "@/lib/moderator-auth";
 import { createSignedPdfUrl, PDF_BUCKET } from "@/lib/signed-pdf-url";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -42,7 +43,7 @@ export async function GET(
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase
       .from("pdf_uploads")
-      .select("id, user_email, storage_path, is_published")
+      .select("id, user_email, storage_path, is_published, moderation_status")
       .eq("id", uploadId)
       .single();
 
@@ -51,10 +52,11 @@ export async function GET(
     }
 
     const uploadOwner = (upload.user_email as string)?.trim().toLowerCase();
-    const isPublished = upload.is_published === true;
+    const isPublished = isPubliclyVisibleExam(upload);
     const isOwner = uploadOwner === userEmail;
     const isAdmin = isAdminBroadcastEmail(userEmail);
-    if (!isOwner && !isPublished && !isAdmin) {
+    const isModerator = await isModeratorEmail(userEmail);
+    if (!isOwner && !isPublished && !isAdmin && !isModerator) {
       return NextResponse.json(
         { error: "You can only access your own exams or published exams." },
         { status: 403 }

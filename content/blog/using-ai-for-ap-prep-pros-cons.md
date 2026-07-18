@@ -2,7 +2,7 @@
 title: "Using AI for AP Exam Prep: What Works, What Backfires"
 description: "An honest look at how AI tools help and hurt AP students. Practical rules for using AI scoring, explanations, and chatbots without crippling your own reasoning."
 date: "2026-04-15"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AI"
   - "Study Tips"
@@ -16,7 +16,7 @@ Every AP student in 2026 has access to AI tools their predecessors did not. Used
 
 ### Instant Answer Keys for Released Exams
 
-Before AI, you needed an official answer key to score a practice exam. Many older released tests have keys floating around, but messy ones, and many teacher-made tests have none at all. AI can read a PDF, extract questions, and generate a defensible answer key in seconds. Platforms like [Bluebook Online](/exams) automate this so the first student to attempt an exam funds the answer key for everyone after.
+Before AI, you needed an official answer key to score a practice exam. Many older released tests have keys floating around, but messy ones, and many teacher-made tests have none at all. AI can read a PDF, extract questions, and generate a defensible answer key in seconds. Platforms like [AP Practice Exam Online](/exams) automate this so the first student to attempt an exam funds the answer key for everyone after.
 
 Net win: more practice tests become usable.
 
@@ -70,4 +70,4 @@ If you skip step 3, AI does the thinking for you. If you skip step 5, the lesson
 
 ## Where to Practice
 
-Bluebook Online combines a Bluebook-style digital interface with AI scoring and AI explanations, but the order is yours: solve first, then ask. [Browse practice tests](/exams) for all 24 AP subjects, or upload your own released PDF.
+AP Practice Exam Online combines a Bluebook-style digital interface with AI scoring and AI explanations, but the order is yours: solve first, then ask. [Browse practice tests](/exams) for all 24 AP subjects, or upload your own released PDF.

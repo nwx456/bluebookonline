@@ -2,7 +2,7 @@
 title: "AP US History (APUSH) Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 APUSH exam: 9 historical periods, the four-part exam format (MCQ, SAQ, DBQ, LEQ), 7-point DBQ rubric, and the questions Reddit asks every spring."
 date: "2026-04-07"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP US History"
   - "APUSH"
@@ -173,13 +173,21 @@ That sentence earns the sourcing point.
 - **College Board CED** — full document, with sample DBQs and LEQs.
 - **Released DBQs and LEQs at AP Central** — every year from 2015-2024.
 - **AMSCO and Henretta APUSH textbooks** — common in classrooms; not required but useful for depth.
-- **Bluebook Online** — practice digital MCQs in a Bluebook-style interface across all 9 periods. [Browse AP US History practice tests](/exams/ap-us-history).
+- **AP Practice Exam Online** — practice digital MCQs in a Bluebook-style interface across all 9 periods. [Browse AP US History practice tests](/exams/ap-us-history).
 
 ## Start with a Period Diagnostic
 
 Take one full 55-question Section IA today. Score it by period. Whichever two periods you score lowest are your priorities for the next 4 weeks.
 
 [Practice APUSH now](/exams/ap-us-history) — free Bluebook-style MCQs with instant AI scoring.
+
+## Related Guides and Tools
+
+- [APUSH score calculator](/tools/ap-score-calculator/ap-us-history) — essays are 60% of score
+- [Digital FRQ typing strategies](/blog/digital-frq-typing-strategies) — DBQ/LEQ typed in Bluebook
+- [Fully digital vs hybrid list](/blog/fully-digital-vs-hybrid-ap-exams)
+- [Practice typed FRQs](/dashboard/upload?kind=frq)
+- [How AP exams are scored](/blog/how-ap-exams-are-scored)
 
 ---
 

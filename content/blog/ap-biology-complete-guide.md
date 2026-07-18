@@ -2,7 +2,7 @@
 title: "AP Biology Complete Study Guide (2026 Exam)"
 description: "Master AP Biology for the May 2026 exam: hybrid digital format, all 8 units with weights, the FRQ types graders actually score, the most-missed topics, and a focused study plan."
 date: "2026-04-09"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP Biology"
   - "AP Science"
@@ -149,13 +149,21 @@ Plus the five conditions for Hardy-Weinberg equilibrium: large population, no mu
 - **Bozeman Science AP Biology playlist** — Paul Andersen's videos align tightly with the CED.
 - **Khan Academy AP Biology** — free, structured, with practice questions.
 - **The CED PDF itself** — every learning objective and sample question.
-- **Bluebook Online** — solve published Bluebook-style multiple-choice exams or upload your own AP Biology PDF for AI scoring. [Browse AP Biology practice exams](/exams/ap-biology).
+- **AP Practice Exam Online** — solve published Bluebook-style multiple-choice exams or upload your own AP Biology PDF for AI scoring. [Browse AP Biology practice exams](/exams/ap-biology).
 
 ## Start with a Diagnostic Test
 
 If you have not taken a full timed Section I yet, that is the highest-leverage thing you can do today. The answer key will tell you exactly which two units to focus on for the next 4 weeks.
 
 [Practice AP Biology now](/exams/ap-biology) — free Bluebook-style MCQs with instant AI scoring and explanations.
+
+## Related Guides and Tools
+
+- [AP Biology score calculator](/tools/ap-score-calculator/ap-biology) — estimate your 1–5 from MCQ + FRQ practice
+- [Hybrid FRQ booklets](/blog/hybrid-ap-exam-frq-booklets) — Bio uses paper FRQ booklets in 2026
+- [How AP exams are scored](/blog/how-ap-exams-are-scored) — composite scoring and equating explained
+- [1-month AP cram plan](/blog/one-month-ap-study-plan) — if the exam is approaching fast
+- [Upload a Bio PDF for practice](/dashboard/upload) — turn any workbook into a Bluebook-style test
 
 ---
 

@@ -285,6 +285,50 @@ export function bucketKey(bucket: SatModuleBucket): string {
   return `${bucket.section}${bucket.module}${bucket.variant ?? ""}`;
 }
 
+function pickQuestionPdfLabel(q: {
+  sat_pdf_module_label?: unknown;
+  pdf_module_label?: unknown;
+}): string {
+  const raw =
+    (typeof q.sat_pdf_module_label === "string" && q.sat_pdf_module_label.trim()) ||
+    (typeof q.pdf_module_label === "string" && q.pdf_module_label.trim()) ||
+    "";
+  if (!raw || raw.toLowerCase() === "unknown") return "";
+  return raw;
+}
+
+/**
+ * Returns false when a PDF module label clearly belongs to a different bucket.
+ * Unknown/missing labels pass through (salvage-friendly).
+ */
+export function questionMatchesBucketLabel(
+  q: {
+    sat_pdf_module_label?: unknown;
+    pdf_module_label?: unknown;
+  },
+  bucket: SatModuleBucket
+): boolean {
+  const label = pickQuestionPdfLabel(q);
+  if (!label) return true;
+
+  const inferredMod = inferModuleNumberFromLabel(label);
+  const inferredVar = inferVariantFromLabel(label);
+
+  if (inferredMod != null && inferredMod !== bucket.module) {
+    return false;
+  }
+
+  if (bucket.variant != null && inferredVar != null && inferredVar !== bucket.variant) {
+    return false;
+  }
+
+  if (bucket.module === 1 && inferredVar != null) {
+    return false;
+  }
+
+  return true;
+}
+
 export function applyBucketToQuestion<T extends object>(
   q: T,
   bucket: SatModuleBucket

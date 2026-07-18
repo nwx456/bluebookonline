@@ -31,6 +31,15 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Safe-area padding for notched phones (toast, sheet, cookie banner, exam footer). */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* Blog post content styles (markdown-rendered HTML) */
 .prose-blog {
   color: #374151;
@@ -155,4 +164,83 @@ body {
   height: auto;
   border-radius: 0.5rem;
   margin: 1rem 0;
+}
+
+/* Legal document content (markdown-rendered HTML) */
+.prose-legal {
+  color: #374151;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+.prose-legal h2 {
+  color: #111827;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.3;
+  scroll-margin-top: 5rem;
+}
+.prose-legal h3 {
+  color: #111827;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  scroll-margin-top: 5rem;
+}
+.prose-legal p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.prose-legal a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-legal ul,
+.prose-legal ol {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+}
+.prose-legal ul { list-style: disc; }
+.prose-legal ol { list-style: decimal; }
+.prose-legal li { margin-top: 0.35rem; margin-bottom: 0.35rem; }
+.prose-legal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  display: block;
+  overflow-x: auto;
+}
+.prose-legal th,
+.prose-legal td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.prose-legal th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+.prose-legal strong {
+  font-weight: 600;
+  color: #111827;
+}
+.prose-legal hr {
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+@media print {
+  .legal-document-page nav,
+  .legal-document-page .prose-legal {
+    max-width: 100%;
+  }
+  .prose-legal h2 {
+    page-break-after: avoid;
+  }
 }

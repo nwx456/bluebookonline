@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
+import { AdSenseLoader } from "@/components/AdSenseLoader";
+import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = SITE_URL;
 
 const adsenseClient =
   process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT ?? "ca-pub-4827369932089836";
 
-const defaultTitle = "Bluebook Online – AP Exam Practice Platform";
+const defaultTitle = `${SITE_NAME} – AP Exam Practice Platform`;
 const defaultDescription =
   "Practice AP exams online with the real Bluebook experience. Upload PDFs, solve questions, get instant AI scoring. Free for AP CSA, AP CSP, AP Economics, AP Calculus and more. For students worldwide.";
 
@@ -24,7 +26,7 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: { default: defaultTitle, template: "%s | Bluebook Online" },
+  title: { default: defaultTitle, template: `%s | ${SITE_NAME}` },
   description: defaultDescription,
   keywords: [
     "AP exam",
@@ -45,8 +47,8 @@ export const metadata: Metadata = {
     "AP Prüfungsvorbereitung",
     "prática de exame AP",
   ],
-  authors: [{ name: "Bluebook Online", url: baseUrl }],
-  creator: "Bluebook Online",
+  authors: [{ name: SITE_NAME, url: baseUrl }],
+  creator: SITE_NAME,
   metadataBase: new URL(baseUrl),
   alternates: {
     canonical: baseUrl,
@@ -59,7 +61,7 @@ export const metadata: Metadata = {
     title: defaultTitle,
     description: defaultDescription,
     url: baseUrl,
-    siteName: "Bluebook Online",
+    siteName: SITE_NAME,
     type: "website",
     locale: "en_US",
     alternateLocale: ["tr_TR", "es_ES", "zh_CN", "de_DE", "fr_FR", "ar_SA", "pt_BR", "ja_JP", "ko_KR", "hi_IN"],
@@ -93,7 +95,7 @@ export default function RootLayout({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "Bluebook Online",
+    name: SITE_NAME,
     description: defaultDescription,
     url: baseUrl,
     applicationCategory: "EducationalApplication",
@@ -103,18 +105,31 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
-        <Script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
-          crossOrigin="anonymous"
-          strategy="beforeInteractive"
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('consent', 'default', {
+                ad_storage: 'denied',
+                ad_user_data: 'denied',
+                ad_personalization: 'denied',
+                analytics_storage: 'denied',
+                wait_for_update: 500
+              });
+            `,
+          }}
         />
+      </head>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         {children}
+        <CookieConsentBanner />
+        <AdSenseLoader />
       </body>
     </html>
   );

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ProgramTabs } from "@/components/ProgramTabs";
 import type { ExamProgram } from "@/lib/exam-program";
 import { isNavItemActive, navItemsForUser, type HeaderNavItem } from "@/lib/header-nav-items";
+import { UserAvatar } from "@/components/user/UserAvatar";
 
 export type MobileNavMenuProps = {
   open: boolean;
@@ -16,8 +17,11 @@ export type MobileNavMenuProps = {
   program: ExamProgram;
   onProgramChange: (program: ExamProgram) => void;
   user: User | null;
+  avatarUrl?: string | null;
+  isTeacher?: boolean;
   resolveHref: (target: string, noProgram?: boolean) => string;
   onSignOut: () => void;
+  onOpenProfile?: () => void;
 };
 
 export function MobileNavMenu({
@@ -27,8 +31,11 @@ export function MobileNavMenu({
   program,
   onProgramChange,
   user,
+  avatarUrl = null,
+  isTeacher = false,
   resolveHref,
   onSignOut,
+  onOpenProfile,
 }: MobileNavMenuProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -53,13 +60,12 @@ export function MobileNavMenu({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, close]);
 
-  const items = navItemsForUser(Boolean(user));
+  const items = navItemsForUser(Boolean(user), isTeacher);
   const displayName = user
     ? (user.user_metadata?.username as string)?.trim() ||
       user.email?.split("@")[0] ||
       "Account"
     : "";
-  const initial = displayName ? displayName.charAt(0).toUpperCase() : "";
 
   return (
     <>
@@ -67,7 +73,7 @@ export function MobileNavMenu({
         type="button"
         ref={toggleRef}
         onClick={() => onOpenChange(!open)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 md:hidden"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 md:hidden"
         aria-expanded={open}
         aria-controls="mobile-nav-panel"
         aria-label={open ? "Close menu" : "Open menu"}
@@ -124,15 +130,20 @@ export function MobileNavMenu({
               <div className="mt-6 border-t border-gray-100 pt-4">
                 {user ? (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-600">
-                        {initial}
-                      </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        onOpenProfile?.();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-md px-1 py-1 text-left hover:bg-gray-50"
+                    >
+                      <UserAvatar displayName={displayName} avatarUrl={avatarUrl} size="md" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-gray-900">{displayName}</p>
                         <p className="truncate text-xs text-gray-500">{user.email}</p>
                       </div>
-                    </div>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {

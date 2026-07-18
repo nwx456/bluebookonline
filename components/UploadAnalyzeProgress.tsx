@@ -32,6 +32,10 @@ export interface UploadAnalyzeProgressProps {
   overallStartedAt: number | null;
   totalPredictedLabel?: string;
   error: AnalyzeErrorDisplay | null;
+  headline?: string;
+  subtitle?: string;
+  showPhaseList?: boolean;
+  className?: string;
   onDismiss?: () => void;
   onTryAgain?: () => void;
 }
@@ -54,6 +58,10 @@ export function UploadAnalyzeProgress({
   overallStartedAt,
   totalPredictedLabel,
   error,
+  headline = "Analyzing your PDF…",
+  subtitle,
+  showPhaseList = true,
+  className,
   onDismiss,
   onTryAgain,
 }: UploadAnalyzeProgressProps) {
@@ -68,7 +76,12 @@ export function UploadAnalyzeProgress({
     phases.length > 0 ? Math.round((doneCount / phases.length) * 100) : 0;
 
   return (
-    <div className="mt-4 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-4 shadow-sm ring-1 ring-gray-100/50">
+    <div
+      className={cn(
+        "mt-4 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-4 shadow-sm ring-1 ring-gray-100/50",
+        className
+      )}
+    >
       {error ? (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50/80 p-4">
           <div className="flex gap-2">
@@ -115,10 +128,15 @@ export function UploadAnalyzeProgress({
       ) : null}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="font-medium text-gray-900">
-          {error ? "Analysis stopped" : "Analyzing your PDF…"}
-        </span>
-        <span className="text-gray-500 tabular-nums">
+        <div className="min-w-0">
+          <span className="font-medium text-gray-900">
+            {error ? "Analysis stopped" : headline}
+          </span>
+          {subtitle && !error ? (
+            <p className="mt-0.5 text-xs text-gray-500 truncate">{subtitle}</p>
+          ) : null}
+        </div>
+        <span className="text-gray-500 tabular-nums shrink-0">
           {overallStartedAt != null ? formatDuration(overallElapsed) : "—"}
           {totalPredictedLabel ? ` · ${totalPredictedLabel}` : ""}
         </span>
@@ -138,16 +156,18 @@ export function UploadAnalyzeProgress({
         <p className="mb-3 text-xs text-gray-500">{getActivePhaseHint(activePhase)}</p>
       ) : null}
 
-      <ul className="space-y-1">
-        {phases.map((phase) => (
-          <PhaseRow
-            key={phase.id}
-            phase={phase}
-            timing={phaseTimings[phase.id]}
-            isActive={activePhaseId === phase.id}
-          />
-        ))}
-      </ul>
+      {showPhaseList ? (
+        <ul className="space-y-1">
+          {phases.map((phase) => (
+            <PhaseRow
+              key={phase.id}
+              phase={phase}
+              timing={phaseTimings[phase.id]}
+              isActive={activePhaseId === phase.id}
+            />
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
   ChevronDown,
@@ -21,24 +21,27 @@ import {
   Superscript,
   Wrench,
   X,
-  CheckCircle,
-  XCircle,
-  CircleDashed,
-  Clock,
-  BarChart3,
   BookOpen,
   LayoutDashboard,
   Save,
 } from "lucide-react";
 import { ExamHeader } from "@/app/exam/ExamHeader";
+import { ApScoreReportCard } from "@/app/exam/components/ApScoreReportCard";
+import { SatScoreReportCard } from "@/app/exam/components/SatScoreReportCard";
+import { ExamAttemptStatsStrip } from "@/app/exam/components/ExamAttemptStatsStrip";
+import { SourceAttribution } from "@/components/exams/SourceAttribution";
 import { ExamFooter, ExamFooterQuestionNav } from "@/app/exam/ExamFooter";
 import { ExamQuestionChrome } from "@/app/exam/ExamQuestionChrome";
 import {
   examContentSerifClass,
+  examToolbarBtn,
+  examToolbarBtnShowPage,
   examUi,
   formatDisplayUsername,
   formatExamHeaderTitle,
+  formatExamHeaderTitleShort,
 } from "@/app/exam/exam-ui-tokens";
+import { QuestionReportButton } from "@/components/exam/QuestionReportButton";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/gemini-prompts";
@@ -60,6 +63,7 @@ import {
   type SatModuleId,
   type SatSection,
 } from "@/lib/exam-program";
+import { BrandLogo } from "@/components/BrandLogo";
 import { gridInAnswerMatches } from "@/lib/ai-solve-prompts";
 import {
   getModuleDisplayNumber,
@@ -84,6 +88,10 @@ const ZoomableImagePanel = dynamic(() => import("./ZoomableImagePanel"), { ssr: 
 const FullPageModal = dynamic(() => import("./FullPageModal"), { ssr: false });
 const SafeStorageImage = dynamic(() => import("./SafeStorageImage"), { ssr: false });
 const PdfExplorePanel = dynamic(() => import("./PdfExplorePanel"), { ssr: false });
+const QuestionReportFlow = dynamic(
+  () => import("@/components/exam/QuestionReportFlow"),
+  { ssr: false }
+);
 
 const TABLE_FALLBACK_CLASS =
   "overflow-auto max-w-full [&_table]:table-auto [&_table]:w-full [&_table]:border-collapse [&_table]:border [&_table]:border-gray-300 [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-4 [&_th]:py-2.5 [&_th]:font-medium [&_th]:text-left [&_td]:border [&_td]:border-gray-300 [&_td]:px-4 [&_td]:py-2.5";
@@ -175,7 +183,7 @@ const JAVA_QUICK_REFERENCE: { className: string; methods: { signature: string; e
 ];
 
 const UPLOAD_SELECT_FIELDS =
-  "id, subject, filename, storage_path, exam_program, sat_format, sat_adaptive_mode, sat_cutoff_rw, sat_cutoff_math";
+  "id, subject, filename, storage_path, exam_program, sat_format, sat_adaptive_mode, sat_cutoff_rw, sat_cutoff_math, source_type, source_name, source_url, moderation_status, is_published, user_email";
 
 type SubjectValue = SubjectKey;
 
@@ -189,6 +197,12 @@ interface PdfUpload {
   sat_adaptive_mode?: string | null;
   sat_cutoff_rw?: number | null;
   sat_cutoff_math?: number | null;
+  source_type?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
+  moderation_status?: string | null;
+  is_published?: boolean | null;
+  user_email?: string | null;
 }
 
 interface Question {
@@ -214,6 +228,7 @@ interface Question {
   sat_module?: number | null;
   sat_module_variant?: "easy" | "hard" | null;
   sat_difficulty?: "easy" | "medium" | "hard" | null;
+  explanation?: string | null;
 }
 
 const SUBJECTS = SUBJECT_KEYS.map((v) => ({ value: v, label: SUBJECT_LABELS[v] }));
@@ -521,6 +536,57 @@ function looksLikeTableText(text: string | null): boolean {
   return true;
 }
 
+/** True if a trimmed line looks like part of a pipe-format table row. */
+function isPipeTableLine(line: string): boolean {
+  const t = line.trim();
+  return t.length > 0 && t.includes("|");
+}
+
+/** True if consecutive pipe lines form a valid table (>= 2 data rows, consistent columns). */
+function isValidPipeTableBlock(lines: string[]): boolean {
+  if (lines.length < 2) return false;
+  const rows = lines.map((l) => splitTableRow(l, "pipe"));
+  const dataRows = rows.filter((r) => r.length >= 2 && !isPipeSeparatorRow(r));
+  if (dataRows.length < 2) return false;
+  const colCount = dataRows[0].length;
+  return dataRows.every((r) => r.length === colCount);
+}
+
+/** Split passage into { intro, tableText } when a pipe-table block is embedded after intro text. */
+function splitPassageTableParts(text: string | null): { intro: string; tableText: string } | null {
+  if (!text?.trim() || isTableHtml(text) || looksLikeTableText(text)) return null;
+
+  const lines = text.split(/\r?\n/);
+  let blockStart = -1;
+  let blockEnd = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (isPipeTableLine(trimmed)) {
+      if (blockStart === -1) blockStart = i;
+      blockEnd = i;
+    } else if (blockStart !== -1 && trimmed) {
+      return null;
+    }
+  }
+
+  if (blockStart === -1) return null;
+
+  const tableLines = lines.slice(blockStart, blockEnd + 1).map((l) => l.trim()).filter(Boolean);
+  if (!isValidPipeTableBlock(tableLines)) return null;
+
+  const introLines = lines.slice(0, blockStart).map((l) => l.trim()).filter(Boolean);
+  return {
+    intro: introLines.join("\n"),
+    tableText: tableLines.join("\n"),
+  };
+}
+
+function getPassageTableIntro(content: string | null): string | null {
+  const parts = splitPassageTableParts(content);
+  return parts?.intro?.trim() ? parts.intro.trim() : null;
+}
+
 /** True if text looks like a single question stem (e.g. "Which of the following…?"); not table/SVG/list. */
 function looksLikeQuestionStem(text: string | null): boolean {
   if (!text?.trim()) return false;
@@ -581,7 +647,12 @@ function extractTableBlock(text: string): string | null {
 function getTableHtmlForPanel(content: string): string {
   if (isTableHtml(content)) return sanitizeTableHtml(content);
   if (isTableWithOptionLettersFormat(content)) return sanitizeTableHtml(parseTableWithOptionLettersToHtml(content));
-  const text = isSvgContent(content) ? (extractTableBlock(content) ?? content) : content;
+  const mixed = splitPassageTableParts(content);
+  const text = mixed
+    ? mixed.tableText
+    : isSvgContent(content)
+      ? (extractTableBlock(content) ?? content)
+      : content;
   const raw = plainTextToTableHtml(text);
   return raw ? sanitizeTableHtml(raw) : "";
 }
@@ -786,12 +857,15 @@ function safeCalculatorEvalScientific(
 export default function ExamPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
-  const reviewAttemptId = searchParams.get("attempt") ?? "";
+  const reviewAttemptId = searchParams.get("attempt") ?? searchParams.get("reviewAttemptId") ?? "";
   const resumeAttemptId = searchParams.get("resume") ?? "";
+  const assignmentId = searchParams.get("assignment") ?? "";
   const loadAttemptId = resumeAttemptId || reviewAttemptId;
   const reviewQuestionNum = searchParams.get("question");
+  const wrongOnly = searchParams.get("wrongOnly") === "1";
   const reviewQuestion = reviewQuestionNum ? parseInt(reviewQuestionNum, 10) : null;
   const [upload, setUpload] = useState<PdfUpload | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -809,6 +883,7 @@ export default function ExamPage() {
   const [timerPaused, setTimerPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [leftPanelPercent, setLeftPanelPercent] = useState(50);
+  const [mobilePanelTab, setMobilePanelTab] = useState<"passage" | "question">("passage");
   const [directionsOpen, setDirectionsOpen] = useState(false);
   const [questionListOpen, setQuestionListOpen] = useState(false);
   const [referenceOpen, setReferenceOpen] = useState(false);
@@ -817,7 +892,7 @@ export default function ExamPage() {
   const [calculatorDisplay, setCalculatorDisplay] = useState("");
   const [calculatorLastResult, setCalculatorLastResult] = useState<number | null>(null);
   const [calculatorRadians, setCalculatorRadians] = useState(true);
-  const { position: calculatorPos, onDragStart: handleCalculatorDragStart } = useFloatingPanelDrag({
+  const { position: calculatorPos, onDragStart: handleCalculatorDragStart, onTouchDragStart: handleCalculatorTouchDragStart } = useFloatingPanelDrag({
     panelWidth: 320,
     panelHeight: 420,
     initialPosition: { x: 32, y: 96 },
@@ -883,6 +958,7 @@ export default function ExamPage() {
   const [resultExplanation, setResultExplanation] = useState<string | null>(null);
   const [resultExplanationLoading, setResultExplanationLoading] = useState(false);
   const [fullPageModalOpen, setFullPageModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
   const [showEndExamConfirm, setShowEndExamConfirm] = useState(false);
   const [savingExit, setSavingExit] = useState(false);
   const [highlights, setHighlights] = useState<
@@ -898,13 +974,15 @@ export default function ExamPage() {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        router.replace("/login");
+        const query = searchParams.toString();
+        const returnPath = query ? `${pathname}?${query}` : pathname;
+        router.replace(`/login?next=${encodeURIComponent(returnPath)}`);
         return;
       }
       setUserEmail(session.user?.email ?? "");
       setUserName((session.user?.user_metadata?.username as string) ?? "");
     });
-  }, [router]);
+  }, [router, pathname, searchParams]);
 
   useEffect(() => {
     setPreStartUnlockRemaining(PRE_START_UNLOCK_SECONDS);
@@ -950,6 +1028,12 @@ export default function ExamPage() {
               if (typeof data.currentModuleIndex === "number" && Number.isFinite(data.currentModuleIndex)) {
                 setResumeModuleIndex(Math.max(0, Math.floor(data.currentModuleIndex)));
               }
+              if (data.selectedRwM2Variant === "easy" || data.selectedRwM2Variant === "hard") {
+                setLockedRwM2Variant(data.selectedRwM2Variant);
+              }
+              if (data.selectedMathM2Variant === "easy" || data.selectedMathM2Variant === "hard") {
+                setLockedMathM2Variant(data.selectedMathM2Variant);
+              }
               const ans: Record<string, string> = {};
               const marked = new Set<string>();
               for (const row of data.savedAnswers ?? []) {
@@ -985,6 +1069,16 @@ export default function ExamPage() {
               });
               if (reviewQuestion != null && !Number.isNaN(reviewQuestion)) {
                 setSelectedResultQuestion(reviewQuestion);
+              } else if (searchParams.get("wrongOnly") === "1") {
+                const firstWrong = (data.result?.breakdown ?? []).find(
+                  (row: { isCorrect?: boolean; userAnswer?: string | null; questionNumber?: number }) =>
+                    row.isCorrect === false &&
+                    row.userAnswer != null &&
+                    String(row.userAnswer).trim() !== ""
+                );
+                if (firstWrong?.questionNumber != null) {
+                  setSelectedResultQuestion(firstWrong.questionNumber);
+                }
               }
             }
             setLoading(false);
@@ -1051,7 +1145,11 @@ export default function ExamPage() {
       const res = await fetch("/api/exam/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId: id, userEmail }),
+        body: JSON.stringify({
+          uploadId: id,
+          userEmail,
+          ...(assignmentId ? { assignmentId } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Failed to start exam");
@@ -1061,7 +1159,7 @@ export default function ExamPage() {
     } finally {
       setStarting(false);
     }
-  }, [id, userEmail, questions.length]);
+  }, [id, userEmail, questions.length, assignmentId]);
 
   const saveAnswer = useCallback(
     async (questionId: string, userAnswer: string | null, isFlagged: boolean) => {
@@ -1152,48 +1250,6 @@ export default function ExamPage() {
     [highlightMode]
   );
 
-  const saveAndExit = useCallback(async () => {
-    if (!attemptId || savingExit || examCompleted) return;
-    setSavingExit(true);
-    try {
-      await Promise.all(
-        questions.map((q) =>
-          saveAnswer(q.id, answers[q.id] ?? "", markedForReview.has(q.id))
-        )
-      );
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        await fetch(`/api/exam/attempt/${attemptId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ timeSpentSeconds: elapsedSeconds }),
-        });
-      }
-      router.push("/dashboard");
-    } catch (e) {
-      console.error(e);
-      alert("Could not save your progress. Please try again.");
-    } finally {
-      setSavingExit(false);
-    }
-  }, [
-    attemptId,
-    savingExit,
-    examCompleted,
-    questions,
-    answers,
-    saveAnswer,
-    markedForReview,
-    elapsedSeconds,
-    router,
-  ]);
-
   const completeExam = useCallback(
     async (skipAiGrading: boolean) => {
       if (!attemptId || completing) return;
@@ -1213,30 +1269,38 @@ export default function ExamPage() {
           satFormat: upload?.sat_format,
         });
         if (adaptiveMode === "six_module" && moduleFlowExam) {
-          let rwM1Correct = 0;
-          let mathM1Correct = 0;
-          let rwM1Total = 0;
-          let mathM1Total = 0;
-          for (const q of questions) {
-            if (q.sat_section === "rw" && q.sat_module === 1) {
-              rwM1Total++;
-              if (isSatM1AnswerCorrect(q, answers[q.id])) rwM1Correct++;
+          selectedRwM2Variant = lockedRwM2Variant;
+          selectedMathM2Variant = lockedMathM2Variant;
+          if (!selectedRwM2Variant || !selectedMathM2Variant) {
+            let rwM1Correct = 0;
+            let mathM1Correct = 0;
+            let rwM1Total = 0;
+            let mathM1Total = 0;
+            for (const q of questions) {
+              if (q.sat_section === "rw" && q.sat_module === 1) {
+                rwM1Total++;
+                if (isSatM1AnswerCorrect(q, answers[q.id])) rwM1Correct++;
+              }
+              if (q.sat_section === "math" && q.sat_module === 1) {
+                mathM1Total++;
+                if (isSatM1AnswerCorrect(q, answers[q.id])) mathM1Correct++;
+              }
             }
-            if (q.sat_section === "math" && q.sat_module === 1) {
-              mathM1Total++;
-              if (isSatM1AnswerCorrect(q, answers[q.id])) mathM1Correct++;
+            if (!selectedRwM2Variant && rwM1Total > 0) {
+              selectedRwM2Variant = pickSatM2Variant(
+                rwM1Correct,
+                rwM1Total,
+                upload?.sat_cutoff_rw ?? null
+              );
+            }
+            if (!selectedMathM2Variant && mathM1Total > 0) {
+              selectedMathM2Variant = pickSatM2Variant(
+                mathM1Correct,
+                mathM1Total,
+                upload?.sat_cutoff_math ?? null
+              );
             }
           }
-          selectedRwM2Variant = pickSatM2Variant(
-            rwM1Correct,
-            rwM1Total,
-            upload?.sat_cutoff_rw ?? null
-          );
-          selectedMathM2Variant = pickSatM2Variant(
-            mathM1Correct,
-            mathM1Total,
-            upload?.sat_cutoff_math ?? null
-          );
         }
         const res = await fetch("/api/exam/complete", {
           method: "POST",
@@ -1276,7 +1340,7 @@ export default function ExamPage() {
         setCompletingSkipAi(false);
       }
     },
-    [attemptId, completing, answers, saveAnswer, markedForReview, questions, upload]
+    [attemptId, completing, answers, saveAnswer, markedForReview, questions, upload, lockedRwM2Variant, lockedMathM2Variant]
   );
 
   const handleResultRowClick = useCallback((questionNumber: number) => {
@@ -1300,6 +1364,12 @@ export default function ExamPage() {
         setResultExplanation(
           "Solution explanation is not available for this question because there is no confirmed correct answer yet."
         );
+        setResultExplanationLoading(false);
+        return;
+      }
+      const storedExplanation = q.explanation?.trim();
+      if (storedExplanation) {
+        setResultExplanation(storedExplanation);
         setResultExplanationLoading(false);
         return;
       }
@@ -1565,6 +1635,44 @@ export default function ExamPage() {
     [attemptId, elapsedSeconds]
   );
 
+  const saveAndExit = useCallback(async () => {
+    if (!attemptId || savingExit || examCompleted) return;
+    setSavingExit(true);
+    try {
+      await Promise.all(
+        questions.map((q) =>
+          saveAnswer(q.id, answers[q.id] ?? "", markedForReview.has(q.id))
+        )
+      );
+      const moduleIndex =
+        usesSatModules && currentModuleId
+          ? availableModules.findIndex((m) => m.id === currentModuleId)
+          : -1;
+      await persistAttemptProgress(
+        moduleIndex >= 0 ? { currentModuleIndex: moduleIndex } : undefined
+      );
+      router.push("/dashboard");
+    } catch (e) {
+      console.error(e);
+      alert("Could not save your progress. Please try again.");
+    } finally {
+      setSavingExit(false);
+    }
+  }, [
+    attemptId,
+    savingExit,
+    examCompleted,
+    questions,
+    answers,
+    saveAnswer,
+    markedForReview,
+    usesSatModules,
+    currentModuleId,
+    availableModules,
+    persistAttemptProgress,
+    router,
+  ]);
+
   const goToNextModule = useCallback(async () => {
     if (!nextModuleDef) return;
     if (nextModuleQuestionCount === 0) {
@@ -1629,10 +1737,28 @@ export default function ExamPage() {
           percentage: data.percentage ?? 0,
           breakdown: data.breakdown ?? [],
         });
-        if (satAdaptiveMode === "six_module" && modId === "rw1" && liveRwM2Variant) {
-          setLockedRwM2Variant(liveRwM2Variant);
+        const refreshed = (data.refreshedCorrectAnswers ?? []) as Array<{
+          questionId: string;
+          correctAnswer: string | null;
+        }>;
+        if (refreshed.length > 0) {
+          setQuestions((prev) =>
+            prev.map((q) => {
+              const row = refreshed.find((r) => r.questionId === q.id);
+              return row?.correctAnswer
+                ? { ...q, correct_answer: row.correctAnswer }
+                : q;
+            })
+          );
         }
-        if (satAdaptiveMode === "six_module" && modId === "math1" && liveMathM2Variant) {
+        if (data.selectedRwM2Variant === "easy" || data.selectedRwM2Variant === "hard") {
+          setLockedRwM2Variant(data.selectedRwM2Variant);
+        }
+        if (data.selectedMathM2Variant === "easy" || data.selectedMathM2Variant === "hard") {
+          setLockedMathM2Variant(data.selectedMathM2Variant);
+        } else if (satAdaptiveMode === "six_module" && modId === "rw1" && liveRwM2Variant) {
+          setLockedRwM2Variant(liveRwM2Variant);
+        } else if (satAdaptiveMode === "six_module" && modId === "math1" && liveMathM2Variant) {
           setLockedMathM2Variant(liveMathM2Variant);
         }
         setShowModuleScoreChoice(false);
@@ -1654,8 +1780,8 @@ export default function ExamPage() {
       saveAnswer,
       markedForReview,
       satAdaptiveMode,
-      liveRwM2Variant,
-      liveMathM2Variant,
+      m2RwVariant,
+      m2MathVariant,
     ]
   );
 
@@ -1833,7 +1959,8 @@ export default function ExamPage() {
   const isTableContent =
     isTableHtml(leftPanelContent) ||
     isTableWithOptionLettersFormat(leftPanelContent) ||
-    looksLikeTableText(leftPanelContent);
+    looksLikeTableText(leftPanelContent) ||
+    splitPassageTableParts(leftPanelContent) != null;
   const showTablePanel =
     isEconomicsOrPassage && !!leftPanelContent?.trim() && isTableContent;
   const showGraphPanel =
@@ -1874,6 +2001,15 @@ export default function ExamPage() {
   const showHeaderZoomToolbar =
     !isCsa && (showGraphPanel || showTablePanel || canExplorePdf);
 
+  const showSourceAttribution = useMemo(() => {
+    if (!upload?.source_type || !upload?.source_name) return false;
+    const ownerEmail = upload.user_email?.trim().toLowerCase();
+    const viewerEmail = userEmail.trim().toLowerCase();
+    const isOwner = Boolean(ownerEmail && viewerEmail && ownerEmail === viewerEmail);
+    if (isOwner) return true;
+    return upload.moderation_status === "approved" && upload.is_published === true;
+  }, [upload, userEmail]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
@@ -1896,13 +2032,24 @@ export default function ExamPage() {
   if (!attemptId) {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-        <header className="bg-blue-600 text-white px-6 py-4">
-          <Link href="/dashboard" className="font-semibold hover:underline">
-            Bluebook
-          </Link>
+        <header className="border-b border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6 sm:py-4">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <Link href="/" className="shrink-0">
+              <BrandLogo size="header" priority />
+            </Link>
+            <Link
+              href="/dashboard"
+              aria-label="Back to Dashboard"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-blue-600"
+            >
+              <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Back to Dashboard</span>
+            </Link>
+          </div>
         </header>
-        <main className="flex-1 flex items-center justify-center p-8">
-          <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm max-w-lg w-full text-center">
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
+          <div className="rounded-lg border border-gray-200 bg-white p-6 sm:p-8 shadow-sm max-w-lg w-full text-center">
+            <BrandLogo size="examHero" className="mx-auto mb-6" priority />
             <h1 className="text-xl font-semibold text-gray-900">Start Exam</h1>
             <p className="mt-2 text-sm text-gray-600">{subjectLabel}</p>
             <p className="mt-1 text-sm text-gray-500">
@@ -1962,171 +2109,64 @@ export default function ExamPage() {
 
   if (attemptId && examCompleted && examResult) {
     const r = examResult;
-    const m = Math.floor(r.timeSpentSeconds / 60);
-    const s = r.timeSpentSeconds % 60;
-    const gradedAnswered = r.correctCount + r.incorrectCount;
-    const headlineIsScore = !(r.skipAiGrading && gradedAnswered === 0);
-    const scoreLabel = !headlineIsScore
-      ? "Your responses"
-      : r.percentage >= 70
-        ? "Well done"
-        : r.percentage >= 50
-          ? "Good effort"
-          : "Keep practicing";
+    const visibleBreakdown = wrongOnly
+      ? r.breakdown.filter(
+          (row) =>
+            row.userAnswer != null &&
+            String(row.userAnswer).trim() !== "" &&
+            !row.isCorrect
+        )
+      : r.breakdown;
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-        <header className="flex-shrink-0 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 px-6 py-4">
-          <div className="flex items-center justify-between max-w-2xl mx-auto">
-            <Link href="/" className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-              <BookOpen className="h-6 w-6 text-blue-600" />
-              Bluebook Online
+        <header className="flex-shrink-0 border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto">
+            <Link href="/" className="shrink-0 min-w-0">
+              <BrandLogo size="exam" />
             </Link>
-            <Link href="/dashboard" className="flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600">
+            <Link
+              href="/dashboard"
+              aria-label="Dashboard"
+              className="flex items-center gap-2 rounded-md px-2 py-2 sm:px-4 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-blue-600"
+            >
               <LayoutDashboard className="h-4 w-4" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">Exam Result</h1>
-              <p className="mt-1 text-sm text-gray-500">{upload?.filename ?? "Exam"}</p>
-            </div>
+          <div className="max-w-2xl mx-auto space-y-4">
+            {isSat && r.sat ? (
+              <SatScoreReportCard
+                subject={subject}
+                filename={upload?.filename}
+                sat={r.sat}
+              />
+            ) : !isSat ? (
+              <ApScoreReportCard
+                subject={subject}
+                filename={upload?.filename}
+                percentage={r.percentage}
+                correctCount={r.correctCount}
+                incorrectCount={r.incorrectCount}
+                total={r.total}
+                skipAiGrading={r.skipAiGrading}
+                notGradedCount={r.notGradedCount}
+              />
+            ) : null}
 
-            {/* Score highlight */}
-            <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50 to-white p-8 mb-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-                <div className="flex flex-col items-center">
-                  <div className="text-5xl sm:text-6xl font-bold text-blue-600">
-                    {headlineIsScore ? `${r.percentage}%` : "—"}
-                  </div>
-                  <p className="text-sm font-medium text-gray-600 mt-1">{scoreLabel}</p>
-                  {r.skipAiGrading && r.notGradedCount > 0 ? (
-                    <p className="text-xs text-amber-800 text-center mt-2 max-w-xs">
-                      Some questions were not scored (no answer key in the exam data).
-                    </p>
-                  ) : null}
-                </div>
-                <div className="h-16 w-px bg-gray-200 hidden sm:block" />
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Clock className="h-4 w-4" />
-                  <span>Time: {m}:{s.toString().padStart(2, "0")}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* SAT scaled score cards */}
-            {r.sat && (r.sat.totalScaled != null || r.sat.rwScaled != null || r.sat.mathScaled != null) && (
-              <div className="mb-6">
-                <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/80 to-white p-6 shadow-sm">
-                  <p className="text-center text-xs font-semibold uppercase tracking-wider text-indigo-700">
-                    SAT Scaled Score
-                  </p>
-                  <div className="mt-2 text-center">
-                    <span className="text-5xl font-bold text-indigo-700">
-                      {r.sat.totalScaled ?? "—"}
-                    </span>
-                    <span className="text-2xl text-indigo-400 ml-2">
-                      / {r.sat.isFullTest ? 1600 : 800}
-                    </span>
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-5 grid gap-4",
-                      r.sat.isFullTest ? "grid-cols-2" : "grid-cols-1 max-w-xs mx-auto"
-                    )}
-                  >
-                    {(r.sat.isFullTest || r.sat.rwScaled != null) && (
-                      <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-                          Reading & Writing
-                        </p>
-                        <p className="mt-1 text-3xl font-bold text-gray-900">
-                          {r.sat.rwScaled ?? "—"}
-                        </p>
-                        <p className="text-xs text-gray-500">/ 800</p>
-                      </div>
-                    )}
-                    {(r.sat.isFullTest || r.sat.mathScaled != null) && (
-                      <div className="rounded-xl border border-indigo-100 bg-white p-4 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Math</p>
-                        <p className="mt-1 text-3xl font-bold text-gray-900">
-                          {r.sat.mathScaled ?? "—"}
-                        </p>
-                        <p className="text-xs text-gray-500">/ 800</p>
-                      </div>
-                    )}
-                  </div>
-                  {r.sat.modules.length > 0 && (
-                    <div className="mt-5">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-                        Module breakdown
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {r.sat.modules.map((m) => {
-                          const mod = SAT_MODULES.find((x) => x.id === m.module);
-                          return (
-                            <div
-                              key={m.module}
-                              className="rounded-lg border border-gray-200 bg-white p-3 text-center"
-                            >
-                              <p className="text-[11px] font-medium text-gray-600 leading-tight">
-                                {mod?.shortLabel ?? m.module}
-                              </p>
-                              <p className="mt-1 text-base font-semibold text-gray-900">
-                                {m.correct}/{m.total}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                {m.total > 0 ? Math.round((m.correct / m.total) * 100) : 0}%
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  <p className="mt-4 text-[11px] text-gray-500 leading-relaxed text-center">
-                    Scaled scores are an approximation of the College Board scoring algorithm. Actual SAT scores depend on the exam form&apos;s adaptive routing and statistical equating.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Stats cards */}
-            <div className={cn("grid grid-cols-2 gap-4 mb-6", r.notGradedCount > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
-                <CheckCircle className="h-8 w-8 mx-auto text-green-600 mb-1" />
-                <p className="text-2xl font-bold text-green-700">{r.correctCount}</p>
-                <p className="text-xs font-medium text-green-600">Correct</p>
-              </div>
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
-                <XCircle className="h-8 w-8 mx-auto text-red-600 mb-1" />
-                <p className="text-2xl font-bold text-red-700">{r.incorrectCount}</p>
-                <p className="text-xs font-medium text-red-600">Incorrect</p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center">
-                <CircleDashed className="h-8 w-8 mx-auto text-gray-500 mb-1" />
-                <p className="text-2xl font-bold text-gray-600">{r.unansweredCount}</p>
-                <p className="text-xs font-medium text-gray-500">Unanswered</p>
-              </div>
-              {r.notGradedCount > 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
-                  <CircleDashed className="h-8 w-8 mx-auto text-amber-600 mb-1" />
-                  <p className="text-2xl font-bold text-amber-800">{r.notGradedCount}</p>
-                  <p className="text-xs font-medium text-amber-700">Not graded</p>
-                </div>
-              ) : null}
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
-                <BarChart3 className="h-8 w-8 mx-auto text-blue-600 mb-1" />
-                <p className="text-2xl font-bold text-blue-700">{r.total}</p>
-                <p className="text-xs font-medium text-blue-600">Total</p>
-              </div>
-            </div>
+            <ExamAttemptStatsStrip
+              correctCount={r.correctCount}
+              incorrectCount={r.incorrectCount}
+              unansweredCount={r.unansweredCount}
+              notGradedCount={r.notGradedCount}
+              total={r.total}
+              timeSpentSeconds={r.timeSpentSeconds}
+            />
 
             <div
               className={cn(
-                "mb-4 rounded-lg border px-4 py-3 text-sm",
+                "rounded-lg border px-4 py-3 text-sm",
                 r.skipAiGrading
                   ? "border-slate-200 bg-slate-50 text-slate-800"
                   : "border-amber-200 bg-amber-50 text-amber-800"
@@ -2259,7 +2299,7 @@ export default function ExamPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {r.breakdown.map((row) => {
+                    {visibleBreakdown.map((row) => {
                       const hasUser =
                         row.userAnswer != null && String(row.userAnswer).trim() !== "";
                       const hasKey =
@@ -2382,9 +2422,30 @@ export default function ExamPage() {
                       {selectedQ.passage_text?.trim() ? (
                         <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Passage</p>
-                          <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                            {formatResultMath(selectedQ.passage_text)}
-                          </div>
+                          {(() => {
+                            const tableHtml = getTableHtmlForPanel(selectedQ.passage_text);
+                            const tableIntro = getPassageTableIntro(selectedQ.passage_text);
+                            if (tableHtml.trim()) {
+                              return (
+                                <div className="space-y-3">
+                                  {tableIntro ? (
+                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                                      {formatResultMath(tableIntro)}
+                                    </p>
+                                  ) : null}
+                                  <div
+                                    className={TABLE_FALLBACK_CLASS}
+                                    dangerouslySetInnerHTML={{ __html: tableHtml }}
+                                  />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                                {formatResultMath(selectedQ.passage_text)}
+                              </div>
+                            );
+                          })()}
                         </div>
                       ) : null}
                       {selectedQ.precondition_text?.trim() ? (
@@ -2456,7 +2517,9 @@ export default function ExamPage() {
     { key: "B" as const, text: currentQuestion?.option_b },
     { key: "C" as const, text: currentQuestion?.option_c },
     { key: "D" as const, text: currentQuestion?.option_d },
-    { key: "E" as const, text: currentQuestion?.option_e },
+    ...(isSat
+      ? []
+      : [{ key: "E" as const, text: currentQuestion?.option_e }]),
   ].filter((o) => o.text != null && o.text.trim() !== "");
 
   const emptyModulePanel = (
@@ -2504,9 +2567,18 @@ export default function ExamPage() {
     isSat,
     subject,
     currentModuleDef ?? null,
-    currentModuleId
+    currentModuleId,
+    usesSatModules
+  );
+  const examHeaderTitleShort = formatExamHeaderTitleShort(
+    isSat,
+    subject,
+    currentModuleDef ?? null,
+    currentModuleId,
+    usesSatModules
   );
   const displayUsername = formatDisplayUsername(userName, userEmail);
+  const canReport = Boolean(attemptId && !examCompleted && currentQuestion);
 
   const questionBlockContent = isEmptySatModule ? (
     emptyModulePanel
@@ -2661,7 +2733,7 @@ export default function ExamPage() {
 
   return (
     <GraphZoomProvider>
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className={cn(examUi.examShellMobile, "bg-white")}>
       {/* Java Quick Reference Drawer - CSA only */}
       {isCsa && (
         <>
@@ -2803,8 +2875,9 @@ export default function ExamPage() {
           >
             <div className="flex-shrink-0 bg-gray-900 text-white px-3 py-2 flex items-center justify-between">
               <span
-                className="font-medium flex-1 cursor-grab active:cursor-grabbing select-none"
+                className="font-medium flex-1 cursor-grab active:cursor-grabbing select-none touch-none"
                 onMouseDown={handleCalculatorDragStart}
+                onTouchStart={handleCalculatorTouchDragStart}
               >
                 Calculator
               </span>
@@ -3075,6 +3148,7 @@ export default function ExamPage() {
 
       <ExamHeader
         headerTitle={examHeaderTitle}
+        headerTitleShort={examHeaderTitleShort}
         directionsOpen={directionsOpen}
         onToggleDirections={() => setDirectionsOpen((o) => !o)}
         directionsContent={
@@ -3096,6 +3170,126 @@ export default function ExamPage() {
         onToggleTimerPause={() => setTimerPaused((p) => !p)}
         onHideTimer={() => setTimerVisible(false)}
         onShowTimer={() => setTimerVisible(true)}
+        toolbarPrimary={
+          <button
+            type="button"
+            onClick={() => void saveAndExit()}
+            disabled={savingExit}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-400 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 shrink-0"
+          >
+            <Save className="h-4 w-4 shrink-0" />
+            {savingExit ? "Saving…" : "Save & exit"}
+          </button>
+        }
+        toolbarOverflow={
+          <>
+            <button
+              type="button"
+              onClick={() => setHighlightToolbarOpen((o) => !o)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Highlighter className="h-4 w-4 shrink-0" />
+              Highlights & Notes
+            </button>
+            {highlightToolbarOpen ? (
+              <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setHighlightMode((m) => (m === "yellow" ? null : "yellow"))}
+                  className={cn(
+                    "h-8 w-8 rounded-full border-2 transition-colors",
+                    highlightMode === "yellow"
+                      ? "bg-yellow-200 border-yellow-600 ring-2 ring-yellow-400"
+                      : "bg-yellow-200 border-transparent hover:border-yellow-400"
+                  )}
+                  title="Yellow highlight"
+                />
+                <button
+                  type="button"
+                  onClick={() => setHighlightMode((m) => (m === "blue" ? null : "blue"))}
+                  className={cn(
+                    "h-8 w-8 rounded-full border-2 transition-colors",
+                    highlightMode === "blue"
+                      ? "bg-blue-200 border-blue-600 ring-2 ring-blue-400"
+                      : "bg-blue-200 border-transparent hover:border-blue-400"
+                  )}
+                  title="Light blue highlight"
+                />
+                <button
+                  type="button"
+                  onClick={() => setHighlightMode((m) => (m === "pink" ? null : "pink"))}
+                  className={cn(
+                    "h-8 w-8 rounded-full border-2 transition-colors",
+                    highlightMode === "pink"
+                      ? "bg-pink-200 border-pink-600 ring-2 ring-pink-400"
+                      : "bg-pink-200 border-transparent hover:border-pink-400"
+                  )}
+                  title="Light pink highlight"
+                />
+                <button
+                  type="button"
+                  onClick={() => setHighlightMode((m) => (m === "eraser" ? null : "eraser"))}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full border-2 bg-gray-100 transition-colors",
+                    highlightMode === "eraser"
+                      ? "border-gray-600 ring-2 ring-gray-400"
+                      : "border-transparent hover:border-gray-400"
+                  )}
+                  title="Eraser"
+                >
+                  <Eraser className="h-4 w-4 text-gray-600" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNoteWidgetOpen((o) => !o)}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors",
+                    noteWidgetOpen
+                      ? "border-amber-500 bg-amber-100 ring-2 ring-amber-300"
+                      : "border-gray-300 bg-white hover:border-amber-400 hover:bg-amber-50"
+                  )}
+                  title="Add note"
+                >
+                  <StickyNote className="h-4 w-4 text-amber-600" />
+                </button>
+              </div>
+            ) : null}
+            {isCsa ? (
+              <button
+                type="button"
+                onClick={() => setReferenceOpen(true)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Superscript className="h-4 w-4 shrink-0" /> Reference
+              </button>
+            ) : (
+              <span className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-gray-500">
+                <Superscript className="h-4 w-4 shrink-0" /> Reference
+              </span>
+            )}
+            {isCalculatorAllowed ? (
+              <button
+                type="button"
+                onClick={() => setCalculatorOpen(true)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Calculator className="h-4 w-4 shrink-0" /> Calculator
+              </button>
+            ) : null}
+            {needsDesmos && (currentModuleDef?.section === "math" || (!usesSatModules && isSatMath(subject))) ? (
+              <button
+                type="button"
+                onClick={() => setDesmosOpen((o) => !o)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-gray-50",
+                  desmosOpen ? "font-medium text-blue-700" : "text-gray-700"
+                )}
+              >
+                <Calculator className="h-4 w-4 shrink-0" /> Desmos
+              </button>
+            ) : null}
+          </>
+        }
         toolbar={
           <>
             <button
@@ -3186,33 +3380,40 @@ export default function ExamPage() {
               )}
             </div>
             {noteWidgetOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-gray-300 bg-white z-50 overflow-hidden">
-                <div className="flex items-center justify-between bg-amber-300 px-3 py-2">
-                  <span className="font-bold text-gray-900">
-                    {currentQuestion ? `Q${displayQuestionNumber}` : "Note"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setNoteWidgetOpen(false)}
-                    className="p-1 rounded-full hover:bg-amber-400/50"
-                    title="Close note"
-                  >
-                    <Delete className="h-4 w-4 text-gray-700" />
-                  </button>
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/20 md:hidden"
+                  aria-hidden
+                  onClick={() => setNoteWidgetOpen(false)}
+                />
+                <div className="fixed inset-x-0 bottom-0 z-50 overflow-hidden rounded-t-xl border border-gray-300 bg-white safe-area-bottom md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-72 md:rounded-lg">
+                  <div className="flex items-center justify-between bg-amber-300 px-3 py-2">
+                    <span className="font-bold text-gray-900">
+                      {currentQuestion ? `Q${displayQuestionNumber}` : "Note"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setNoteWidgetOpen(false)}
+                      className="rounded-full p-1 hover:bg-amber-400/50"
+                      title="Close note"
+                    >
+                      <Delete className="h-4 w-4 text-gray-700" />
+                    </button>
+                  </div>
+                  <div className="bg-white p-3">
+                    <textarea
+                      value={notes[currentQuestion?.id ?? ""] ?? ""}
+                      onChange={(e) => {
+                        if (!currentQuestion) return;
+                        setNotes((prev) => ({ ...prev, [currentQuestion.id]: e.target.value }));
+                      }}
+                      placeholder="Notes are saved automatically."
+                      className="min-h-[100px] w-full resize-none rounded border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      disabled={!currentQuestion}
+                    />
+                  </div>
                 </div>
-                <div className="p-3 bg-white">
-                  <textarea
-                    value={notes[currentQuestion?.id ?? ""] ?? ""}
-                    onChange={(e) => {
-                      if (!currentQuestion) return;
-                      setNotes((prev) => ({ ...prev, [currentQuestion.id]: e.target.value }));
-                    }}
-                    placeholder="Notes are saved automatically."
-                    className="w-full min-h-[100px] rounded border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none"
-                    disabled={!currentQuestion}
-                  />
-                </div>
-              </div>
+              </>
             )}
             {isCsa ? (
               <button
@@ -3253,30 +3454,76 @@ export default function ExamPage() {
             </button>
           </>
         }
+        subBanner={
+          showSourceAttribution ? (
+            <div className="border-t border-gray-200 bg-amber-50/80 px-4 py-2">
+              <SourceAttribution
+                sourceType={upload!.source_type!}
+                sourceName={upload!.source_name!}
+                sourceUrl={upload!.source_url}
+              />
+            </div>
+          ) : undefined
+        }
       />
 
       {/* Main: split when left content exists, else single centered column */}
-      <main className="flex min-h-0 flex-1 overflow-hidden bg-white">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+        {hasMeaningfulLeftContent ? (
+          <div className="flex shrink-0 border-b border-gray-200 bg-[#f2f5f9] md:hidden">
+            <button
+              type="button"
+              onClick={() => setMobilePanelTab("passage")}
+              className={cn(
+                "flex-1 px-3 py-2 text-sm font-medium transition-colors",
+                mobilePanelTab === "passage"
+                  ? "border-b-2 border-blue-600 text-blue-700"
+                  : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              Passage
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobilePanelTab("question")}
+              className={cn(
+                "flex-1 px-3 py-2 text-sm font-medium transition-colors",
+                mobilePanelTab === "question"
+                  ? "border-b-2 border-blue-600 text-blue-700"
+                  : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              Question
+            </button>
+          </div>
+        ) : null}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
         {hasMeaningfulLeftContent ? (
           <>
             {/* Left panel */}
             <div
-              className="min-h-0 min-w-0 flex-shrink-0 overflow-auto border-r border-gray-300 bg-white"
+              className={cn(
+                "min-h-0 min-w-0 flex-shrink-0 overflow-auto border-r border-gray-300 bg-white",
+                mobilePanelTab === "passage" ? "flex-1 w-full md:block" : "hidden md:block"
+              )}
               style={{ width: `${leftPanelPercent}%` }}
             >
               <div className="p-4 h-full relative min-w-0">
-                {(pdfUrl || showHeaderZoomToolbar) && (
+                {(pdfUrl || showHeaderZoomToolbar || canReport) && (
                     <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
                       {pdfUrl && (
                         <button
                           type="button"
                           onClick={() => setFullPageModalOpen(true)}
-                          className="rounded border border-gray-300 bg-white/90 px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                          className={cn(examToolbarBtn, examToolbarBtnShowPage, "bg-white/90")}
                           aria-label="Show page"
                         >
-                          <Maximize2 className="mr-1 inline h-3.5 w-3.5" />
+                          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
                           Show page
                         </button>
+                      )}
+                      {canReport && (
+                        <QuestionReportButton onClick={() => setReportModalOpen(true)} />
                       )}
                       <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
                     </div>
@@ -3300,13 +3547,21 @@ export default function ExamPage() {
                           onUnusable={() => markImageUnusable(usableStoredImgSrc)}
                         />
                       ) : (() => {
+                        const tableIntro = getPassageTableIntro(leftPanelContent!);
                         const tableHtml = getTableHtmlForPanel(leftPanelContent!);
                         return tableHtml.trim() ? (
-                          <TableImageView
-                            tableHtml={tableHtml}
-                            onRendered={handleTableRendered}
-                            className="overflow-auto max-w-full"
-                          />
+                          <div className="flex flex-col gap-3 max-w-full">
+                            {tableIntro ? (
+                              <p className={cn(isSat ? satPassageTextClass : apPassageTextClass, "mb-0")}>
+                                {formatMathText(tableIntro)}
+                              </p>
+                            ) : null}
+                            <TableImageView
+                              tableHtml={tableHtml}
+                              onRendered={handleTableRendered}
+                              className="overflow-auto max-w-full"
+                            />
+                          </div>
                         ) : (
                           <div
                             className={cn(TABLE_FALLBACK_CLASS, "bg-white", "overflow-auto max-w-full")}
@@ -3418,14 +3673,22 @@ export default function ExamPage() {
                         />
                       </ZoomableImagePanel>
                     ) : (() => {
+                      const tableIntro = getPassageTableIntro(leftPanelContent);
                       const tableHtml = getTableHtmlForPanel(leftPanelContent);
                       return tableHtml.trim() ? (
                         <ZoomableImagePanel key={currentQuestion?.id} className="max-w-full">
-                          <TableImageView
-                            tableHtml={tableHtml}
-                            onRendered={handleTableRendered}
-                            className="overflow-auto max-w-full"
-                          />
+                          <div className="flex flex-col gap-3 max-w-full">
+                            {tableIntro ? (
+                              <p className={cn(isSat ? satPassageTextClass : apPassageTextClass, "mb-0")}>
+                                {formatMathText(tableIntro)}
+                              </p>
+                            ) : null}
+                            <TableImageView
+                              tableHtml={tableHtml}
+                              onRendered={handleTableRendered}
+                              className="overflow-auto max-w-full"
+                            />
+                          </div>
                         </ZoomableImagePanel>
                       ) : (
                         <div
@@ -3487,7 +3750,7 @@ export default function ExamPage() {
             {/* Resizer */}
             <div
               ref={dividerRef}
-              className="w-1 flex-shrink-0 bg-gray-300 hover:bg-gray-400 cursor-col-resize flex items-center justify-center group"
+              className="hidden w-1 flex-shrink-0 cursor-col-resize items-center justify-center bg-gray-300 group hover:bg-gray-400 md:flex"
               onMouseDown={() => {
                 isDraggingRef.current = true;
                 window.addEventListener("mousemove", handleResize);
@@ -3499,27 +3762,33 @@ export default function ExamPage() {
 
             {/* Right panel */}
             <div
-              className="flex-1 overflow-auto flex flex-col min-w-0"
+              className={cn(
+                "flex min-w-0 flex-1 flex-col overflow-auto",
+                mobilePanelTab === "question" ? "flex" : "hidden md:flex"
+              )}
               style={{ width: `${100 - leftPanelPercent}%` }}
             >
-              <div className="p-6 flex flex-col gap-4">{questionBlockContent}</div>
+              <div className="flex flex-col gap-4 p-4 sm:p-6">{questionBlockContent}</div>
             </div>
           </>
         ) : (
           <div className="flex-1 overflow-auto flex flex-col items-center min-h-0">
             <div className="w-full max-w-2xl p-6 py-8 flex flex-col gap-4">
-              {(pdfUrl || showHeaderZoomToolbar) && (
+              {(pdfUrl || showHeaderZoomToolbar || canReport) && (
                 <div className="flex justify-end items-center gap-1.5 -mt-2 mb-2">
                   {pdfUrl && (
                     <button
                       type="button"
                       onClick={() => setFullPageModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50"
+                      className={cn(examToolbarBtn, examToolbarBtnShowPage)}
                       aria-label="Show page"
                     >
-                      <Maximize2 className="h-3.5 w-3.5" />
+                      <Maximize2 className="h-3.5 w-3.5" aria-hidden />
                       Show page
                     </button>
+                  )}
+                  {canReport && (
+                    <QuestionReportButton onClick={() => setReportModalOpen(true)} />
                   )}
                   <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
                 </div>
@@ -3528,6 +3797,7 @@ export default function ExamPage() {
             </div>
           </div>
         )}
+        </div>
       </main>
 
       <ExamFooter
@@ -3541,6 +3811,7 @@ export default function ExamPage() {
               totalQuestions={activeQuestions.length}
               questionListOpen={questionListOpen}
               onToggleQuestionList={() => setQuestionListOpen((o) => !o)}
+              onCloseQuestionList={() => setQuestionListOpen(false)}
               questionGrid={
                 <div className="grid grid-cols-5 gap-1.5">
                   {activeQuestions.map((q, i) => (
@@ -3569,7 +3840,7 @@ export default function ExamPage() {
           )
         }
         actions={
-          <>
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
             {isEmptySatModule ? (
               <>
                 {nextModuleDef && nextModuleQuestionCount > 0 && (
@@ -3653,7 +3924,7 @@ export default function ExamPage() {
                 )}
               </>
             )}
-          </>
+          </div>
         }
       />
       {isOnLastQuestionOfModule && (!usesSatModules || isLastSatModule) && (
@@ -3676,12 +3947,22 @@ export default function ExamPage() {
           pageNumber={currentQuestion?.page_number ?? currentQuestion?.question_number ?? 1}
         />
       )}
+      {canReport && (
+        <QuestionReportFlow
+          open={reportModalOpen}
+          onOpenChange={setReportModalOpen}
+          questionId={currentQuestion!.id}
+          uploadId={id}
+          attemptId={attemptId!}
+          questionNumber={displayQuestionNumber}
+        />
+      )}
       {needsDesmos && (
         <DesmosCalculator open={desmosOpen} onClose={() => setDesmosOpen(false)} />
       )}
       {moduleTransitionShown && nextModuleDef && !moduleScoreResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-w-md w-full rounded-xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 overflow-y-auto safe-area-bottom">
+          <div className="max-w-md w-full rounded-xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Module complete</h2>
             {isSat ? (
               <MarkedForReviewWarning

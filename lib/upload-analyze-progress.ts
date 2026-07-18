@@ -54,6 +54,7 @@ export const PHASE_UPLOAD = "upload";
 export const PHASE_VALIDATE = "validate";
 export const PHASE_SAVE = "save";
 export const PHASE_EXTRACT = "extract";
+export const PHASE_GENERATE = "generate";
 
 export function sectionPhaseId(section: SatSection): string {
   return `section:${section}`;
@@ -184,6 +185,45 @@ export function buildApAnalyzePhases(): AnalyzePhase[] {
   return [uploadPhase(), extractPhase(""), savePhase()];
 }
 
+function notesExtractPhase(): AnalyzePhase {
+  return {
+    id: PHASE_EXTRACT,
+    label: "Reading your notes",
+    shortLabel: "Extract",
+    predictedTimeLabel: "~30 sec",
+  };
+}
+
+function notesGeneratePhase(): AnalyzePhase {
+  return {
+    id: PHASE_GENERATE,
+    label: "Writing exam questions with AI",
+    shortLabel: "Generate",
+    predictedTimeLabel: "~2–3 min",
+  };
+}
+
+function notesSavePhase(): AnalyzePhase {
+  return {
+    id: PHASE_SAVE,
+    label: "Saving your exam",
+    shortLabel: "Save",
+    predictedTimeLabel: "~15 sec",
+  };
+}
+
+export function buildNotesGeneratePhases(): AnalyzePhase[] {
+  return [uploadPhase(), notesExtractPhase(), notesGeneratePhase(), notesSavePhase()];
+}
+
+export function buildClientNotesGeneratePhases(): {
+  phases: AnalyzePhase[];
+  totalPredictedLabel: string;
+} {
+  const phases = buildNotesGeneratePhases();
+  return { phases, totalPredictedLabel: "About 2–4 min total" };
+}
+
 export function buildClientAnalyzePhases(opts: {
   subject: string;
   satAdaptiveMode: SatAdaptiveMode;
@@ -213,12 +253,65 @@ export interface FriendlyErrorContext {
   moduleSummary?: string;
   modeMismatchWarning?: string;
   emptyBuckets?: string[];
+  errorCode?: string;
+  rawTextLen?: number;
 }
 
 export function formatFriendlyAnalyzeError(
   raw: string,
   ctx: FriendlyErrorContext = {}
 ): AnalyzeErrorDisplay {
+  if (ctx.errorCode === "GEMINI_EMPTY") {
+    return {
+      failedPhaseId: ctx.failedPhaseId ?? PHASE_EXTRACT,
+      title: "AI returned no content",
+      message: "Gemini did not return any text for this PDF.",
+      reason:
+        "The model response was completely empty. The PDF may be unreadable (scanned images only), corrupted, or too large for the AI to process.",
+      suggestion:
+        "Try a text-based PDF, compress the file, or upload a single SAT module instead of a full test.",
+      errorCode: "GEMINI_EMPTY",
+    };
+  }
+
+  if (ctx.errorCode === "MODEL_EMPTY_ARRAY") {
+    return {
+      failedPhaseId: ctx.failedPhaseId ?? PHASE_EXTRACT,
+      title: "AI found no questions",
+      message: "Gemini parsed the response but returned an empty question list.",
+      reason:
+        "The model understood the request but did not extract any questions. The PDF may be scanned images only, use an unexpected layout, or not match the selected format (try Single practice sheet).",
+      suggestion:
+        "Use a text-based PDF, select SAT Reading & Writing (not Full Test) for R&W-only PDFs, or try Single practice sheet.",
+      errorCode: "MODEL_EMPTY_ARRAY",
+    };
+  }
+
+  if (ctx.errorCode === "PDF_SECTION_MISMATCH") {
+    return {
+      failedPhaseId: ctx.failedPhaseId ?? PHASE_EXTRACT,
+      title: "PDF does not match selected section",
+      message: raw || "The PDF content does not match your subject and format selection.",
+      reason:
+        "The AI reported that this PDF does not contain the section you selected (e.g. Math missing, or Full Test selected for an R&W-only PDF).",
+      suggestion:
+        "For R&W-only PDFs choose SAT Reading & Writing with Single practice sheet. Use SAT Full Test only when both R&W and Math are in the PDF.",
+      errorCode: "PDF_SECTION_MISMATCH",
+    };
+  }
+
+  if (ctx.errorCode === "PARSE_FAILED") {
+    return {
+      failedPhaseId: ctx.failedPhaseId ?? PHASE_EXTRACT,
+      title: "AI response could not be parsed",
+      message: "Gemini responded but we could not extract questions from the output.",
+      reason: `The model returned ${ctx.rawTextLen ?? "some"} characters of text, but it was not valid question JSON. This often happens with very long or complex PDFs.`,
+      suggestion:
+        "Try again, compress the PDF, switch adaptive mode, or upload a single section/module.",
+      errorCode: "PARSE_FAILED",
+    };
+  }
+
   const lower = raw.toLowerCase();
 
   if (lower.includes("pdf'ten tam sat") || lower.includes("eksik") || lower.includes("boş modül") || ctx.emptyBuckets?.length) {
@@ -381,6 +474,9 @@ export function createPhaseTracker(emit: ProgressEmitter) {
 }
 
 export function getActivePhaseHint(phase: AnalyzePhase | undefined): string {
-  if (!phase) return "Working on your PDF…";
+  if (!phase) return "Working…";
+  if (phase.id === PHASE_GENERATE) {
+    return "AI is writing your questions — this usually takes 2–3 minutes…";
+  }
   return `${phase.label}…`;
 }

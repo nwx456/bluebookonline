@@ -9,6 +9,7 @@ import { OtpInput } from "@/components/ui/OtpInput";
 function VerifyOtpContentInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const nextParam = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,9 @@ function VerifyOtpContentInner() {
         setError(data.error || "Verification failed.");
         return;
       }
-      router.push("/login?verified=1");
+      const loginParams = new URLSearchParams({ verified: "1" });
+      if (nextParam) loginParams.set("next", nextParam);
+      router.push(`/login?${loginParams.toString()}`);
       router.refresh();
     } catch {
       setError("Connection error. Please try again.");
@@ -54,6 +57,10 @@ function VerifyOtpContentInner() {
       setLoading(false);
     }
   }
+
+  const signupHref = nextParam
+    ? `/signup?next=${encodeURIComponent(nextParam)}`
+    : "/signup";
 
   return (
     <div className="w-full max-w-md rounded-md border border-gray-200 bg-white p-8 shadow-sm">
@@ -104,7 +111,7 @@ function VerifyOtpContentInner() {
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-500">
-        <Link href="/signup" className="font-medium text-blue-600 hover:underline">
+        <Link href={signupHref} className="font-medium text-blue-600 hover:underline">
           ← Back to sign up
         </Link>
       </p>

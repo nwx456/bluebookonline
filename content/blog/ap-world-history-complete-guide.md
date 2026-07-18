@@ -2,7 +2,7 @@
 title: "AP World History: Modern Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP World History: Modern exam: 9 units from 1200-Present, the four-part exam format (MCQ, SAQ, DBQ, LEQ), the 7-point DBQ rubric, comparison strategies, and a focused study plan."
 date: "2026-04-04"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP World History"
   - "AP World"
@@ -182,13 +182,21 @@ Hugely. Comparison is one of the four targeted skills, and at least one of the L
 - **The CED PDF** with sample DBQs and LEQs.
 - **Released FRQs at AP Central** (2017-2024 with rubrics).
 - **Crash Course World History (John Green)** — broad context, not exam-focused but excellent for narrative.
-- **Bluebook Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP World History practice tests](/exams/ap-world-history).
+- **AP Practice Exam Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP World History practice tests](/exams/ap-world-history).
 
 ## Start with a Period Diagnostic
 
 Take a full 55-question Section IA today and score it by unit. Whichever 2 units you score lowest are your top priorities. For most students, those will be Units 3 or 4 (the empire-heavy units) or Unit 7 (Global Conflict).
 
 [Practice AP World History now](/exams/ap-world-history) — free Bluebook-style MCQs with instant AI scoring.
+
+## Related Guides and Tools
+
+- [AP World History score calculator](/tools/ap-score-calculator/ap-world-history)
+- [Digital FRQ typing strategies](/blog/digital-frq-typing-strategies)
+- [Fully digital vs hybrid list](/blog/fully-digital-vs-hybrid-ap-exams)
+- [Practice typed FRQs](/dashboard/upload?kind=frq)
+- [1-month AP cram plan](/blog/one-month-ap-study-plan)
 
 ---
 

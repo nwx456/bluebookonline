@@ -2,7 +2,7 @@
 title: "AP English Language Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP English Language and Composition exam: 45-question MCQ format, three essays, the 6-point rubric explained, sophistication strategies, and a focused study plan."
 date: "2026-04-06"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP English Language"
   - "AP Lang"
@@ -154,13 +154,21 @@ Identify 2-3 of these in any given speech and you have your essay's spine.
 - **The CED PDF** with detailed essay rubrics and sample passages.
 - **Marco Learning AP Lang videos** (free YouTube channel with rubric breakdowns).
 - **Coach Hall Writes** (YouTube) — popular for sophistication examples.
-- **Bluebook Online** — practice digital MCQs in a Bluebook-style interface modeled on the real exam. [Browse AP English Language practice tests](/exams/ap-english-language).
+- **AP Practice Exam Online** — practice digital MCQs in a Bluebook-style interface modeled on the real exam. [Browse AP English Language practice tests](/exams/ap-english-language).
 
 ## Start with a Diagnostic
 
 Take one full 45-question Section 1 today. The MCQ section is the highest-leverage part to drill because it is repeatable and has clear right/wrong answers. Start with one timed practice and you will know exactly which question type to attack.
 
 [Practice AP English Language now](/exams/ap-english-language) — free Bluebook-style MCQs with instant AI scoring and explanations.
+
+## Related Guides and Tools
+
+- [AP Lang score calculator](/tools/ap-score-calculator/ap-english-language)
+- [Digital FRQ typing strategies](/blog/digital-frq-typing-strategies) — AP Lang FRQs are typed in Bluebook
+- [Fully digital vs hybrid list](/blog/fully-digital-vs-hybrid-ap-exams)
+- [Practice typed FRQs](/dashboard/upload?kind=frq) with AI rubric grading
+- [Bluebook interface guide](/blog/bluebook-interface-explained)
 
 ---
 

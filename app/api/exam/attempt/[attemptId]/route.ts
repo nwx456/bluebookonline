@@ -113,9 +113,9 @@ export async function GET(
     const supabase = createServerSupabaseAdmin();
 
     const SELECT_ATTEMPT_WITH_SKIP =
-      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading, current_module_index";
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, skip_ai_grading, current_module_index, selected_rw_m2_variant, selected_math_m2_variant";
     const SELECT_ATTEMPT_BASE =
-      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, current_module_index";
+      "id, upload_id, user_email, completed_at, correct_count, incorrect_count, unanswered_count, time_spent_seconds, total_questions, current_module_index, selected_rw_m2_variant, selected_math_m2_variant";
 
     type AttemptHeader = {
       id: string;
@@ -129,6 +129,8 @@ export async function GET(
       total_questions: number | null;
       skip_ai_grading?: boolean | null;
       current_module_index?: number | null;
+      selected_rw_m2_variant?: string | null;
+      selected_math_m2_variant?: string | null;
     };
 
     const first = await supabase
@@ -225,6 +227,16 @@ export async function GET(
         attemptId: attempt.id,
         timeSpentSeconds: attempt.time_spent_seconds ?? 0,
         currentModuleIndex: hasModuleIndexColumn ? (attempt.current_module_index ?? 0) : 0,
+        selectedRwM2Variant:
+          attempt.selected_rw_m2_variant === "easy" ||
+          attempt.selected_rw_m2_variant === "hard"
+            ? attempt.selected_rw_m2_variant
+            : null,
+        selectedMathM2Variant:
+          attempt.selected_math_m2_variant === "easy" ||
+          attempt.selected_math_m2_variant === "hard"
+            ? attempt.selected_math_m2_variant
+            : null,
         upload: {
           id: upload.id,
           subject: upload.subject,

@@ -39,6 +39,9 @@ type RecentAttemptRow = {
   rw_scaled_score?: number | null;
   math_scaled_score?: number | null;
   total_scaled_score?: number | null;
+  display_title?: string | null;
+  personal_notes?: string | null;
+  archived_at?: string | null;
 };
 
 /**
@@ -56,36 +59,56 @@ export async function GET(request: NextRequest) {
       );
     }
     const userEmail = user.email.trim().toLowerCase();
+    const includeArchived = new URL(request.url).searchParams.get("archived") === "true";
 
     const supabase = createServerSupabaseAdmin();
 
-    const buildRecentQuery = (columns: string) =>
-      supabase
+    const buildRecentQuery = (columns: string) => {
+      let query = supabase
         .from("attempts")
         .select(columns)
         .eq("user_email", userEmail)
         .not("completed_at", "is", null)
         .order("completed_at", { ascending: false });
+      if (!includeArchived) {
+        query = query.is("archived_at", null);
+      }
+      return query;
+    };
 
-    const { data: attempts, error: attemptsError } = await buildRecentQuery(SELECT_WITH_SKIP_AI);
+    const SELECT_WITH_LIBRARY =
+      "id, upload_id, completed_at, correct_count, incorrect_count, unanswered_count, total_questions, skip_ai_grading, module_progress, rw_scaled_score, math_scaled_score, total_scaled_score, display_title, personal_notes, archived_at";
+
+    const { data: attempts, error: attemptsError } = await buildRecentQuery(SELECT_WITH_LIBRARY);
 
     let hasSkipAiColumn = true;
+    let hasLibraryColumns = true;
     let attemptList: RecentAttemptRow[] = [];
 
     if (attemptsError) {
       if (process.env.NODE_ENV === "development") {
-        console.warn("[exams/recent] primary select failed, retrying without skip_ai_grading:", attemptsError.message);
+        console.warn("[exams/recent] library select failed, retrying without library columns:", attemptsError.message);
       }
-      const retry = await buildRecentQuery(SELECT_BASE);
+      const retry = await buildRecentQuery(SELECT_WITH_SKIP_AI);
       if (retry.error) {
-        console.error("Recent attempts fetch error:", retry.error);
-        return NextResponse.json(
-          { error: "Failed to fetch recent exams." },
-          { status: 500 }
-        );
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[exams/recent] primary select failed, retrying without skip_ai_grading:", retry.error.message);
+        }
+        const fallback = await buildRecentQuery(SELECT_BASE);
+        if (fallback.error) {
+          console.error("Recent attempts fetch error:", fallback.error);
+          return NextResponse.json(
+            { error: "Failed to fetch recent exams." },
+            { status: 500 }
+          );
+        }
+        attemptList = (fallback.data ?? []) as unknown as RecentAttemptRow[];
+        hasSkipAiColumn = false;
+        hasLibraryColumns = false;
+      } else {
+        attemptList = (retry.data ?? []) as unknown as RecentAttemptRow[];
+        hasLibraryColumns = false;
       }
-      attemptList = (retry.data ?? []) as unknown as RecentAttemptRow[];
-      hasSkipAiColumn = false;
     } else {
       attemptList = (attempts ?? []) as unknown as RecentAttemptRow[];
     }
@@ -134,6 +157,9 @@ export async function GET(request: NextRequest) {
         id: a.id,
         uploadId: a.upload_id,
         filename: upload?.filename ?? "PDF",
+        displayTitle: hasLibraryColumns ? (a.display_title ?? null) : null,
+        personalNotes: hasLibraryColumns ? (a.personal_notes ?? null) : null,
+        archivedAt: hasLibraryColumns ? (a.archived_at ?? null) : null,
         subject: upload?.subject ?? "AP_CSA",
         examProgram: upload?.examProgram ?? "AP",
         completedAt: a.completed_at,

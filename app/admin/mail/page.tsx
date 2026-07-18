@@ -7,7 +7,7 @@ import { BarChart3, Loader2, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
-type Recipient = { email: string; username: string };
+type Recipient = { email: string; username: string; marketingOptIn: boolean };
 
 type MailConfig = {
   mailConfigured: boolean;
@@ -93,9 +93,10 @@ export default function AdminMailPage() {
       }
       const list = Array.isArray(data.recipients) ? data.recipients : [];
       setRecipients(
-        list.map((r: { email?: string; username?: string }) => ({
+        list.map((r: { email?: string; username?: string; marketingOptIn?: boolean }) => ({
           email: String(r.email ?? ""),
           username: String(r.username ?? ""),
+          marketingOptIn: r.marketingOptIn === true,
         }))
       );
       setSelected(new Set());
@@ -478,7 +479,7 @@ export default function AdminMailPage() {
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {sendToAllRegistered
-              ? `All ${recipients.length} registered users will receive this message`
+              ? `All ${recipients.length} registered user(s) will receive this message`
               : `${selected.size} selected · ${recipients.length} registered`}
           </p>
 
@@ -516,7 +517,7 @@ export default function AdminMailPage() {
             </p>
           )}
 
-          <div className="mt-4 max-h-72 overflow-auto rounded-md border border-gray-100">
+          <div className="mt-4 max-h-72 overflow-x-auto overflow-y-auto rounded-md border border-gray-100">
             {listLoading ? (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-gray-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -537,6 +538,9 @@ export default function AdminMailPage() {
                     <th className="px-3 py-2 font-medium" scope="col">
                       Username
                     </th>
+                    <th className="px-3 py-2 font-medium" scope="col">
+                      Marketing
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -553,6 +557,17 @@ export default function AdminMailPage() {
                       </td>
                       <td className="px-3 py-2 text-gray-900">{r.email}</td>
                       <td className="px-3 py-2 text-gray-600">{r.username || "—"}</td>
+                      <td className="px-3 py-2">
+                        {r.marketingOptIn ? (
+                          <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+                            Opted in
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                            Opted out
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -593,7 +608,9 @@ export default function AdminMailPage() {
                 listLoading ||
                 mailConfigLoading ||
                 (mailConfig !== null && !mailConfig.mailConfigured) ||
-                (mailConfig !== null && !mailConfig.mailOpsTablesReady) ||
+                (mailConfig !== null &&
+                  !mailConfig.mailOpsTablesReady &&
+                  !testOnly) ||
                 (!testOnly &&
                   !sendToAllRegistered &&
                   (recipients.length === 0 || selected.size === 0)) ||
@@ -610,7 +627,7 @@ export default function AdminMailPage() {
                 <>
                   <Mail className="h-4 w-4" />
                   {sendToAllRegistered
-                    ? `Send to all (${recipients.length})`
+                    ? `Send to all registered (${recipients.length})`
                     : testOnly
                       ? "Send test"
                       : "Send to selected"}
@@ -680,7 +697,7 @@ export default function AdminMailPage() {
                 {stats.pdfBySubject.length === 0 ? (
                   <p className="mt-2 text-sm text-gray-500">No uploads grouped by subject yet.</p>
                 ) : (
-                  <div className="mt-3 max-h-56 overflow-auto rounded-md border border-gray-100">
+                  <div className="mt-3 max-h-56 overflow-x-auto overflow-y-auto rounded-md border border-gray-100">
                     <table className="min-w-full text-left text-sm">
                       <thead className="sticky top-0 bg-gray-50 text-gray-600">
                         <tr>

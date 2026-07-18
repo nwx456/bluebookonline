@@ -6,6 +6,10 @@ import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { generateWithFallback } from "@/lib/gemini-client";
 import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
 import { getExamProgram } from "@/lib/exam-program";
+import { hasActiveConsent, recordUploadPublishConsent } from "@/lib/legal/consent";
+import { parseExamSourceFields } from "@/lib/exam-source";
+import { verifyExamSourceUrl } from "@/lib/exam-source-url-verify";
+import { getClientIp } from "@/lib/auth-session";
 import {
   MAX_PDF_UPLOAD_BYTES,
   MAX_PDF_UPLOAD_MB,
@@ -155,7 +159,20 @@ function looksLikeQuestionStemOnly(text: string | null): boolean {
 /** AP-only analyze: multipart FormData upload (git HEAD behavior). */
 export async function handleApAnalyze(request: NextRequest): Promise<NextResponse> {
   try {
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (err) {
+      console.error("ap analyze formData parse:", err);
+      return NextResponse.json(
+        {
+          error:
+            "Upload was too large or interrupted. Keep each file under 20 MB and try again.",
+        },
+        { status: 400 }
+      );
+    }
+
     const file = formData.get("file") as File | null;
     const subjectRaw = formData.get("subject") as string | null;
     const questionCountRaw = formData.get("questionCount") as string | null;
@@ -237,6 +254,34 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
         },
         { status: 403 }
       );
+    }
+
+    const hasAiConsent = await hasActiveConsent(supabase, userEmail, "ai_processing");
+    const hasCopyrightConsent = await hasActiveConsent(supabase, userEmail, "copyright_attestation");
+    const hasPublishConsent = await hasActiveConsent(supabase, userEmail, "public_publish");
+    if (!hasAiConsent || !hasCopyrightConsent || !hasPublishConsent) {
+      return NextResponse.json(
+        { error: "Upload consent required. Please accept the upload dialog on the dashboard.", code: "CONSENT_REQUIRED" },
+        { status: 403 }
+      );
+    }
+
+    const sourceResult = parseExamSourceFields({
+      sourceType: formData.get("sourceType"),
+      sourceName: formData.get("sourceName"),
+      sourceUrl: formData.get("sourceUrl"),
+      notOfficialConfirmed: formData.get("notOfficialConfirmed"),
+    });
+    if (!sourceResult.ok) {
+      return NextResponse.json({ error: sourceResult.error }, { status: 400 });
+    }
+    const examSource = sourceResult.normalized;
+
+    if (examSource.sourceUrl) {
+      const urlCheck = await verifyExamSourceUrl(examSource.sourceUrl);
+      if (!urlCheck.ok) {
+        return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+      }
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -323,6 +368,7 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
       );
     });
 
+    const publishRequestedAt = new Date().toISOString();
     const { data: uploadRow, error: uploadError } = await supabase
       .from("pdf_uploads")
       .insert({
@@ -331,9 +377,15 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
         storage_path: `pending/${file.name}`,
         subject,
         original_text: text.slice(0, 50_000),
-        is_published: true,
+        is_published: false,
+        moderation_status: "pending_review",
+        publish_requested_at: publishRequestedAt,
         exam_program: "AP",
         requested_question_count: questionCount,
+        source_type: examSource.sourceType,
+        source_name: examSource.sourceName,
+        source_url: examSource.sourceUrl,
+        not_official_material_confirmed: examSource.notOfficialConfirmed,
       })
       .select("id")
       .single();
@@ -351,6 +403,15 @@ export async function handleApAnalyze(request: NextRequest): Promise<NextRespons
     }
 
     const uploadId = uploadRow.id;
+
+    await recordUploadPublishConsent(supabase, {
+      userEmail,
+      uploadId,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      source: "upload_analyze",
+    });
+
     const bucket = "pdf_uploads";
     const storageKey = `${uploadId}.pdf`;
     try {

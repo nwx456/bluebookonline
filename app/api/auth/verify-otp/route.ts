@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { hashPassword } from "@/lib/auth-utils";
+import { getClientIp } from "@/lib/auth-session";
+import { recordSignupConsents } from "@/lib/legal/consent";
+import { resolvePendingPassword } from "@/lib/pending-registration-crypto";
+import type { LegalRegion } from "@/lib/legal/countries";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +38,9 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseAdmin();
     const { data: row, error: fetchError } = await supabase
       .from("pending_registrations")
-      .select("email, password_hash, code, expires_at, username")
+      .select(
+        "email, password_hash, password_encrypted, code, expires_at, username, country_code, legal_region, age_confirmed_13_plus, marketing_opt_in, role"
+      )
       .eq("email", normalizedEmail)
       .maybeSingle();
 
@@ -58,14 +64,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const password = row.password_hash;
+    if (row.age_confirmed_13_plus !== true) {
+      return NextResponse.json(
+        { error: "Age confirmation missing. Please sign up again." },
+        { status: 400 }
+      );
+    }
+
+    const password = resolvePendingPassword(row);
+    if (!password) {
+      return NextResponse.json(
+        { error: "Registration data corrupted. Please sign up again." },
+        { status: 400 }
+      );
+    }
+
     const username = row.username ?? null;
+    const countryCode = (row.country_code as string | null) ?? null;
+    const legalRegion = (row.legal_region as LegalRegion) ?? "ROW";
+    const marketingOptIn = row.marketing_opt_in === true;
+    const role = row.role === "TEACHER" ? "TEACHER" : "STUDENT";
+
     await supabase.from("pending_registrations").delete().eq("email", normalizedEmail);
     const pending = { email: normalizedEmail, password, username };
 
-
     let authData: { user?: { id: string; email?: string } } | null = null;
-    let authError: { message?: string } | null = null;
 
     const { data: createData, error: createError } = await supabase.auth.admin.createUser({
       email: pending.email,
@@ -116,6 +139,11 @@ export async function POST(request: NextRequest) {
       email: pending.email,
       password: passwordHash,
       ...(pending.username && { username: pending.username }),
+      country_code: countryCode,
+      legal_region: legalRegion,
+      age_confirmed_13_plus: true,
+      marketing_opt_in: marketingOptIn,
+      role,
     });
 
     if (tableError) {
@@ -132,10 +160,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { error: consentError } = await recordSignupConsents(supabase, {
+      userEmail: pending.email,
+      legalRegion,
+      marketingOptIn,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+    });
+
+    if (consentError) {
+      console.error("Verify OTP consent error:", consentError);
+    }
+
     return NextResponse.json({
       success: true,
       message: "Account created. You can sign in now.",
       user: authData?.user ? { id: authData.user.id, email: authData.user.email } : undefined,
+      legalRegion,
     });
   } catch (err) {
     console.error("Verify OTP error:", err);

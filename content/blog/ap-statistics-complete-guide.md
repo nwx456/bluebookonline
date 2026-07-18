@@ -2,7 +2,7 @@
 title: "AP Statistics Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP Statistics exam: hybrid digital format, 9 units with weights, the FRQ types graders score, calculator skills, the investigative task, and a focused study plan."
 date: "2026-04-03"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP Statistics"
   - "AP Stats"
@@ -175,13 +175,21 @@ The curve is moderate. To earn a 5, you need to score well on Section 1 (which i
 - **Khan Academy AP Statistics** — full course aligned with the CED.
 - **AP Classroom progress checks** if your teacher has assigned them.
 - **Released FRQs at AP Central** (2017-2024 with rubrics and sample student responses).
-- **Bluebook Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP Statistics practice tests](/exams/ap-statistics).
+- **AP Practice Exam Online** — practice digital MCQs across all 9 units in a Bluebook-style interface. [Browse AP Statistics practice tests](/exams/ap-statistics).
 
 ## Start with a Diagnostic
 
 Take one full 40-question Section 1 today. Score it by unit. Whichever 2 units you score lowest are your priorities for the next 4 weeks — for most students, those are Units 4 (probability) or 6 (proportions inference).
 
 [Practice AP Statistics now](/exams/ap-statistics) — free Bluebook-style MCQs with instant AI scoring across all 9 units.
+
+## Related Guides and Tools
+
+- [AP Statistics score calculator](/tools/ap-score-calculator/ap-statistics)
+- [Hybrid FRQ booklets](/blog/hybrid-ap-exam-frq-booklets) — handwritten FRQs including Investigative Task
+- [How AP exams are scored](/blog/how-ap-exams-are-scored)
+- [1-month AP cram plan](/blog/one-month-ap-study-plan)
+- [Upload a Stats PDF](/dashboard/upload) for practice
 
 ---
 

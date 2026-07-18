@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMailConfigError } from "@/lib/mail";
 import { sendPasswordResetEmail } from "@/lib/nodemailer";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { getSiteUrl } from "@/lib/site-config";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -11,7 +12,7 @@ const GENERIC_SUCCESS = {
 };
 
 function getBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return getSiteUrl();
 }
 
 export async function POST(request: NextRequest) {

@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 
 function LoginFormInner() {
   const [email, setEmail] = useState("");
@@ -16,11 +15,16 @@ function LoginFormInner() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next");
 
   useEffect(() => {
     if (searchParams.get("verified") === "1") setVerified(true);
     if (searchParams.get("reset") === "1") setResetSuccess(true);
   }, [searchParams]);
+
+  const signupHref = nextParam
+    ? `/signup?next=${encodeURIComponent(nextParam)}`
+    : "/signup";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +34,11 @@ function LoginFormInner() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          ...(nextParam ? { next: nextParam } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -44,10 +52,9 @@ function LoginFormInner() {
           refresh_token: data.session.refresh_token,
         });
       }
-      const normalizedEmail = email.trim().toLowerCase();
-      router.push(
-        isAdminBroadcastEmail(normalizedEmail) ? "/admin/mail" : "/dashboard"
-      );
+      const redirectPath =
+        typeof data.redirectPath === "string" ? data.redirectPath : "/dashboard";
+      router.push(redirectPath);
       router.refresh();
     } catch {
       setError("Connection error. Please try again.");
@@ -123,7 +130,7 @@ function LoginFormInner() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-medium text-blue-600 hover:underline">
+        <Link href={signupHref} className="font-medium text-blue-600 hover:underline">
           Sign up
         </Link>
       </p>

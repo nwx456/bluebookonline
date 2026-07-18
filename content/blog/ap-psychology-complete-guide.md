@@ -2,7 +2,7 @@
 title: "AP Psychology Complete Study Guide (2026 Redesigned Exam)"
 description: "Everything for the May 2026 AP Psychology exam in the new format: AAQ + EBQ free response, all 5 units, common Reddit questions, study schedule, and how to memorize 350+ key terms."
 date: "2026-04-08"
-author: "Bluebook Online Team"
+author: "AP Practice Exam Online Team"
 tags:
   - "AP Psychology"
   - "AP Social Sciences"
@@ -146,13 +146,21 @@ The "easiest" unit varies by student, but **Unit 4 (Social Psychology and Person
 - **Steve Jones AP Psychology** — solid videos on research methods and the AAQ format.
 - **The CED PDF** with sample AAQ and EBQ questions and rubrics.
 - **AP Classroom progress checks** if your teacher has assigned them.
-- **Bluebook Online** — practice digital MCQs in a Bluebook-style interface, then upload your own AP Psychology PDF for AI scoring. [Browse AP Psychology practice tests](/exams/ap-psychology).
+- **AP Practice Exam Online** — practice digital MCQs in a Bluebook-style interface, then upload your own AP Psychology PDF for AI scoring. [Browse AP Psychology practice tests](/exams/ap-psychology).
 
 ## Take a Diagnostic Today
 
 The redesigned format means most students walk in unsure of what to expect. Take one full 75-question Section I right now to know exactly where you stand.
 
 [Practice AP Psychology now](/exams/ap-psychology) — free Bluebook-style MCQs with instant AI scoring across all 5 units.
+
+## Related Guides and Tools
+
+- [AP Psychology score calculator](/tools/ap-score-calculator/ap-psychology) — MCQ is 67% of your score
+- [Digital FRQ typing strategies](/blog/digital-frq-typing-strategies)
+- [Easiest AP exams to self-study](/blog/easiest-ap-exams-to-self-study) — Psych ranks #1
+- [How AP exams are scored](/blog/how-ap-exams-are-scored)
+- [Generate custom Psych quizzes](/dashboard/generate) from your notes
 
 ---
 

@@ -7,6 +7,7 @@ import {
 } from "@/lib/exam-grade";
 import type { SubjectKey } from "@/lib/gemini-prompts";
 import {
+  pickSatM2Variant,
   satSectionForSubject,
   SAT_MODULES,
   usesSatModuleFlow,
@@ -42,15 +43,33 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseAdmin();
 
-    const { data: attempt, error: attemptError } = await supabase
+    const { data: attemptData, error: attemptError } = await supabase
       .from("attempts")
-      .select("id, upload_id, completed_at, module_progress")
+      .select(
+        "id, upload_id, completed_at, module_progress, selected_rw_m2_variant, selected_math_m2_variant"
+      )
       .eq("id", attemptId)
       .single();
 
-    if (attemptError || !attempt) {
+    let attemptRow = attemptData;
+    let attemptLoadError = attemptError;
+    if (attemptError) {
+      const retry = await supabase
+        .from("attempts")
+        .select(
+          "id, upload_id, completed_at, module_progress, selected_rw_m2_variant, selected_math_m2_variant"
+        )
+        .eq("id", attemptId)
+        .single();
+      attemptRow = retry.data;
+      attemptLoadError = retry.error;
+    }
+
+    if (attemptLoadError || !attemptRow) {
       return NextResponse.json({ error: "Attempt not found." }, { status: 404 });
     }
+
+    const attempt = attemptRow;
 
     if (attempt.completed_at) {
       return NextResponse.json({ error: "Exam already completed." }, { status: 400 });
@@ -58,7 +77,9 @@ export async function POST(request: NextRequest) {
 
     const { data: upload } = await supabase
       .from("pdf_uploads")
-      .select("subject, storage_path, exam_program, sat_format, sat_adaptive_mode")
+      .select(
+        "subject, storage_path, exam_program, sat_format, sat_adaptive_mode, sat_cutoff_rw, sat_cutoff_math"
+      )
       .eq("id", attempt.upload_id)
       .single();
 
@@ -127,18 +148,63 @@ export async function POST(request: NextRequest) {
         ? (attempt.module_progress as Record<string, { correct: number; total: number }>)
         : {};
 
-    await supabase
-      .from("attempts")
-      .update({
-        module_progress: {
-          ...existingProgress,
-          [moduleKey]: {
-            correct: counts.correctCount,
-            total: moduleQuestions.length,
-          },
+    let computedRwM2Variant: SatModuleVariant | null =
+      attempt.selected_rw_m2_variant === "easy" || attempt.selected_rw_m2_variant === "hard"
+        ? attempt.selected_rw_m2_variant
+        : null;
+    let computedMathM2Variant: SatModuleVariant | null =
+      attempt.selected_math_m2_variant === "easy" ||
+      attempt.selected_math_m2_variant === "hard"
+        ? attempt.selected_math_m2_variant
+        : null;
+
+    if (upload?.sat_adaptive_mode === "six_module") {
+      if (moduleId === "rw1") {
+        computedRwM2Variant = pickSatM2Variant(
+          counts.correctCount,
+          moduleQuestions.length,
+          upload.sat_cutoff_rw ?? null
+        );
+      } else if (moduleId === "math1") {
+        computedMathM2Variant = pickSatM2Variant(
+          counts.correctCount,
+          moduleQuestions.length,
+          upload.sat_cutoff_math ?? null
+        );
+      }
+    }
+
+    const attemptUpdate: Record<string, unknown> = {
+      module_progress: {
+        ...existingProgress,
+        [moduleKey]: {
+          correct: counts.correctCount,
+          total: moduleQuestions.length,
         },
-      })
-      .eq("id", attemptId);
+      },
+    };
+    if (computedRwM2Variant) {
+      attemptUpdate.selected_rw_m2_variant = computedRwM2Variant;
+    }
+    if (computedMathM2Variant) {
+      attemptUpdate.selected_math_m2_variant = computedMathM2Variant;
+    }
+
+    let updateResult = await supabase.from("attempts").update(attemptUpdate).eq("id", attemptId);
+    if (updateResult.error && (computedRwM2Variant || computedMathM2Variant)) {
+      const { selected_rw_m2_variant: _rw, selected_math_m2_variant: _math, ...fallback } =
+        attemptUpdate;
+      updateResult = await supabase.from("attempts").update(fallback).eq("id", attemptId);
+    }
+
+    const { data: refreshedQuestions } = await supabase
+      .from("questions")
+      .select("id, correct_answer")
+      .eq("upload_id", attempt.upload_id)
+      .in(
+        "id",
+        moduleQuestions.map((q) => q.id)
+      );
 
     return NextResponse.json({
       ok: true,
@@ -152,6 +218,12 @@ export async function POST(request: NextRequest) {
       percentage: counts.percentage,
       breakdown,
       examProgram: "SAT" as const,
+      selectedRwM2Variant: computedRwM2Variant,
+      selectedMathM2Variant: computedMathM2Variant,
+      refreshedCorrectAnswers: (refreshedQuestions ?? []).map((q) => ({
+        questionId: q.id,
+        correctAnswer: q.correct_answer,
+      })),
     });
   } catch (err) {
     console.error("exam score-module error:", err);

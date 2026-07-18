@@ -372,6 +372,7 @@ GÖREV:
 - Soru kökü (kısa, genelde "Which choice…", "As used in the passage…") → content ONLY
 - content alanına passage veya madde listesi YAZMA — karışık metin üretme
 - PDF'i baştan sona oku, soru sırasını koru; her soruyu çıktı olarak ver (atlama yok).
+- Modül başlığı yoksa (tek parça practice PDF): tüm soruları sat_module=1 olarak çıkar.
 - has_graph, page_number, bbox EKLEME (R&W'de figür yok).
 
 ÇIKTI: ${OUTPUT_SCHEMA_SAT_RW}

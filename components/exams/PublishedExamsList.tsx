@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileText, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SourceAttribution } from "@/components/exams/SourceAttribution";
+import { ExamShareButton } from "@/components/exams/ExamShareButton";
 
 interface PublishedExam {
   id: string;
@@ -11,16 +14,13 @@ interface PublishedExam {
   questionCount: number;
   ownerUsername: string;
   createdAt?: string;
+  sourceType: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
 }
 
 interface ApiResponse {
-  exams?: Array<{
-    id: string;
-    filename: string;
-    questionCount: number;
-    ownerUsername: string;
-    createdAt?: string;
-  }>;
+  exams?: PublishedExam[];
   error?: string;
 }
 
@@ -31,6 +31,7 @@ interface Props {
 }
 
 export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortName }: Props) {
+  const router = useRouter();
   const [exams, setExams] = useState<PublishedExam[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -82,6 +83,14 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
 
   const isLoading = exams === null;
   const count = exams?.length ?? 0;
+
+  const handleSolveClick = (examId: string) => {
+    if (!isLoggedIn) {
+      router.push(`/login?next=${encodeURIComponent(`/exam/${examId}`)}`);
+      return;
+    }
+    router.push(`/exam/${examId}`);
+  };
 
   return (
     <section className="mb-8">
@@ -166,17 +175,25 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
                 </div>
               </div>
               <div className="mt-3 space-y-1">
+                <SourceAttribution
+                  compact
+                  sourceType={exam.sourceType}
+                  sourceName={exam.sourceName}
+                  sourceUrl={exam.sourceUrl}
+                />
                 <p className="text-xs text-gray-500">{exam.questionCount} questions</p>
                 <p className="text-xs text-gray-500">{exam.ownerUsername}</p>
               </div>
-              <div className="mt-4">
-                <Link
-                  href={`/exam/${exam.id}`}
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => handleSolveClick(exam.id)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                 >
                   <Play className="h-4 w-4" />
                   Solve
-                </Link>
+                </button>
+                <ExamShareButton examId={exam.id} />
               </div>
             </div>
           ))}

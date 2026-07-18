@@ -1,0 +1,102 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+interface DashboardAuthContextValue {
+  checkingAuth: boolean;
+  accessToken: string | null;
+  userEmail: string;
+  userDisplayName: string;
+  refreshSession: () => Promise<string | null>;
+}
+
+const DashboardAuthContext = createContext<DashboardAuthContextValue | null>(null);
+
+export function DashboardAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("");
+
+  const refreshSession = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ?? null;
+    setAccessToken(token);
+    return token;
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        setCheckingAuth(false);
+        router.replace("/login");
+        return;
+      }
+
+      const email = session.user.email ?? "";
+      const token = session.access_token ?? "";
+      const redirectRes = await fetch("/api/auth/redirect-path", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (redirectRes.ok) {
+        const redirectData = await redirectRes.json().catch(() => ({}));
+        const redirectPath =
+          typeof redirectData.path === "string" ? redirectData.path : "/dashboard";
+        // Teachers may use both /teacher and /dashboard; only bounce admin/moderator.
+        if (
+          redirectPath !== "/dashboard" &&
+          (redirectPath.startsWith("/admin") || redirectPath === "/moderator")
+        ) {
+          router.replace(redirectPath);
+          return;
+        }
+      }
+
+      setUserEmail(email);
+      setAccessToken(token);
+      const uname = (session.user?.user_metadata?.username as string)?.trim();
+      setUserDisplayName(uname || email.split("@")[0] || "Account");
+      setCheckingAuth(false);
+    });
+  }, [router]);
+
+  const value = useMemo(
+    () => ({
+      checkingAuth,
+      accessToken,
+      userEmail,
+      userDisplayName,
+      refreshSession,
+    }),
+    [checkingAuth, accessToken, userEmail, userDisplayName, refreshSession]
+  );
+
+  return (
+    <DashboardAuthContext.Provider value={value}>{children}</DashboardAuthContext.Provider>
+  );
+}
+
+export function useDashboardAuth() {
+  const ctx = useContext(DashboardAuthContext);
+  if (!ctx) {
+    throw new Error("useDashboardAuth must be used within DashboardAuthProvider");
+  }
+  return ctx;
+}
+
+export function libraryAuthHeaders(accessToken: string | null): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+}

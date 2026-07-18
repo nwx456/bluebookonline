@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, Clock, FileText, ListChecks, CalendarDays, Calculator, Newspaper } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { PublishedExamsList } from "@/components/exams/PublishedExamsList";
 import { SubjectHeroCta } from "@/components/exams/SubjectHeroCta";
 import {
@@ -12,9 +13,12 @@ import {
   getRelatedSubjects,
 } from "@/lib/subject-meta";
 
+import type { ExamProgram } from "@/lib/exam-program";
+import { CONTACT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
+
 export const revalidate = 3600;
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = getSiteUrl();
 
 export function generateStaticParams() {
   return ALL_SUBJECTS.map((s) => ({ slug: s.slug }));
@@ -38,7 +42,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: url },
     openGraph: {
-      title: `${title} | Bluebook Online`,
+      title: `${title} | ${SITE_NAME}`,
       description,
       url,
       type: "website",
@@ -46,7 +50,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: `${title} | Bluebook Online`,
+      title: `${title} | ${SITE_NAME}`,
       description,
     },
   };
@@ -85,7 +89,7 @@ export default async function SubjectLandingPage({
     url,
     provider: {
       "@type": "Organization",
-      name: "Bluebook Online",
+      name: SITE_NAME,
       sameAs: baseUrl,
     },
     educationalLevel: programLabel,
@@ -463,13 +467,11 @@ export default async function SubjectLandingPage({
               About
             </Link>
             <span className="text-gray-300">|</span>
-            <a href="mailto:info@apbluebookonline.com" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               Contact
             </a>
           </div>
-          <p className="mt-3 text-center text-xs text-gray-500">
-            Not affiliated with College Board. Bluebook Online is an independent educational tool.
-          </p>
+          <TrademarkDisclaimer variant="compact" className="mt-3 px-2" />
         </div>
       </footer>
     </div>

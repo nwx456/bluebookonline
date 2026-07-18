@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
+import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { BookOpen, Brain, FileText, Sparkles, Shield, Users } from "lucide-react";
 import { ALL_SUBJECTS } from "@/lib/subject-meta";
 import type { ExamProgram } from "@/lib/exam-program";
+import { CONTACT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Bluebook Online mimics the real College Board Bluebook exam. Free AP and Digital SAT practice for students worldwide. Learn how the platform works and how AI scoring is built.",
+    `${SITE_NAME} mimics the real College Board Bluebook exam. Free AP and Digital SAT practice for students worldwide. Learn how the platform works and how AI scoring is built.`,
   alternates: { canonical: `${baseUrl}/about` },
 };
 
 const ABOUT_FAQ_AP = [
   {
-    q: "Is Bluebook Online affiliated with College Board?",
-    a: "No. Bluebook Online is an independent educational tool. We are not endorsed by, sponsored by, or connected with College Board, AP, or the official Bluebook application. The interface is designed to feel familiar so practice translates well to test day.",
+    q: "Is AP Practice Exam Online affiliated with College Board?",
+    a: "No. AP Practice Exam Online is an independent educational tool. We are not endorsed by, sponsored by, or connected with College Board, AP, or the official Bluebook application. The interface is designed to feel familiar so practice translates well to test day.",
   },
   {
     q: "Is the platform really free?",
@@ -36,7 +38,7 @@ const ABOUT_FAQ_AP = [
     a: "Your PDFs are stored privately by default. They become visible to other users only when you toggle Publish on the dashboard. You can unpublish or delete uploads at any time.",
   },
   {
-    q: "Can teachers use Bluebook Online?",
+    q: "Can teachers use AP Practice Exam Online?",
     a: "Yes. Teachers commonly upload released exams, publish them, and share the link with their class so students get a digital practice run.",
   },
   {
@@ -51,8 +53,8 @@ const ABOUT_FAQ_AP = [
 
 const ABOUT_FAQ_SAT = [
   {
-    q: "Is Bluebook Online affiliated with College Board?",
-    a: "No. Bluebook Online is an independent educational tool. We are not endorsed by, sponsored by, or connected with College Board, SAT, or the official Bluebook application. The interface mimics Bluebook so practice transfers well to test day.",
+    q: "Is AP Practice Exam Online affiliated with College Board?",
+    a: "No. AP Practice Exam Online is an independent educational tool. We are not endorsed by, sponsored by, or connected with College Board, SAT, or the official Bluebook application. The interface mimics Bluebook so practice transfers well to test day.",
   },
   {
     q: "What SAT formats are supported?",
@@ -67,7 +69,7 @@ const ABOUT_FAQ_SAT = [
     a: "Section scores (Reading & Writing and Math) are approximated on a 200–800 scale using your raw correct counts; the composite is a 400–1600 total. This is an approximation of the College Board scoring algorithm and not the official equating.",
   },
   {
-    q: "Can teachers use Bluebook Online for SAT prep?",
+    q: "Can teachers use AP Practice Exam Online for SAT prep?",
     a: "Yes. Teachers upload SAT practice PDFs, publish them, and share the link so students get a Bluebook-style digital practice run with instant AI scoring and explanations.",
   },
   {
@@ -118,11 +120,11 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
 
       <main className="flex-1 mx-auto w-full max-w-4xl px-4 py-12 space-y-8">
         <section className="rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-6 py-10 shadow-sm border border-gray-100">
-          <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">About Bluebook Online</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">About AP Practice Exam Online</h1>
           <p className="mt-4 text-gray-600 leading-relaxed">
             {isSat ? (
               <>
-                Bluebook Online is a free educational platform that mimics the official College
+                AP Practice Exam Online is a free educational platform that mimics the official College
                 Board Digital SAT Bluebook experience. Students practice the SAT by uploading PDFs
                 and solving multiple-choice and grid-in questions module by module, with adaptive
                 Module 2 routing and a built-in Desmos calculator on Math. The interface is modeled
@@ -130,7 +132,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
               </>
             ) : (
               <>
-                Bluebook Online is a free educational platform that mimics the official College
+                AP Practice Exam Online is a free educational platform that mimics the official College
                 Board Bluebook digital exam experience. Students practice AP exams by uploading
                 PDFs, solving multiple-choice questions, and receiving instant AI-powered scoring.
                 The interface and navigation are modeled on the real Bluebook app so practice
@@ -138,11 +140,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
               </>
             )}
           </p>
-          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <strong>Not affiliated with College Board.</strong> Bluebook Online is an independent
-            educational tool. We are not endorsed by or connected with College Board
-            {isSat ? ", SAT," : " or AP"}. For practice only.
-          </div>
+          <TrademarkDisclaimer variant="callout" className="mt-6" />
         </section>
 
         <section className="rounded-2xl bg-white px-6 py-8 shadow-sm border border-gray-100">
@@ -152,7 +150,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
               <p className="mt-3 text-gray-600 leading-relaxed">
                 The Digital SAT runs entirely inside the College Board Bluebook application. Many
                 students walk in having never practiced inside that interface and lose time learning
-                the layout instead of answering questions. Bluebook Online gives every student a free
+                the layout instead of answering questions. AP Practice Exam Online gives every student a free
                 way to drill SAT modules in a Bluebook-style environment.
               </p>
               <p className="mt-3 text-gray-600 leading-relaxed">
@@ -168,7 +166,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
                 The College Board moved AP exams to digital delivery through the Bluebook
                 application. Many students walk into the real test having never seen the digital
                 interface. Tutoring centers and prep books charge for tools that approximate the
-                experience. Bluebook Online exists to give every student, anywhere in the world, a
+                experience. AP Practice Exam Online exists to give every student, anywhere in the world, a
                 free way to practice AP multiple-choice questions in a Bluebook-style environment.
               </p>
               <p className="mt-3 text-gray-600 leading-relaxed">
@@ -299,7 +297,11 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
               </div>
               <p className="mt-2 text-sm text-gray-600 leading-relaxed">
                 PDFs are stored privately. They appear on the public exams page only after you
-                explicitly toggle Publish. You can unpublish or delete at any time.
+                explicitly toggle Publish. You can unpublish or delete at any time. See our{" "}
+                <a href="/privacy" className="text-blue-600 hover:underline">
+                  Privacy Policy
+                </a>
+                .
               </p>
             </div>
             <div className="rounded-lg border border-gray-200 p-4">
@@ -333,10 +335,10 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
           <p className="mt-2 text-sm text-gray-600">
             Questions, feedback, or bug reports? Email us at{" "}
             <a
-              href="mailto:info@apbluebookonline.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="font-medium text-blue-600 hover:underline"
             >
-              info@apbluebookonline.com
+              {CONTACT_EMAIL}
             </a>
             . We read every message.
           </p>
@@ -366,8 +368,16 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
               Dashboard
             </Link>
             <span className="text-gray-300">|</span>
+            <Link href="/privacy" className="text-gray-600 hover:text-blue-600 hover:underline">
+              Privacy
+            </Link>
+            <span className="text-gray-300">|</span>
+            <Link href="/terms" className="text-gray-600 hover:text-blue-600 hover:underline">
+              Terms
+            </Link>
+            <span className="text-gray-300">|</span>
             <a
-              href="mailto:info@apbluebookonline.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="text-gray-600 hover:text-blue-600 hover:underline"
             >
               Contact
@@ -376,10 +386,10 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
           <p className="mt-3 text-center text-sm text-gray-600">
             If you encounter any issues, you can always email us at{" "}
             <a
-              href="mailto:info@apbluebookonline.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="font-medium text-blue-600 hover:underline"
             >
-              info@apbluebookonline.com
+              {CONTACT_EMAIL}
             </a>
           </p>
         </div>

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseAdmin();
     const { data: rows, error } = await supabase
       .from("usertable")
-      .select("email, username")
+      .select("email, username, marketing_opt_in")
       .order("email", { ascending: true });
 
     if (error) {
@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       recipients: (rows ?? []).map((r) => ({
         email: r.email as string,
         username: (r.username as string | null) ?? "",
+        marketingOptIn: r.marketing_opt_in === true,
       })),
     });
   } catch (e) {

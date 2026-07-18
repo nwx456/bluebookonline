@@ -35,15 +35,28 @@ export async function GET(request: NextRequest) {
       );
     }
     const userEmail = user.email.trim().toLowerCase();
+    const url = new URL(request.url);
+    const attemptIdFilter = url.searchParams.get("attemptId")?.trim();
+    const includeAll = url.searchParams.get("all") === "true";
+    const includeArchived = url.searchParams.get("archived") === "true";
 
     const supabase = createServerSupabaseAdmin();
 
-    const { data: allAttempts, error: attemptsError } = await supabase
+    let attemptQuery = supabase
       .from("attempts")
-      .select("id, upload_id, completed_at")
+      .select("id, upload_id, completed_at, display_title, archived_at")
       .eq("user_email", userEmail)
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false });
+
+    if (attemptIdFilter) {
+      attemptQuery = attemptQuery.eq("id", attemptIdFilter);
+    }
+    if (!includeArchived) {
+      attemptQuery = attemptQuery.is("archived_at", null);
+    }
+
+    const { data: allAttempts, error: attemptsError } = await attemptQuery;
 
     if (attemptsError) {
       console.error("Wrong answers attempts fetch error:", attemptsError);
@@ -55,14 +68,30 @@ export async function GET(request: NextRequest) {
 
     const attemptList = allAttempts ?? [];
     const seenUploads = new Set<string>();
-    const latestAttemptByUpload: Array<{ attemptId: string; uploadId: string; completedAt: string }> = [];
+    const targetAttempts: Array<{
+      attemptId: string;
+      uploadId: string;
+      completedAt: string;
+      displayTitle: string | null;
+    }> = [];
+
     for (const a of attemptList) {
-      if (!seenUploads.has(a.upload_id)) {
-        seenUploads.add(a.upload_id);
-        latestAttemptByUpload.push({
+      if (includeAll || attemptIdFilter) {
+        targetAttempts.push({
           attemptId: a.id,
           uploadId: a.upload_id,
           completedAt: a.completed_at ?? new Date().toISOString(),
+          displayTitle: (a as { display_title?: string | null }).display_title ?? null,
+        });
+        continue;
+      }
+      if (!seenUploads.has(a.upload_id)) {
+        seenUploads.add(a.upload_id);
+        targetAttempts.push({
+          attemptId: a.id,
+          uploadId: a.upload_id,
+          completedAt: a.completed_at ?? new Date().toISOString(),
+          displayTitle: (a as { display_title?: string | null }).display_title ?? null,
         });
       }
     }
@@ -70,6 +99,7 @@ export async function GET(request: NextRequest) {
     const wrongAnswers: Array<{
       uploadId: string;
       attemptId: string;
+      attemptTitle: string | null;
       filename: string;
       subject: string;
       completedAt: string;
@@ -85,7 +115,7 @@ export async function GET(request: NextRequest) {
       optionE: string | null;
     }> = [];
 
-    const uploadIds = latestAttemptByUpload.map((a) => a.uploadId);
+    const uploadIds = targetAttempts.map((a) => a.uploadId);
     const { data: uploads } = await supabase
       .from("pdf_uploads")
       .select("id, filename, subject")
@@ -97,7 +127,7 @@ export async function GET(request: NextRequest) {
       ])
     );
 
-    for (const { attemptId, uploadId, completedAt } of latestAttemptByUpload) {
+    for (const { attemptId, uploadId, completedAt, displayTitle } of targetAttempts) {
       const upload = uploadMap.get(uploadId);
       const filename = upload?.filename ?? "PDF";
       const subject = upload?.subject ?? "AP_CSA";
@@ -143,6 +173,7 @@ export async function GET(request: NextRequest) {
         wrongAnswers.push({
           uploadId,
           attemptId,
+          attemptTitle: displayTitle,
           filename,
           subject,
           completedAt,

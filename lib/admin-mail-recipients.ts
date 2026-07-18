@@ -7,7 +7,7 @@ const EMAIL_IN_CHUNK = 100;
 const PAGE_SIZE = 1000;
 
 /**
- * All registered users from usertable (paginated past PostgREST row limits).
+ * All registered users in usertable (paginated).
  */
 export async function fetchAllRegisteredRecipients(
   supabase: SupabaseClient
@@ -42,7 +42,7 @@ export async function fetchAllRegisteredRecipients(
 }
 
 /**
- * Resolve selected emails against usertable in chunks (avoids PostgREST `.in()` URL limits).
+ * Resolve selected emails against usertable in chunks.
  */
 export async function lookupRecipientsByEmail(
   supabase: SupabaseClient,

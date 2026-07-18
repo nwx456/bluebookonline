@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { FileText, Mail } from "lucide-react";
+import { ClipboardCheck, FileText, Flag, Mail, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,12 @@ const tabs = [
   { href: "/admin/mail", label: "Mail", icon: Mail },
 
   { href: "/admin/pdfs", label: "PDF'ler", icon: FileText },
+
+  { href: "/admin/moderation", label: "Exam Approval", icon: ClipboardCheck },
+
+  { href: "/admin/reports", label: "Reported Questions", icon: Flag },
+
+  { href: "/admin/moderators", label: "Moderators", icon: Shield },
 
 ] as const;
 
@@ -31,11 +37,8 @@ export function AdminNav() {
   return (
 
     <nav
-
-      className="border-b border-gray-200 bg-white"
-
+      className="sticky top-14 z-[9] border-b border-gray-200 bg-white"
       aria-label="Admin sections"
-
     >
 
       <div className="mx-auto w-full max-w-5xl overflow-x-auto px-3 sm:px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

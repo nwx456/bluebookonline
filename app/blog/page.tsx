@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen, Calendar } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { formatBlogDate, getAllPostMeta } from "@/lib/blog";
+import { BLOG_CATEGORIES, formatBlogDate, getAllPostMeta } from "@/lib/blog";
 import type { ExamProgram } from "@/lib/exam-program";
+import { CONTACT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://apbluebookonline.com";
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "Blog - AP & Digital SAT Tips, Bluebook Guides, Study Strategies",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
     "Practical guides for AP and Digital SAT students: how to prepare for the digital Bluebook exam, study strategies for AP Calculus, Biology, Psychology, and SAT R&W / Math.",
   alternates: { canonical: `${baseUrl}/blog` },
   openGraph: {
-    title: "Blog | Bluebook Online",
+    title: `Blog | ${SITE_NAME}`,
     description:
       "Practical guides for AP and SAT students: digital Bluebook exam strategies, study tips, and subject-specific advice.",
     url: `${baseUrl}/blog`,
@@ -28,7 +29,7 @@ function parseProgram(value: string | string[] | undefined): ExamProgram {
 }
 
 interface BlogIndexPageProps {
-  searchParams?: Promise<{ program?: string | string[] }>;
+  searchParams?: Promise<{ program?: string | string[]; category?: string | string[] }>;
 }
 
 export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps) {
@@ -37,26 +38,33 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
   const isSat = program === "SAT";
   const programQuery = isSat ? "?program=sat" : "";
 
-  // All current posts are AP-focused. Until SAT-tagged content exists, the SAT
-  // view shows an explicit empty state instead of mixing in AP guides.
-  const posts = isSat ? [] : getAllPostMeta();
+  const categoryRaw = Array.isArray(sp.category) ? sp.category[0] : sp.category;
+  const activeCategory =
+    categoryRaw && BLOG_CATEGORIES.includes(categoryRaw as (typeof BLOG_CATEGORIES)[number])
+      ? (categoryRaw as (typeof BLOG_CATEGORIES)[number])
+      : null;
+
+  const allPosts = isSat ? [] : getAllPostMeta();
+  const posts = activeCategory
+    ? allPosts.filter((p) => p.category === activeCategory)
+    : allPosts;
 
   const heroTitle = isSat ? "Digital SAT Prep Blog" : "AP Exam Prep Blog";
   const heroSubtitle = isSat
     ? "Practical guides for the Digital SAT: Bluebook strategies, Module 2 adaptive routing, grid-in pacing, and Desmos tips. Fresh posts coming soon."
-    : "Practical guides for AP students: digital Bluebook exam strategies, subject-specific study tips, and how to use AI tools responsibly during prep.";
+    : "Practical guides for AP students: digital Bluebook exam strategies, subject-specific study tips, score calculators, and how to use AI tools responsibly during prep.";
 
   const blogJsonLd = {
     "@context": "https://schema.org",
     "@type": "Blog",
-    name: "Bluebook Online Blog",
+    name: `${SITE_NAME} Blog`,
     description: isSat
       ? "Digital SAT prep guides and Bluebook-app strategies."
       : "Guides and study strategies for AP students preparing for the digital Bluebook exam.",
     url: `${baseUrl}/blog${programQuery}`,
     publisher: {
       "@type": "Organization",
-      name: "Bluebook Online",
+      name: SITE_NAME,
       url: baseUrl,
     },
     blogPost: posts.map((p) => ({
@@ -83,16 +91,53 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto leading-relaxed">{heroSubtitle}</p>
         </section>
 
+        {!isSat && (
+          <nav
+            aria-label="Blog categories"
+            className="mb-8 flex flex-wrap gap-2 justify-center"
+          >
+            <Link
+              href="/blog"
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                !activeCategory
+                  ? "bg-blue-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-700 hover:border-blue-300"
+              }`}
+            >
+              All
+            </Link>
+            {BLOG_CATEGORIES.map((cat) => (
+              <Link
+                key={cat}
+                href={`/blog?category=${encodeURIComponent(cat)}`}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  activeCategory === cat
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-700 hover:border-blue-300"
+                }`}
+              >
+                {cat}
+              </Link>
+            ))}
+          </nav>
+        )}
+
         {posts.length === 0 ? (
           <div className="rounded-xl border border-gray-200 bg-white p-14 text-center shadow-sm">
             <BookOpen className="mx-auto h-12 w-12 text-blue-600" />
             <h2 className="mt-3 text-lg font-semibold text-gray-900">
-              {isSat ? "SAT blog content is coming soon" : "No posts yet"}
+              {isSat
+                ? "SAT blog content is coming soon"
+                : activeCategory
+                  ? `No posts in "${activeCategory}" yet`
+                  : "No posts yet"}
             </h2>
             <p className="mt-2 text-sm text-gray-500 max-w-md mx-auto">
               {isSat
                 ? "We are working on Digital SAT prep guides. In the meantime, jump into a SAT practice test or switch back to AP posts using the toggle in the header."
-                : "We are working on the first batch of guides. Check back soon, or browse our practice tests in the meantime."}
+                : activeCategory
+                  ? "Try another category or browse all posts."
+                  : "We are working on the first batch of guides. Check back soon, or browse our practice tests in the meantime."}
             </p>
             <div className="mt-5 flex flex-col sm:flex-row gap-3 sm:justify-center">
               <Link
@@ -101,12 +146,12 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
               >
                 {isSat ? "Browse SAT practice tests" : "Browse practice tests"}
               </Link>
-              {isSat && (
+              {(isSat || activeCategory) && (
                 <Link
                   href="/blog"
                   className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  View AP blog posts
+                  {isSat ? "View AP blog posts" : "View all posts"}
                 </Link>
               )}
             </div>
@@ -122,7 +167,12 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Calendar className="h-3.5 w-3.5" />
                   {formatBlogDate(p.date)}
-                  {p.author && <span className="text-gray-400">&middot; {p.author}</span>}
+                  {p.category && (
+                    <>
+                      <span className="text-gray-400">&middot;</span>
+                      <span className="text-blue-600 font-medium">{p.category}</span>
+                    </>
+                  )}
                 </div>
                 <h2 className="mt-2 text-lg font-semibold text-gray-900 leading-snug">
                   {p.title}
@@ -132,7 +182,7 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
                 </p>
                 {p.tags && p.tags.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {p.tags.map((t) => (
+                    {p.tags.slice(0, 3).map((t) => (
                       <span
                         key={t}
                         className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
@@ -160,12 +210,16 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
               Practice tests
             </Link>
             <span className="text-gray-300">|</span>
+            <Link href="/tools/ap-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
+              Score calculator
+            </Link>
+            <span className="text-gray-300">|</span>
             <Link href={`/about${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
               About
             </Link>
             <span className="text-gray-300">|</span>
             <a
-              href="mailto:info@apbluebookonline.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="text-gray-600 hover:text-blue-600 hover:underline"
             >
               Contact
