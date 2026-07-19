@@ -77,6 +77,13 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true },
   },
+  icons: {
+    icon: [
+      { url: "/favicon.png", sizes: "96x96", type: "image/png" },
+      { url: "/icon.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [{ url: "/icon.png", sizes: "96x96", type: "image/png" }],
+  },
   verification: {
     google:
       process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ??
@@ -94,13 +101,23 @@ export default function RootLayout({
 }>) {
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: SITE_NAME,
-    description: defaultDescription,
-    url: baseUrl,
-    applicationCategory: "EducationalApplication",
-    operatingSystem: "Web",
-    inLanguage: ["en", "tr", "es", "zh", "ar", "de", "fr", "pt", "ja", "ko", "hi"],
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        name: SITE_NAME,
+        description: defaultDescription,
+        url: baseUrl,
+        applicationCategory: "EducationalApplication",
+        operatingSystem: "Web",
+        inLanguage: ["en", "tr", "es", "zh", "ar", "de", "fr", "pt", "ja", "ko", "hi"],
+      },
+      {
+        "@type": "Organization",
+        name: SITE_NAME,
+        url: baseUrl,
+        logo: `${baseUrl}/icon.png`,
+      },
+    ],
   };
 
   return (

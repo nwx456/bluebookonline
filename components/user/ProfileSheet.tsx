@@ -336,25 +336,24 @@ export function ProfileSheet({
           ) : null}
         </div>
 
-        <SheetFooter className="border-t border-gray-100">
+        <SheetFooter className="gap-3 border-t border-gray-100">
           <Link
             href="/settings/privacy"
             onClick={() => setOpen(false)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             <Settings className="h-4 w-4" />
             Privacy settings
           </Link>
           <Button
             type="button"
-            variant="destructive"
-            className="w-full"
+            className="h-auto w-full rounded-xl bg-red-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-red-700"
             onClick={() => {
               setOpen(false);
               onSignOut();
             }}
           >
-            <LogOut />
+            <LogOut className="h-4 w-4" />
             Sign out
           </Button>
         </SheetFooter>

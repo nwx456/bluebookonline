@@ -5,6 +5,7 @@ import { requireAdminUser } from "@/lib/admin-mail-auth";
 import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { getExamProgram } from "@/lib/exam-program";
 import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { canAdminEditExamSource, examHasSource } from "@/lib/exam-source-admin";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 const DEFAULT_LIMIT = 50;
@@ -18,9 +19,14 @@ type UploadRow = {
   created_at: string | null;
   exam_program: string | null;
   is_published: boolean | null;
+  moderation_status: string | null;
+  publish_requested_at: string | null;
   storage_path: string | null;
   requested_question_count: number | null;
   answer_key_from_pdf_count: number | null;
+  source_type: string | null;
+  source_name: string | null;
+  source_url: string | null;
 };
 
 function escapeIlike(term: string): string {
@@ -109,6 +115,19 @@ async function mapUploadsToPdfRows(
       answerKeyKind: answerKey.kind,
       answerKeyTitle: answerKey.title,
       isPublished: u.is_published === true,
+      moderationStatus: u.moderation_status ?? "draft",
+      publishRequestedAt: u.publish_requested_at,
+      sourceType: u.source_type ?? null,
+      sourceName: u.source_name ?? null,
+      sourceUrl: u.source_url ?? null,
+      hasSource: examHasSource({
+        sourceType: u.source_type,
+        sourceName: u.source_name,
+      }),
+      canEditSource: canAdminEditExamSource({
+        isPublished: u.is_published === true,
+        moderationStatus: u.moderation_status,
+      }),
       createdAt: u.created_at,
       hasStoragePath: Boolean(storagePath && storagePath.endsWith(".pdf")),
     };
@@ -160,7 +179,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("pdf_uploads")
       .select(
-        "id, filename, subject, user_email, created_at, exam_program, is_published, storage_path, requested_question_count, answer_key_from_pdf_count"
+        "id, filename, subject, user_email, created_at, exam_program, is_published, moderation_status, publish_requested_at, storage_path, requested_question_count, answer_key_from_pdf_count, source_type, source_name, source_url"
       )
       .order("created_at", { ascending: false });
 

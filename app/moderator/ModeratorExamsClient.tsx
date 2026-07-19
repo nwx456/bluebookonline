@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
+import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
+import { canAdminEditExamSource, examHasSource } from "@/lib/exam-source-admin";
+import type { ExamSourceType } from "@/lib/exam-source";
 import { cn } from "@/lib/utils";
 
 type ExamRow = {
@@ -37,6 +40,18 @@ type ExamRow = {
   sourceName: string | null;
   sourceUrl: string | null;
 };
+
+function parseExamSourceType(value: string | null): ExamSourceType | null {
+  if (value === "book" || value === "agency" || value === "school") return value;
+  return null;
+}
+
+function examCanEditSource(exam: ExamRow): boolean {
+  return canAdminEditExamSource({
+    isPublished: exam.isPublished,
+    moderationStatus: exam.moderationStatus,
+  });
+}
 
 type TabStatus = "pending" | "published";
 
@@ -231,6 +246,34 @@ export default function ModeratorExamsClient({
     [accessToken, tab, loadExams, labels.actionFailed, labels.connectionError]
   );
 
+  const handleSourceSaved = useCallback(
+    (
+      examId: string,
+      values: { sourceType: ExamSourceType | null; sourceName: string | null; sourceUrl: string | null }
+    ) => {
+      setExams((prev) =>
+        prev.map((exam) =>
+          exam.id === examId
+            ? {
+                ...exam,
+                sourceType: values.sourceType,
+                sourceName: values.sourceName,
+                sourceUrl: values.sourceUrl,
+                sourceTypeLabel: values.sourceType
+                  ? values.sourceType === "book"
+                    ? "Book"
+                    : values.sourceType === "agency"
+                      ? "Agency"
+                      : "School"
+                  : null,
+              }
+            : exam
+        )
+      );
+    },
+    []
+  );
+
   const openPreview = useCallback(
     async (exam: ExamRow) => {
       if (!accessToken) return;
@@ -378,8 +421,22 @@ export default function ModeratorExamsClient({
                       <div className="text-gray-900">{exam.username}</div>
                       <div className="font-mono text-xs text-gray-500">{exam.userEmail}</div>
                     </td>
-                    <td className="max-w-[220px] px-4 py-3 text-gray-600">
-                      {exam.sourceTypeLabel && exam.sourceName ? (
+                    <td className="max-w-[260px] px-4 py-3 text-gray-600 align-top">
+                      {isAdminVariant && accessToken ? (
+                        <ExamSourceEditor
+                          examId={exam.id}
+                          examKind={exam.examKind}
+                          accessToken={accessToken}
+                          initialValues={{
+                            sourceType: parseExamSourceType(exam.sourceType),
+                            sourceName: exam.sourceName,
+                            sourceUrl: exam.sourceUrl,
+                          }}
+                          disabled={!examCanEditSource(exam)}
+                          compact
+                          onSaved={(values) => handleSourceSaved(exam.id, values)}
+                        />
+                      ) : exam.sourceTypeLabel && exam.sourceName ? (
                         <div className="space-y-1">
                           <div className="text-xs font-medium text-gray-800">
                             {exam.sourceTypeLabel}: {exam.sourceName}
@@ -424,7 +481,23 @@ export default function ModeratorExamsClient({
                           <>
                             <button
                               type="button"
-                              disabled={actionId === exam.id}
+                              disabled={
+                                actionId === exam.id ||
+                                (isAdminVariant &&
+                                  !examHasSource({
+                                    sourceType: exam.sourceType,
+                                    sourceName: exam.sourceName,
+                                  }))
+                              }
+                              title={
+                                isAdminVariant &&
+                                !examHasSource({
+                                  sourceType: exam.sourceType,
+                                  sourceName: exam.sourceName,
+                                })
+                                  ? "Add source before approving"
+                                  : undefined
+                              }
                               onClick={() => void runAction(exam, "approve")}
                               className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                             >

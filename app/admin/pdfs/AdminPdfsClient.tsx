@@ -13,8 +13,14 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
+import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
 import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import type { AnswerKeyKind } from "@/lib/answer-key-label";
+import {
+  getModerationStatusBadgeClass,
+  getModerationStatusLabel,
+} from "@/lib/exam-publish-utils";
+import type { ExamSourceType } from "@/lib/exam-source";
 import { cn } from "@/lib/utils";
 
 type Recipient = { email: string; username: string };
@@ -36,6 +42,13 @@ type AdminPdfRow = {
   answerKeyKind: AnswerKeyKind;
   answerKeyTitle: string;
   isPublished: boolean;
+  moderationStatus: string;
+  publishRequestedAt: string | null;
+  sourceType: ExamSourceType | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  hasSource: boolean;
+  canEditSource: boolean;
   createdAt: string;
   hasStoragePath: boolean;
 };
@@ -231,6 +244,19 @@ export default function AdminPdfsClient() {
             : "unknown") as AnswerKeyKind,
           answerKeyTitle: String(row.answerKeyTitle ?? ""),
           isPublished: row.isPublished === true,
+          moderationStatus: String(row.moderationStatus ?? "draft"),
+          publishRequestedAt:
+            row.publishRequestedAt != null ? String(row.publishRequestedAt) : null,
+          sourceType:
+            row.sourceType === "book" ||
+            row.sourceType === "agency" ||
+            row.sourceType === "school"
+              ? row.sourceType
+              : null,
+          sourceName: row.sourceName != null ? String(row.sourceName) : null,
+          sourceUrl: row.sourceUrl != null ? String(row.sourceUrl) : null,
+          hasSource: row.hasSource === true,
+          canEditSource: row.canEditSource === true,
           createdAt: String(row.createdAt ?? ""),
           hasStoragePath: row.hasStoragePath === true,
         }))
@@ -288,6 +314,25 @@ export default function AdminPdfsClient() {
   const subjectFilterLabel = subject
     ? SUBJECT_LABELS[subject as SubjectKey] ?? subject
     : "All subjects";
+
+  const handleSourceSaved = useCallback(
+    (rowId: string, values: { sourceType: ExamSourceType | null; sourceName: string | null; sourceUrl: string | null }) => {
+      setPdfs((prev) =>
+        prev.map((row) =>
+          row.id === rowId
+            ? {
+                ...row,
+                sourceType: values.sourceType,
+                sourceName: values.sourceName,
+                sourceUrl: values.sourceUrl,
+                hasSource: Boolean(values.sourceType && values.sourceName),
+              }
+            : row
+        )
+      );
+    },
+    []
+  );
 
   const pageStart = total === 0 ? 0 : offset + 1;
   const pageEnd = Math.min(offset + LIMIT, total);
@@ -682,7 +727,10 @@ export default function AdminPdfsClient() {
                     Answer key
                   </th>
                   <th className="px-3 py-2 font-medium" scope="col">
-                    Status
+                    Moderation
+                  </th>
+                  <th className="px-3 py-2 font-medium" scope="col">
+                    Source
                   </th>
                   <th className="px-3 py-2 font-medium" scope="col">
                     Uploaded
@@ -785,13 +833,34 @@ export default function AdminPdfsClient() {
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
-                            row.isPublished
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-700"
+                            getModerationStatusBadgeClass({
+                              isPublished: row.isPublished,
+                              moderationStatus: row.moderationStatus,
+                            })
                           )}
                         >
-                          {row.isPublished ? "Published" : "Private"}
+                          {getModerationStatusLabel({
+                            isPublished: row.isPublished,
+                            moderationStatus: row.moderationStatus,
+                          })}
                         </span>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {accessToken ? (
+                          <ExamSourceEditor
+                            examId={row.id}
+                            examKind="mcq"
+                            accessToken={accessToken}
+                            initialValues={{
+                              sourceType: row.sourceType,
+                              sourceName: row.sourceName,
+                              sourceUrl: row.sourceUrl,
+                            }}
+                            disabled={!row.canEditSource}
+                            compact
+                            onSaved={(values) => handleSourceSaved(row.id, values)}
+                          />
+                        ) : null}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-gray-600">
                         {formatDate(row.createdAt)}

@@ -30,7 +30,7 @@ export async function POST(
     const supabase = createServerSupabaseAdmin();
     const { data: upload, error: fetchError } = await supabase
       .from(table)
-      .select("id, moderation_status")
+      .select("id, moderation_status, source_type, source_name")
       .eq("id", uploadId)
       .single();
 
@@ -41,6 +41,15 @@ export async function POST(
     if (upload.moderation_status !== "pending_review") {
       return NextResponse.json(
         { error: "This exam is not awaiting review." },
+        { status: 409 }
+      );
+    }
+
+    const sourceType = (upload.source_type as string | null)?.trim();
+    const sourceName = (upload.source_name as string | null)?.trim();
+    if (!sourceType || !sourceName) {
+      return NextResponse.json(
+        { error: "Exam source must be set before approval." },
         { status: 409 }
       );
     }

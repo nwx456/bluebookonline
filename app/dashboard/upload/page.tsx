@@ -79,7 +79,7 @@ import {
   parseSatModuleQuestionCounts,
   sumModuleCounts,
 } from "@/lib/sat-upload-module-fields";
-import { useProgram } from "@/lib/use-program";
+import { appendProgramToHref, useProgram } from "@/lib/use-program";
 import { UploadAnalyzeProgress, type PhaseTiming } from "@/components/UploadAnalyzeProgress";
 import {
   buildClientAnalyzePhases,
@@ -343,18 +343,30 @@ export default function DashboardUploadPage() {
 function DashboardUploadPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { program } = useProgram();
+  const isProgramSat = program === "SAT";
   const examKind = parseUploadExamKind(searchParams.get("kind"));
+  const effectiveExamKind =
+    examKind === "frq" && isProgramSat
+      ? "mcq"
+      : examKind ?? (isProgramSat ? "mcq" : null);
 
   const selectExamKind = useCallback(
     (kind: UploadExamKind) => {
-      router.push(`/dashboard/upload?kind=${kind}`);
+      router.push(appendProgramToHref(`/dashboard/upload?kind=${kind}`, program));
     },
-    [router]
+    [router, program]
   );
 
   const clearExamKind = useCallback(() => {
-    router.push("/dashboard/upload");
-  }, [router]);
+    router.push(appendProgramToHref("/dashboard/upload", program));
+  }, [router, program]);
+
+  useEffect(() => {
+    if (examKind === "frq" && isProgramSat) {
+      router.replace(appendProgramToHref("/dashboard/upload?kind=mcq", "SAT"));
+    }
+  }, [examKind, isProgramSat, router]);
 
   const { checkingAuth, accessToken, userEmail, userDisplayName } = useDashboardAuth();
   const [subject, setSubject] = useState<SubjectValue | "">("");
@@ -381,8 +393,6 @@ function DashboardUploadPageInner() {
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<SubjectValue | "">("");
   const [subjectFilterOpen, setSubjectFilterOpen] = useState(false);
-  const { program } = useProgram();
-  const isProgramSat = program === "SAT";
   const [showUploadForm, setShowUploadForm] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingAttemptId, setDeletingAttemptId] = useState<string | null>(null);
@@ -1603,11 +1613,11 @@ function DashboardUploadPageInner() {
     );
   }
 
-  if (!examKind) {
+  if (!effectiveExamKind) {
     return <ExamTypeChooser onSelect={selectExamKind} />;
   }
 
-  if (examKind === "frq") {
+  if (effectiveExamKind === "frq") {
     return (
       <>
         <UploadKindHeader kind="frq" onChangeType={clearExamKind} />
@@ -1620,7 +1630,11 @@ function DashboardUploadPageInner() {
   return (
     <>
         <div className="mb-6">
-          <UploadKindHeader kind="mcq" onChangeType={clearExamKind} />
+          <UploadKindHeader
+            kind="mcq"
+            onChangeType={clearExamKind}
+            showChangeType={!isProgramSat}
+          />
           <h1 className="text-2xl font-bold text-gray-900">
             Upload exam PDF
           </h1>

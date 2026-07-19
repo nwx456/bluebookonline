@@ -33,7 +33,7 @@ export function ExamTypeChooser({ onSelect }: Props) {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-gray-900">Multiple Choice (MCQ)</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Upload AP or SAT PDFs. AI extracts multiple-choice questions for Bluebook-style practice.
+            Upload AP PDFs. AI extracts multiple-choice questions for Bluebook-style practice.
           </p>
         </button>
 
@@ -62,9 +62,11 @@ export function ExamTypeChooser({ onSelect }: Props) {
 export function UploadKindHeader({
   kind,
   onChangeType,
+  showChangeType = true,
 }: {
   kind: UploadExamKind;
   onChangeType: () => void;
+  showChangeType?: boolean;
 }) {
   const isMcq = kind === "mcq";
   const badge = isMcq ? "MCQ" : "FRQ";
@@ -94,19 +96,21 @@ export function UploadKindHeader({
           <p className="truncate text-xs text-gray-500">{description}</p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onChangeType}
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5",
-          "text-sm font-medium text-gray-800 shadow-sm transition-colors",
-          "hover:border-blue-400 hover:bg-blue-50 hover:text-blue-800",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-        )}
-      >
-        <ArrowLeftRight className="h-4 w-4" />
-        Change exam type
-      </button>
+      {showChangeType ? (
+        <button
+          type="button"
+          onClick={onChangeType}
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5",
+            "text-sm font-medium text-gray-800 shadow-sm transition-colors",
+            "hover:border-blue-400 hover:bg-blue-50 hover:text-blue-800",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+          )}
+        >
+          <ArrowLeftRight className="h-4 w-4" />
+          Change exam type
+        </button>
+      ) : null}
     </div>
   );
 }
