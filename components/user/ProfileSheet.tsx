@@ -250,7 +250,7 @@ export function ProfileSheet({
         </button>
       ) : null}
 
-      <SheetContent side="right" className="w-full sm:max-w-sm">
+      <SheetContent side="right" className="w-full bg-white sm:max-w-sm">
         <SheetHeader>
           <SheetTitle>Profile</SheetTitle>
           <SheetDescription>Your account information</SheetDescription>

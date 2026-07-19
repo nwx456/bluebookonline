@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FileText, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { SourceAttribution } from "@/components/exams/SourceAttribution";
+import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
 
 interface PublishedExam {
@@ -188,9 +188,8 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
                 </div>
               </div>
               <div className="mt-3 space-y-1">
-                <SourceAttribution
-                  compact
-                  showDisclaimer={false}
+                <ExamSourceLine
+                  className="block text-xs"
                   sourceType={exam.sourceType}
                   sourceName={exam.sourceName}
                   sourceUrl={exam.sourceUrl}

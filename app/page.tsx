@@ -16,7 +16,7 @@ import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
 import { CONTACT_EMAIL } from "@/lib/site-config";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
-import { SourceAttribution } from "@/components/exams/SourceAttribution";
+import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 
 const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");
 const SAT_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "SAT");
@@ -861,9 +861,8 @@ function HomeInner() {
                             {SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}
                           </span>
                           {exam.sourceType && exam.sourceName ? (
-                            <SourceAttribution
-                              compact
-                              showDisclaimer={false}
+                            <ExamSourceLine
+                              className="block text-xs"
                               sourceType={exam.sourceType}
                               sourceName={exam.sourceName}
                               sourceUrl={exam.sourceUrl}
@@ -922,9 +921,8 @@ function HomeInner() {
                       {SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}
                     </span>
                     {exam.sourceType && exam.sourceName ? (
-                      <SourceAttribution
-                        compact
-                        showDisclaimer={false}
+                      <ExamSourceLine
+                        className="block text-xs"
                         sourceType={exam.sourceType}
                         sourceName={exam.sourceName}
                         sourceUrl={exam.sourceUrl}
