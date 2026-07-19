@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/BrandLogo";
 import { HeaderNav } from "@/components/HeaderNav";
-import { appendProgramToHref, useProgram } from "@/lib/use-program";
+import { programHubPath, useProgram } from "@/lib/use-program";
 
 const headerShell =
   "border-b border-gray-200 bg-white shadow-sm sticky top-0 z-10 pt-[env(safe-area-inset-top)]";
@@ -29,7 +29,7 @@ function SiteHeaderInner() {
     <header className={headerShell}>
       <div className={headerRow}>
         <div className="flex w-full min-w-0 items-center justify-between gap-2 md:w-auto md:justify-start md:gap-4">
-          <BrandMark href={appendProgramToHref("/", program)} />
+          <BrandMark href={programHubPath(program)} />
           <HeaderNav />
         </div>
       </div>

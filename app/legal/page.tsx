@@ -5,12 +5,15 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { LEGAL_DOCUMENT_CATALOG } from "@/lib/legal/documents";
-import { CONTACT_EMAIL, COPYRIGHT_EMAIL, SITE_NAME } from "@/lib/site-config";
+import { CONTACT_EMAIL, COPYRIGHT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
+
+const baseUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: "Legal Center",
   description:
     `Terms, Privacy, Cookies, Copyright, and data rights for ${SITE_NAME} users worldwide.`,
+  alternates: { canonical: `${baseUrl}/legal` },
 };
 
 export default function LegalCenterPage() {

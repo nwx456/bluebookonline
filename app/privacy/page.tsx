@@ -7,7 +7,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const doc = await getLegalDocument("privacy");
   if (!doc) return { title: "Privacy Policy" };
   const meta = legalMetadata(doc);
-  return { title: meta.title, description: meta.description };
+  return { title: meta.title, description: meta.description, alternates: meta.alternates };
 }
 
 export default async function PrivacyPage() {

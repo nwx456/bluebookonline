@@ -73,6 +73,7 @@ export default async function SubjectLandingPage({
   const programParam =
     programParamRaw?.toLowerCase() === "sat" || isSat ? "sat" : "ap";
   const programQuery = programParam === "sat" ? "?program=sat" : "";
+  const homeHref = isSat ? "/sat" : "/";
 
   const programLabel = isSat ? "Digital SAT" : "Advanced Placement";
   const indexBreadcrumbLabel = isSat ? "Digital SAT Practice Tests" : "AP Practice Tests";
@@ -101,8 +102,13 @@ export default async function SubjectLandingPage({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
-      { "@type": "ListItem", position: 2, name: indexBreadcrumbLabel, item: `${baseUrl}${indexHref}` },
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: isSat ? `${baseUrl}/sat` : baseUrl,
+      },
+      { "@type": "ListItem", position: 2, name: indexBreadcrumbLabel, item: `${baseUrl}/exams` },
       { "@type": "ListItem", position: 3, name: meta.fullName, item: url },
     ],
   };
@@ -138,7 +144,7 @@ export default async function SubjectLandingPage({
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-gray-500">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
-              <Link href={`/${programQuery}`} className="hover:text-blue-600 hover:underline">
+              <Link href={homeHref} className="hover:text-blue-600 hover:underline">
                 Home
               </Link>
             </li>

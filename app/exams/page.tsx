@@ -111,17 +111,23 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
     : "Have a College Board released exam or a teacher-provided practice test? Sign in, head to the dashboard, and upload the PDF. Our AI extracts questions, generates an answer key, and gives you a Bluebook-style interface to practice in. Toggle \u201CPublish\u201D to share with other students.";
 
   const programQuery = isSat ? "?program=sat" : "";
+  const homeHref = isSat ? "/sat" : "/";
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: baseUrl },
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: isSat ? `${baseUrl}/sat` : baseUrl,
+      },
       {
         "@type": "ListItem",
         position: 2,
         name: programLabel,
-        item: `${baseUrl}/exams${programQuery}`,
+        item: `${baseUrl}/exams`,
       },
     ],
   };
@@ -154,7 +160,7 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
         <nav aria-label="Breadcrumb" className="mb-4 text-xs text-gray-500">
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
-              <Link href={`/${programQuery}`} className="hover:text-blue-600 hover:underline">
+              <Link href={homeHref} className="hover:text-blue-600 hover:underline">
                 Home
               </Link>
             </li>
@@ -236,7 +242,7 @@ export default async function ExamsIndexPage({ searchParams }: ExamsIndexPagePro
       <footer className="border-t border-gray-200 bg-white py-6">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link href={`/${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={homeHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Home
             </Link>
             <span className="text-gray-300">|</span>

@@ -32,31 +32,58 @@ function writeStored(program: ExamProgram) {
   }
 }
 
+/** SEO hub path for each program (no query params). */
+export function programHubPath(program: ExamProgram): string {
+  return program === "SAT" ? "/sat" : "/";
+}
+
+function programFromPathname(pathname: string): ExamProgram | null {
+  if (pathname === "/sat" || pathname.startsWith("/sat/")) return "SAT";
+  if (pathname === "/") return "AP";
+  return null;
+}
+
+function isProgramHub(pathname: string): boolean {
+  return pathname === "/" || pathname === "/sat";
+}
+
 /**
- * Build a URL preserving the current path + search params, with `program`
- * set to the given value. Used by the global toggle and by HeaderNav links
- * so navigation between pages preserves the active program.
+ * Build navigation href preserving program context.
+ * Hubs use clean paths (/ and /sat); other pages use ?program=sat for SAT UX only.
  */
 export function appendProgramToHref(href: string, program: ExamProgram): string {
   try {
     const isAbsolute = /^https?:\/\//i.test(href);
     const url = new URL(href, isAbsolute ? undefined : "http://_local");
-    url.searchParams.set("program", program.toLowerCase());
+
+    if (url.pathname === "/" || url.pathname === "/sat") {
+      url.pathname = programHubPath(program);
+      url.searchParams.delete("program");
+      if (isAbsolute) return url.toString();
+      const qs = url.searchParams.toString();
+      return `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`;
+    }
+
+    if (program === "SAT") {
+      url.searchParams.set("program", "sat");
+    } else {
+      url.searchParams.delete("program");
+    }
     if (isAbsolute) return url.toString();
     const qs = url.searchParams.toString();
     return `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`;
   } catch {
+    if (href === "/" || href === "/sat") return programHubPath(program);
     const sep = href.includes("?") ? "&" : "?";
-    return `${href}${sep}program=${program.toLowerCase()}`;
+    return program === "SAT" ? `${href}${sep}program=sat` : href.split("?")[0];
   }
 }
 
 /**
  * Global AP/SAT program state.
  *
- * Read order: URL `?program=` > localStorage `bbo:program` > "AP".
- * Writes propagate to both URL (router.replace) and localStorage so the
- * selection persists across navigations and reloads.
+ * Read order: hub path (/sat) > URL ?program= > localStorage > AP.
+ * Hub pages use clean URLs; other pages may use ?program=sat for UI filtering only.
  */
 export function useProgram(): {
   program: ExamProgram;
@@ -66,50 +93,72 @@ export function useProgram(): {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const pathProgram = programFromPathname(pathname);
   const urlProgram = parseProgram(searchParams?.get("program"));
-  // The initial value must match what the server rendered (URL param or "AP");
-  // reading localStorage here would cause a hydration mismatch that React
-  // refuses to patch, leaving the toggle visually stuck on the wrong program.
-  // The stored preference is applied in the effect below, which triggers a
-  // proper re-render.
-  const [program, setProgramState] = useState<ExamProgram>(urlProgram ?? "AP");
+  const initialProgram = pathProgram ?? urlProgram ?? "AP";
+
+  const [program, setProgramState] = useState<ExamProgram>(initialProgram);
 
   useEffect(() => {
-    if (urlProgram) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setProgramState(urlProgram);
-      writeStored(urlProgram);
+    if (pathProgram) {
+      setProgramState(pathProgram);
+      writeStored(pathProgram);
+      if (pathname === "/" && urlProgram === "SAT") {
+        router.replace("/sat", { scroll: false });
+        return;
+      }
+      if (pathname === "/" && urlProgram === "AP") {
+        router.replace("/", { scroll: false });
+        return;
+      }
       return;
     }
+
+    if (urlProgram) {
+      setProgramState(urlProgram);
+      writeStored(urlProgram);
+      if (pathname === "/" && urlProgram === "SAT") {
+        router.replace("/sat", { scroll: false });
+      }
+      return;
+    }
+
     const stored = readStored();
     if (stored) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProgramState(stored);
-      // Reflect the restored preference in the URL so server-rendered pages
-      // (/exams, /about, /blog) and every useProgram instance agree.
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      params.set("program", stored.toLowerCase());
-      try {
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      } catch {
-        // ignore navigation errors (no-op)
+      if (isProgramHub(pathname)) {
+        router.replace(programHubPath(stored), { scroll: false });
+        return;
       }
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      if (stored === "SAT") {
+        params.set("program", "sat");
+      } else {
+        params.delete("program");
+      }
+      const qs = params.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
     }
-  }, [urlProgram, pathname, router, searchParams]);
+  }, [pathProgram, urlProgram, pathname, router, searchParams]);
 
   const setProgram = useCallback(
     (next: ExamProgram) => {
       setProgramState(next);
       writeStored(next);
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      params.set("program", next.toLowerCase());
-      const qs = params.toString();
-      const url = `${pathname}${qs ? `?${qs}` : ""}`;
-      try {
-        router.replace(url, { scroll: false });
-      } catch {
-        // ignore navigation errors (no-op)
+
+      if (isProgramHub(pathname)) {
+        router.replace(programHubPath(next), { scroll: false });
+        return;
       }
+
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      if (next === "SAT") {
+        params.set("program", "sat");
+      } else {
+        params.delete("program");
+      }
+      const qs = params.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
     },
     [router, pathname, searchParams]
   );

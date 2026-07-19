@@ -28,35 +28,9 @@ export const viewport = {
 export const metadata: Metadata = {
   title: { default: defaultTitle, template: `%s | ${SITE_NAME}` },
   description: defaultDescription,
-  keywords: [
-    "AP exam",
-    "AP sınav",
-    "AP practice",
-    "Bluebook",
-    "AP CSA",
-    "AP CSP",
-    "AP Economics",
-    "AP Calculus",
-    "college board",
-    "exam practice online",
-    "práctica de exámenes AP",
-    "AP考试练习",
-    "تمرين امتحان AP",
-    "AP examen oefenen",
-    "AP examen pratique",
-    "AP Prüfungsvorbereitung",
-    "prática de exame AP",
-  ],
   authors: [{ name: SITE_NAME, url: baseUrl }],
   creator: SITE_NAME,
   metadataBase: new URL(baseUrl),
-  alternates: {
-    canonical: baseUrl,
-    languages: {
-      en: baseUrl,
-      "x-default": baseUrl,
-    },
-  },
   openGraph: {
     title: defaultTitle,
     description: defaultDescription,
@@ -64,7 +38,6 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     type: "website",
     locale: "en_US",
-    alternateLocale: ["tr_TR", "es_ES", "zh_CN", "de_DE", "fr_FR", "ar_SA", "pt_BR", "ja_JP", "ko_KR", "hi_IN"],
     images: ["/og-image.png"],
   },
   twitter: {
@@ -109,7 +82,7 @@ export default function RootLayout({
         url: baseUrl,
         applicationCategory: "EducationalApplication",
         operatingSystem: "Web",
-        inLanguage: ["en", "tr", "es", "zh", "ar", "de", "fr", "pt", "ja", "ko", "hi"],
+        inLanguage: "en",
       },
       {
         "@type": "Organization",

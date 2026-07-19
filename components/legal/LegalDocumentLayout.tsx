@@ -9,7 +9,7 @@ import {
   type LegalDocument,
   type LegalDocumentSlug,
 } from "@/lib/legal/documents";
-import { CONTACT_EMAIL } from "@/lib/site-config";
+import { CONTACT_EMAIL, getSiteUrl } from "@/lib/site-config";
 
 type LegalDocumentLayoutProps = {
   doc: LegalDocument;
@@ -95,9 +95,11 @@ export function LegalDocumentLayout({ doc }: LegalDocumentLayoutProps) {
 }
 
 export function legalMetadata(doc: LegalDocument) {
+  const baseUrl = getSiteUrl();
   return {
     title: doc.title,
     description: doc.description,
+    alternates: { canonical: `${baseUrl}${doc.href}` },
   };
 }
 

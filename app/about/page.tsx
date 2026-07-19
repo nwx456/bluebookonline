@@ -92,6 +92,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
   const program = parseProgram(sp.program);
   const isSat = program === "SAT";
   const programQuery = isSat ? "?program=sat" : "";
+  const homeHref = isSat ? "/sat" : "/";
 
   const FAQ = isSat ? ABOUT_FAQ_SAT : ABOUT_FAQ_AP;
 
@@ -348,7 +349,7 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
       <footer className="border-t border-gray-200 bg-white py-6">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link href={`/${programQuery}`} className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={homeHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Home
             </Link>
             <span className="text-gray-300">|</span>

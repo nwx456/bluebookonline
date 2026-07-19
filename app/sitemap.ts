@@ -16,28 +16,28 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      url: `${base}/sat`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.98,
+    },
+    {
       url: `${base}/exams`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.95,
     },
     {
+      url: `${base}/resources`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    },
+    {
       url: `${base}/about`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.8,
-    },
-    {
-      url: `${base}/login`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${base}/signup`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
     },
     {
       url: `${base}/legal`,
@@ -68,12 +68,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.35,
-    },
-    {
-      url: `${base}/settings/privacy`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.3,
     },
   ];
 
