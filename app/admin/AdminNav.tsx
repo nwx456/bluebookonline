@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { ClipboardCheck, FileText, Flag, Mail, Presentation, Shield } from "lucide-react";
+import { Activity, ClipboardCheck, FileText, Flag, Mail, Presentation, Settings, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ const tabs = [
 
   { href: "/admin/mail", label: "Mail", icon: Mail },
 
-  { href: "/admin/pdfs", label: "PDF'ler", icon: FileText },
+  { href: "/admin/pdfs", label: "PDFs", icon: FileText },
 
   { href: "/admin/moderation", label: "Exam Approval", icon: ClipboardCheck },
 
@@ -24,7 +24,11 @@ const tabs = [
 
   { href: "/admin/moderators", label: "Moderators", icon: Shield },
 
-  { href: "/admin/presentation", label: "Sunum", icon: Presentation },
+  { href: "/admin/activity", label: "Moderator Activity", icon: Activity },
+
+  { href: "/admin/presentation", label: "Presentation", icon: Presentation },
+
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 
 ] as const;
 

@@ -6,10 +6,13 @@ import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { requireModeratorUser } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { sourceTypeShortLabel, type ExamSourceType } from "@/lib/exam-source";
+import { getFrqExamDisplayName, getMcqExamDisplayName } from "@/lib/exam-display-name";
+import { examHasSource, normalizeStoredExamSource } from "@/lib/exam-source-admin";
 
 type UploadRow = {
   id: string;
   filename: string | null;
+  display_title: string | null;
   subject: string | null;
   user_email: string | null;
   created_at: string | null;
@@ -66,10 +69,19 @@ async function mapUploadsToExamRows(
   return uploadList.map((u) => {
     const subjectVal = (u.subject ?? "AP_CSA") as SubjectKey;
     const userEmail = String(u.user_email ?? "").trim().toLowerCase();
+    const storageFilename = u.filename ?? "PDF";
+    const displayTitle = u.display_title?.trim() || null;
+    const source = normalizeStoredExamSource({
+      sourceType: u.source_type,
+      sourceName: u.source_name,
+      sourceUrl: u.source_url,
+    });
     return {
       id: u.id,
       examKind: "mcq" as const,
-      filename: u.filename ?? "PDF",
+      filename: getMcqExamDisplayName({ displayTitle, filename: storageFilename }),
+      storageFilename,
+      displayTitle,
       subject: subjectVal,
       subjectLabel: SUBJECT_LABELS[subjectVal] ?? subjectVal,
       examProgram: (u.exam_program ?? getExamProgram(subjectVal)) as "AP" | "SAT",
@@ -81,13 +93,14 @@ async function mapUploadsToExamRows(
       publishRequestedAt: u.publish_requested_at,
       createdAt: u.created_at,
       hasStoragePath: Boolean(u.storage_path && u.storage_path.endsWith(".pdf")),
-      sourceType: u.source_type ?? null,
+      sourceType: source.sourceType,
       sourceTypeLabel:
-        u.source_type && ["book", "agency", "school"].includes(u.source_type)
-          ? sourceTypeShortLabel(u.source_type as ExamSourceType)
+        source.sourceType && ["book", "agency", "school"].includes(source.sourceType)
+          ? sourceTypeShortLabel(source.sourceType as ExamSourceType)
           : null,
-      sourceName: u.source_name ?? null,
-      sourceUrl: u.source_url ?? null,
+      sourceName: source.sourceName,
+      sourceUrl: source.sourceUrl,
+      hasSource: examHasSource(source),
     };
   });
 }
@@ -114,11 +127,23 @@ async function mapFrqUploadsToExamRows(
 
   return uploadList.map((u) => {
     const userEmail = String(u.user_email ?? "").trim().toLowerCase();
-    const title = (u.display_title ?? u.title ?? "FRQ Exam").trim();
+    const storageTitle = (u.title ?? "FRQ Exam").trim();
+    const displayTitle = u.display_title?.trim() || null;
+    const displayName = getFrqExamDisplayName({
+      displayTitle,
+      title: storageTitle,
+    });
+    const source = normalizeStoredExamSource({
+      sourceType: u.source_type,
+      sourceName: u.source_name,
+      sourceUrl: u.source_url,
+    });
     return {
       id: u.id,
       examKind: "frq" as const,
-      filename: title,
+      filename: displayName,
+      storageFilename: storageTitle,
+      displayTitle,
       subject: u.course_id,
       subjectLabel: getFrqCourseLabel(u.course_id),
       examProgram: "AP" as const,
@@ -130,13 +155,14 @@ async function mapFrqUploadsToExamRows(
       publishRequestedAt: u.publish_requested_at,
       createdAt: u.created_at,
       hasStoragePath: Boolean(u.storage_path && u.storage_path.endsWith(".pdf")),
-      sourceType: u.source_type ?? null,
+      sourceType: source.sourceType,
       sourceTypeLabel:
-        u.source_type && ["book", "agency", "school"].includes(u.source_type)
-          ? sourceTypeShortLabel(u.source_type as ExamSourceType)
+        source.sourceType && ["book", "agency", "school"].includes(source.sourceType)
+          ? sourceTypeShortLabel(source.sourceType as ExamSourceType)
           : null,
-      sourceName: u.source_name ?? null,
-      sourceUrl: u.source_url ?? null,
+      sourceName: source.sourceName,
+      sourceUrl: source.sourceUrl,
+      hasSource: examHasSource(source),
     };
   });
 }
@@ -159,7 +185,7 @@ export async function GET(request: NextRequest) {
     let mcqQuery = supabase
       .from("pdf_uploads")
       .select(
-        "id, filename, subject, user_email, created_at, exam_program, is_published, moderation_status, publish_requested_at, storage_path, source_type, source_name, source_url"
+        "id, filename, display_title, subject, user_email, created_at, exam_program, is_published, moderation_status, publish_requested_at, storage_path, source_type, source_name, source_url"
       )
       .order("created_at", { ascending: false });
 

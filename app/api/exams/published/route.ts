@@ -4,6 +4,7 @@ import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
 import { getExamProgram } from "@/lib/exam-program";
 import { formatSourceAttribution } from "@/lib/exam-source";
+import { getFrqExamDisplayName, getMcqExamDisplayName } from "@/lib/exam-display-name";
 
 export type SubjectFilter = SubjectKey;
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     let mcqQuery = supabase
       .from("pdf_uploads")
       .select(
-        "id, filename, subject, user_email, created_at, exam_program, sat_format, sat_adaptive_mode, source_type, source_name, source_url"
+        "id, filename, display_title, subject, user_email, created_at, exam_program, sat_format, sat_adaptive_mode, source_type, source_name, source_url"
       )
       .eq("is_published", true)
       .eq("moderation_status", "approved")
@@ -131,7 +132,10 @@ export async function GET(request: NextRequest) {
       return {
         id: u.id,
         examKind: "mcq" as const,
-        filename: u.filename ?? "PDF",
+        filename: getMcqExamDisplayName({
+          displayTitle: (u as { display_title?: string | null }).display_title,
+          filename: u.filename,
+        }),
         subject: subjectVal,
         examProgram,
         questionCount: countByUpload[u.id] ?? 0,
@@ -156,7 +160,10 @@ export async function GET(request: NextRequest) {
       return {
         id: u.id,
         examKind: "frq" as const,
-        filename: (u.display_title ?? u.title ?? "FRQ Exam").trim(),
+        filename: getFrqExamDisplayName({
+          displayTitle: u.display_title,
+          title: u.title,
+        }),
         subject: u.course_id,
         examProgram: "AP" as const,
         questionCount: u.question_count ?? 0,

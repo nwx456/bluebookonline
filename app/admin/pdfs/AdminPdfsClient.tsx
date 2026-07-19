@@ -14,6 +14,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
+import { ExamTitleEditor } from "@/components/admin/ExamTitleEditor";
 import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import type { AnswerKeyKind } from "@/lib/answer-key-label";
 import {
@@ -28,6 +29,8 @@ type Recipient = { email: string; username: string };
 type AdminPdfRow = {
   id: string;
   filename: string;
+  storageFilename: string;
+  displayTitle: string | null;
   subject: string;
   subjectLabel: string;
   examProgram: "AP" | "SAT";
@@ -216,6 +219,16 @@ export default function AdminPdfsClient() {
         (Array.isArray(data.pdfs) ? data.pdfs : []).map((row: Record<string, unknown>) => ({
           id: String(row.id ?? ""),
           filename: String(row.filename ?? "PDF"),
+          storageFilename:
+            typeof row.storageFilename === "string"
+              ? row.storageFilename
+              : String(row.filename ?? "PDF"),
+          displayTitle:
+            typeof row.displayTitle === "string"
+              ? row.displayTitle
+              : row.displayTitle === null
+                ? null
+                : null,
           subject: String(row.subject ?? ""),
           subjectLabel: String(row.subjectLabel ?? row.subject ?? ""),
           examProgram: row.examProgram === "SAT" ? "SAT" : "AP",
@@ -328,6 +341,17 @@ export default function AdminPdfsClient() {
                 hasSource: Boolean(values.sourceType && values.sourceName),
               }
             : row
+        )
+      );
+    },
+    []
+  );
+
+  const handleTitleSaved = useCallback(
+    (rowId: string, displayTitle: string | null, displayName: string) => {
+      setPdfs((prev) =>
+        prev.map((row) =>
+          row.id === rowId ? { ...row, displayTitle, filename: displayName } : row
         )
       );
     },
@@ -747,8 +771,23 @@ export default function AdminPdfsClient() {
                   const showMismatch = row.questionCountMismatch || zeroQuestions;
                   return (
                     <tr key={row.id} className="bg-white">
-                      <td className="max-w-[200px] truncate px-3 py-2 font-medium text-gray-900">
-                        {row.filename}
+                      <td className="max-w-[240px] px-3 py-2 align-top font-medium text-gray-900">
+                        {accessToken ? (
+                          <ExamTitleEditor
+                            examId={row.id}
+                            examKind="mcq"
+                            accessToken={accessToken}
+                            displayName={row.filename}
+                            storageFilename={row.storageFilename}
+                            displayTitle={row.displayTitle}
+                            compact
+                            onSaved={(displayTitle, displayName) =>
+                              handleTitleSaved(row.id, displayTitle, displayName)
+                            }
+                          />
+                        ) : (
+                          row.filename
+                        )}
                         {!row.hasStoragePath && (
                           <span className="ml-2 text-xs font-normal text-amber-600">No file</span>
                         )}
@@ -851,6 +890,7 @@ export default function AdminPdfsClient() {
                             examId={row.id}
                             examKind="mcq"
                             accessToken={accessToken}
+                            examLabel={row.filename}
                             initialValues={{
                               sourceType: row.sourceType,
                               sourceName: row.sourceName,

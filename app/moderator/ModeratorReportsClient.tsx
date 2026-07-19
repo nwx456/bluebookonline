@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -8,6 +8,7 @@ import {
   Bell,
   ChevronRight,
   Loader2,
+  Search,
   Shield,
   Trash2,
   X,
@@ -15,6 +16,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import type { QuestionReportInboxItem } from "@/lib/question-report-inbox";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { cn } from "@/lib/utils";
 
 type TabStatus = "open" | "dismissed" | "all";
@@ -72,6 +74,8 @@ export default function ModeratorReportsClient({
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
+  const [subjectFilter, setSubjectFilter] = useState(() => searchParams.get("subject") ?? "");
 
   useEffect(() => {
     const supabase = createClient();
@@ -145,6 +149,37 @@ export default function ModeratorReportsClient({
     },
     [router, searchParams, basePath]
   );
+
+  const syncFiltersToUrl = useCallback(
+    (next: { q?: string; subject?: string }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      const qVal = next.q ?? q;
+      const subjectVal = next.subject ?? subjectFilter;
+      if (qVal.trim()) params.set("q", qVal.trim());
+      else params.delete("q");
+      if (subjectVal) params.set("subject", subjectVal);
+      else params.delete("subject");
+      router.replace(`${basePath}?${params.toString()}`);
+    },
+    [router, searchParams, basePath, q, subjectFilter]
+  );
+
+  const filteredItems = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return items.filter((item) => {
+      if (subjectFilter && item.exam.subject !== subjectFilter) return false;
+      if (!term) return true;
+      const haystack = [
+        item.exam.filename,
+        item.exam.subjectLabel,
+        item.questionText,
+        formatQuestionLabel(item),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [items, q, subjectFilter]);
 
   const runAction = useCallback(
     async (
@@ -235,6 +270,50 @@ export default function ModeratorReportsClient({
         ))}
       </div>
 
+      <div className="flex flex-col gap-3 rounded-md border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
+        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Search</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") syncFiltersToUrl({ q: e.currentTarget.value });
+              }}
+              placeholder="Search by exam or question…"
+              className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        </label>
+        <label className="flex min-w-[160px] flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Subject</span>
+          <select
+            value={subjectFilter}
+            onChange={(e) => {
+              setSubjectFilter(e.target.value);
+              syncFiltersToUrl({ subject: e.target.value });
+            }}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All subjects</option>
+            {SUBJECT_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {SUBJECT_LABELS[key]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => syncFiltersToUrl({ q })}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Apply
+        </button>
+      </div>
+
       {listError ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {listError}
@@ -253,9 +332,11 @@ export default function ModeratorReportsClient({
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" aria-hidden />
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <p className="px-6 py-12 text-center text-sm text-gray-500">
-              No reported questions in this tab.
+              {items.length === 0
+                ? "No reported questions in this tab."
+                : "No reports match your filters."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -272,7 +353,7 @@ export default function ModeratorReportsClient({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((item) => {
+                  {filteredItems.map((item) => {
                     const key = itemKey(item);
                     return (
                     <tr

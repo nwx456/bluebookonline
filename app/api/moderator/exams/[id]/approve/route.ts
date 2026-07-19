@@ -4,6 +4,7 @@ import {
   moderatorUploadTable,
   parseModeratorExamKind,
 } from "@/lib/moderator-exam-utils";
+import { examHasSource } from "@/lib/exam-source-admin";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 /**
@@ -45,9 +46,12 @@ export async function POST(
       );
     }
 
-    const sourceType = (upload.source_type as string | null)?.trim();
-    const sourceName = (upload.source_name as string | null)?.trim();
-    if (!sourceType || !sourceName) {
+    if (
+      !examHasSource({
+        sourceType: upload.source_type as string | null,
+        sourceName: upload.source_name as string | null,
+      })
+    ) {
       return NextResponse.json(
         { error: "Exam source must be set before approval." },
         { status: 409 }

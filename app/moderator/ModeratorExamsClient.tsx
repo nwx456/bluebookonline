@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -11,20 +11,26 @@ import {
   FileText,
   Flag,
   Loader2,
+  Search,
   Shield,
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
+import { ExamTitleEditor } from "@/components/admin/ExamTitleEditor";
 import { canAdminEditExamSource, examHasSource } from "@/lib/exam-source-admin";
 import type { ExamSourceType } from "@/lib/exam-source";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { cn } from "@/lib/utils";
 
 type ExamRow = {
   id: string;
   examKind: "mcq" | "frq";
   filename: string;
+  storageFilename: string;
+  displayTitle: string | null;
+  subject: string;
   subjectLabel: string;
   examProgram: "AP" | "SAT";
   userEmail: string;
@@ -39,6 +45,7 @@ type ExamRow = {
   sourceTypeLabel: string | null;
   sourceName: string | null;
   sourceUrl: string | null;
+  hasSource: boolean;
 };
 
 function parseExamSourceType(value: string | null): ExamSourceType | null {
@@ -86,6 +93,11 @@ const MODERATOR_LABELS = {
   connectionError: "Bağlantı hatası.",
   actionFailed: "İşlem başarısız.",
   pdfError: "PDF açılamadı.",
+  searchPlaceholder: "İsme göre ara…",
+  allSubjects: "Tüm dersler",
+  allPrograms: "Tüm programlar",
+  noFilterResults: "Filtrelere uyan sınav yok.",
+  approveNeedsSource: "Onaylamadan önce kaynak ekleyin",
 } as const;
 
 const ADMIN_LABELS = {
@@ -115,6 +127,11 @@ const ADMIN_LABELS = {
   connectionError: "Connection error.",
   actionFailed: "Action failed.",
   pdfError: "Could not open PDF.",
+  searchPlaceholder: "Search by name…",
+  allSubjects: "All subjects",
+  allPrograms: "All programs",
+  noFilterResults: "No exams match your filters.",
+  approveNeedsSource: "Add source before approving",
 } as const;
 
 function formatDate(iso: string | null): string {
@@ -148,8 +165,12 @@ export default function ModeratorExamsClient({
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFilename, setPreviewFilename] = useState("exam.pdf");
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
+  const [subjectFilter, setSubjectFilter] = useState(() => searchParams.get("subject") ?? "");
+  const [programFilter, setProgramFilter] = useState(() => searchParams.get("program") ?? "");
 
   useEffect(() => {
     const supabase = createClient();
@@ -196,7 +217,39 @@ export default function ModeratorExamsClient({
         setExams([]);
         return;
       }
-      setExams(Array.isArray(data.exams) ? data.exams : []);
+      setExams(
+        (Array.isArray(data.exams) ? data.exams : []).map((row: Record<string, unknown>) => {
+          const sourceType =
+            typeof row.sourceType === "string"
+              ? row.sourceType
+              : row.sourceType === null
+                ? null
+                : null;
+          const sourceName =
+            typeof row.sourceName === "string"
+              ? row.sourceName
+              : row.sourceName === null
+                ? null
+                : null;
+          return {
+            ...(row as ExamRow),
+            storageFilename:
+              typeof row.storageFilename === "string"
+                ? row.storageFilename
+                : String(row.filename ?? "PDF"),
+            displayTitle:
+              typeof row.displayTitle === "string"
+                ? row.displayTitle
+                : row.displayTitle === null
+                  ? null
+                  : null,
+            subject: String(row.subject ?? ""),
+            hasSource:
+              row.hasSource === true ||
+              examHasSource({ sourceType, sourceName }),
+          };
+        })
+      );
     } catch {
       setListError(labels.connectionError);
       setExams([]);
@@ -219,6 +272,54 @@ export default function ModeratorExamsClient({
     },
     [router, searchParams, basePath]
   );
+
+  const syncFiltersToUrl = useCallback(
+    (next: { q?: string; subject?: string; program?: string }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      const qVal = next.q ?? q;
+      const subjectVal = next.subject ?? subjectFilter;
+      const programVal = next.program ?? programFilter;
+      if (qVal.trim()) params.set("q", qVal.trim());
+      else params.delete("q");
+      if (subjectVal) params.set("subject", subjectVal);
+      else params.delete("subject");
+      if (programVal === "AP" || programVal === "SAT") params.set("program", programVal);
+      else params.delete("program");
+      router.replace(`${basePath}?${params.toString()}`);
+    },
+    [router, searchParams, basePath, q, subjectFilter, programFilter]
+  );
+
+  const filteredExams = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return exams.filter((exam) => {
+      if (subjectFilter && exam.subject !== subjectFilter) return false;
+      if (programFilter === "AP" && exam.examProgram !== "AP") return false;
+      if (programFilter === "SAT" && exam.examProgram !== "SAT") return false;
+      if (!term) return true;
+      const haystack = [
+        exam.filename,
+        exam.storageFilename,
+        exam.displayTitle ?? "",
+        exam.subjectLabel,
+        exam.username,
+        exam.userEmail,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [exams, q, subjectFilter, programFilter]);
+
+  const handleTitleSaved = useCallback((examId: string, displayTitle: string | null, displayName: string) => {
+    setExams((prev) =>
+      prev.map((exam) =>
+        exam.id === examId
+          ? { ...exam, displayTitle, filename: displayName }
+          : exam
+      )
+    );
+  }, []);
 
   const runAction = useCallback(
     async (exam: ExamRow, action: "approve" | "reject" | "unpublish") => {
@@ -266,6 +367,10 @@ export default function ModeratorExamsClient({
                       ? "Agency"
                       : "School"
                   : null,
+                hasSource: examHasSource({
+                  sourceType: values.sourceType,
+                  sourceName: values.sourceName,
+                }),
               }
             : exam
         )
@@ -277,7 +382,7 @@ export default function ModeratorExamsClient({
   const openPreview = useCallback(
     async (exam: ExamRow) => {
       if (!accessToken) return;
-      setActionId(exam.id);
+      setPreviewLoadingId(exam.id);
       try {
         const kindParam = exam.examKind === "frq" ? "?examKind=frq" : "";
         const res = await fetch(`/api/moderator/exams/${exam.id}/url${kindParam}`, {
@@ -293,7 +398,7 @@ export default function ModeratorExamsClient({
       } catch {
         setListError(labels.connectionError);
       } finally {
-        setActionId(null);
+        setPreviewLoadingId(null);
       }
     },
     [accessToken, labels.connectionError, labels.pdfError]
@@ -368,6 +473,65 @@ export default function ModeratorExamsClient({
         </button>
       </div>
 
+      <div className="flex flex-col gap-3 rounded-md border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
+        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Search</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") syncFiltersToUrl({ q: e.currentTarget.value });
+              }}
+              placeholder={labels.searchPlaceholder}
+              className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        </label>
+        <label className="flex min-w-[160px] flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Subject</span>
+          <select
+            value={subjectFilter}
+            onChange={(e) => {
+              setSubjectFilter(e.target.value);
+              syncFiltersToUrl({ subject: e.target.value });
+            }}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">{labels.allSubjects}</option>
+            {SUBJECT_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {SUBJECT_LABELS[key]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex min-w-[120px] flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Program</span>
+          <select
+            value={programFilter}
+            onChange={(e) => {
+              setProgramFilter(e.target.value);
+              syncFiltersToUrl({ program: e.target.value });
+            }}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">{labels.allPrograms}</option>
+            <option value="AP">AP</option>
+            <option value="SAT">SAT</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => syncFiltersToUrl({ q })}
+          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Apply
+        </button>
+      </div>
+
       {listError ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {listError}
@@ -379,9 +543,13 @@ export default function ModeratorExamsClient({
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" aria-hidden />
           </div>
-        ) : exams.length === 0 ? (
+        ) : filteredExams.length === 0 ? (
           <p className="px-6 py-12 text-center text-sm text-gray-500">
-            {tab === "pending" ? labels.emptyPending : labels.emptyPublished}
+            {exams.length === 0
+              ? tab === "pending"
+                ? labels.emptyPending
+                : labels.emptyPublished
+              : labels.noFilterResults}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -401,18 +569,37 @@ export default function ModeratorExamsClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {exams.map((exam) => (
+                {filteredExams.map((exam) => {
+                  const approveBlocked = !exam.hasSource;
+                  return (
                   <tr key={exam.id}>
-                    <td className="max-w-[200px] truncate px-4 py-3 text-gray-900" title={exam.filename}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <FileText className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-                        {exam.filename}
-                        {exam.examKind === "frq" ? (
-                          <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-purple-800">
-                            FRQ
-                          </span>
-                        ) : null}
-                      </span>
+                    <td className="max-w-[240px] px-4 py-3 align-top text-gray-900">
+                      <div className="inline-flex items-start gap-1.5">
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          {accessToken ? (
+                            <ExamTitleEditor
+                              examId={exam.id}
+                              examKind={exam.examKind}
+                              accessToken={accessToken}
+                              displayName={exam.filename}
+                              storageFilename={exam.storageFilename}
+                              displayTitle={exam.displayTitle}
+                              compact
+                              onSaved={(displayTitle, displayName) =>
+                                handleTitleSaved(exam.id, displayTitle, displayName)
+                              }
+                            />
+                          ) : (
+                            <span className="truncate font-medium">{exam.filename}</span>
+                          )}
+                          {exam.examKind === "frq" ? (
+                            <span className="mt-1 inline-flex rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-purple-800">
+                              FRQ
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{exam.subjectLabel}</td>
                     <td className="px-4 py-3 text-gray-600">{exam.examProgram}</td>
@@ -422,11 +609,13 @@ export default function ModeratorExamsClient({
                       <div className="font-mono text-xs text-gray-500">{exam.userEmail}</div>
                     </td>
                     <td className="max-w-[260px] px-4 py-3 text-gray-600 align-top">
-                      {isAdminVariant && accessToken ? (
+                      {accessToken ? (
                         <ExamSourceEditor
                           examId={exam.id}
                           examKind={exam.examKind}
                           accessToken={accessToken}
+                          apiScope="moderator"
+                          examLabel={exam.filename}
                           initialValues={{
                             sourceType: parseExamSourceType(exam.sourceType),
                             sourceName: exam.sourceName,
@@ -469,11 +658,15 @@ export default function ModeratorExamsClient({
                         {exam.hasStoragePath ? (
                           <button
                             type="button"
-                            disabled={actionId === exam.id}
+                            disabled={previewLoadingId === exam.id}
                             onClick={() => void openPreview(exam)}
                             className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                           >
-                            <Eye className="h-3.5 w-3.5" aria-hidden />
+                            {previewLoadingId === exam.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" aria-hidden />
+                            )}
                             {labels.preview}
                           </button>
                         ) : null}
@@ -481,23 +674,8 @@ export default function ModeratorExamsClient({
                           <>
                             <button
                               type="button"
-                              disabled={
-                                actionId === exam.id ||
-                                (isAdminVariant &&
-                                  !examHasSource({
-                                    sourceType: exam.sourceType,
-                                    sourceName: exam.sourceName,
-                                  }))
-                              }
-                              title={
-                                isAdminVariant &&
-                                !examHasSource({
-                                  sourceType: exam.sourceType,
-                                  sourceName: exam.sourceName,
-                                })
-                                  ? "Add source before approving"
-                                  : undefined
-                              }
+                              disabled={actionId === exam.id || approveBlocked}
+                              title={approveBlocked ? labels.approveNeedsSource : undefined}
                               onClick={() => void runAction(exam, "approve")}
                               className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                             >
@@ -534,7 +712,8 @@ export default function ModeratorExamsClient({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

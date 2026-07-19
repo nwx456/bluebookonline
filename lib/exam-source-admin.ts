@@ -1,6 +1,10 @@
 import type { ModeratorExamKind } from "@/lib/moderator-exam-utils";
 import { moderatorUploadTable } from "@/lib/moderator-exam-utils";
-import { parseExamSourceFields, type ValidatedExamSource } from "@/lib/exam-source";
+import {
+  parseExamSourceFields,
+  SCHOOL_SOURCE_DEFAULT_NAME,
+  type ValidatedExamSource,
+} from "@/lib/exam-source";
 import { verifyExamSourceUrl } from "@/lib/exam-source-url-verify";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -22,11 +26,36 @@ export function canAdminEditExamSource(row: {
   return status === "approved" && row.isPublished === true;
 }
 
+export function normalizeStoredExamSource(row: {
+  sourceType?: string | null;
+  sourceName?: string | null;
+  sourceUrl?: string | null;
+}): {
+  sourceType: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+} {
+  const sourceType = row.sourceType?.trim() || null;
+  let sourceName = row.sourceName?.trim() || null;
+  if (sourceType === "school" && !sourceName) {
+    sourceName = SCHOOL_SOURCE_DEFAULT_NAME;
+  }
+  return {
+    sourceType,
+    sourceName,
+    sourceUrl: row.sourceUrl?.trim() || null,
+  };
+}
+
+/** Whether an exam has enough source metadata to be approved. */
 export function examHasSource(row: {
   sourceType: string | null | undefined;
   sourceName: string | null | undefined;
 }): boolean {
-  return Boolean(row.sourceType?.trim() && row.sourceName?.trim());
+  const sourceType = row.sourceType?.trim();
+  if (!sourceType) return false;
+  if (sourceType === "school") return true;
+  return Boolean(row.sourceName?.trim());
 }
 
 export async function loadExamSourceRow(

@@ -6,6 +6,7 @@ import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { getExamProgram } from "@/lib/exam-program";
 import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { canAdminEditExamSource, examHasSource } from "@/lib/exam-source-admin";
+import { getMcqExamDisplayName } from "@/lib/exam-display-name";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 const DEFAULT_LIMIT = 50;
@@ -14,6 +15,7 @@ const MAX_LIMIT = 200;
 type UploadRow = {
   id: string;
   filename: string | null;
+  display_title: string | null;
   subject: string | null;
   user_email: string | null;
   created_at: string | null;
@@ -98,9 +100,14 @@ async function mapUploadsToPdfRows(
     const answerKey = getAnswerKeyLabel(answerKeyFromPdfCount, questionCount);
     const questionCountMismatch = isQuestionCountMismatch(requestedQuestionCount, questionCount);
 
+    const storageFilename = u.filename ?? "PDF";
+    const displayTitle = u.display_title?.trim() || null;
+
     return {
       id: u.id,
-      filename: u.filename ?? "PDF",
+      filename: getMcqExamDisplayName({ displayTitle, filename: storageFilename }),
+      storageFilename,
+      displayTitle,
       subject: subjectVal,
       subjectLabel: SUBJECT_LABELS[subjectVal] ?? subjectVal,
       examProgram: (u.exam_program ?? getExamProgram(subjectVal)) as "AP" | "SAT",
@@ -179,7 +186,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("pdf_uploads")
       .select(
-        "id, filename, subject, user_email, created_at, exam_program, is_published, moderation_status, publish_requested_at, storage_path, requested_question_count, answer_key_from_pdf_count, source_type, source_name, source_url"
+        "id, filename, display_title, subject, user_email, created_at, exam_program, is_published, moderation_status, publish_requested_at, storage_path, requested_question_count, answer_key_from_pdf_count, source_type, source_name, source_url"
       )
       .order("created_at", { ascending: false });
 
