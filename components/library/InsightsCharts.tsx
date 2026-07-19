@@ -1,8 +1,8 @@
 "use client";
 
 import type { LibraryInsights } from "@/lib/library-types";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
-import { getFrqCourseLabel, FRQ_COURSE_IDS, type FrqCourseId } from "@/lib/frq-courses";
+import { InsightMetricLabel } from "@/components/library/InsightMetricHelp";
+import { getInsightsSubjectLabel } from "@/lib/insights-subject-label";
 import {
   Bar,
   BarChart,
@@ -20,7 +20,10 @@ import {
 
 interface InsightsChartsProps {
   insights: LibraryInsights;
+  overallInsights: LibraryInsights;
   program: "AP" | "SAT";
+  scopeLabel?: string;
+  highlightSubject?: string;
 }
 
 function formatScore(value: number | null | undefined, program: "AP" | "SAT"): string {
@@ -36,14 +39,13 @@ function scoreFromTrendPoint(
   return point.percentage;
 }
 
-function subjectLabel(subject: string): string {
-  if ((FRQ_COURSE_IDS as readonly string[]).includes(subject)) {
-    return getFrqCourseLabel(subject as FrqCourseId);
-  }
-  return SUBJECT_LABELS[subject as SubjectKey] ?? subject;
-}
-
-export function InsightsCharts({ insights, program }: InsightsChartsProps) {
+export function InsightsCharts({
+  insights,
+  overallInsights,
+  program,
+  scopeLabel,
+  highlightSubject,
+}: InsightsChartsProps) {
   const scoreTrend = insights.trend
     .map((point) => {
       const score = scoreFromTrendPoint(point, program);
@@ -61,11 +63,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
     })
     .filter((row): row is NonNullable<typeof row> => row != null);
 
-  const subjectChart = insights.subjectPerformance.slice(0, 6).map((row) => ({
-    subject: subjectLabel(row.subject),
+  const subjectChart = overallInsights.subjectPerformance.slice(0, 6).map((row) => ({
+    subjectKey: row.subject,
+    subject: getInsightsSubjectLabel(row.subject),
     averageScore: row.averageScore ?? 0,
     mistakeCount: row.mistakeCount,
     attemptCount: row.attemptCount,
+    highlighted: highlightSubject === row.subject,
   }));
 
   const satSections = insights.bySatSection.map((row) => ({
@@ -79,8 +83,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-        <h3 className="text-sm font-semibold text-gray-900">Score over time</h3>
+        <h3 className="text-sm font-semibold text-gray-900">
+          <InsightMetricLabel metric="scoreOverTime">Score over time</InsightMetricLabel>
+        </h3>
         <p className="mt-1 text-xs text-gray-500">
+          {scopeLabel ? (
+            <>Showing: {scopeLabel} · </>
+          ) : null}
           {scoreTrend.length} completed {program} attempt{scoreTrend.length === 1 ? "" : "s"}
         </p>
         <div className="mt-4 h-64">
@@ -127,8 +136,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900">Weekly activity</h3>
-        <p className="mt-1 text-xs text-gray-500">Attempts in the last 8 weeks</p>
+        <h3 className="text-sm font-semibold text-gray-900">
+          <InsightMetricLabel metric="weeklyActivity">Weekly activity</InsightMetricLabel>
+        </h3>
+        <p className="mt-1 text-xs text-gray-500">
+          {scopeLabel ? `Showing: ${scopeLabel} · ` : ""}
+          Attempts in the last 8 weeks
+        </p>
         <div className="mt-4 h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={insights.weeklyAttempts} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -146,8 +160,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900">Subject performance</h3>
-        <p className="mt-1 text-xs text-gray-500">Average score by subject</p>
+        <h3 className="text-sm font-semibold text-gray-900">
+          <InsightMetricLabel metric="subjectPerformance">Subject performance</InsightMetricLabel>
+        </h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Average score by subject
+          {highlightSubject ? " (selected subject highlighted)" : ""}
+        </p>
         <div className="mt-4 h-56">
           {subjectChart.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -188,7 +207,14 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
                     );
                   }}
                 />
-                <Bar dataKey="averageScore" fill="#2563eb" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="averageScore" radius={[0, 4, 4, 0]}>
+                  {subjectChart.map((row) => (
+                    <Cell
+                      key={row.subjectKey}
+                      fill={row.highlighted ? "#d97706" : "#2563eb"}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -197,8 +223,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
 
       {program === "SAT" && (
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-          <h3 className="text-sm font-semibold text-gray-900">SAT sections</h3>
-          <p className="mt-1 text-xs text-gray-500">Mistakes and average module scores</p>
+          <h3 className="text-sm font-semibold text-gray-900">
+            <InsightMetricLabel metric="satSections">SAT sections</InsightMetricLabel>
+          </h3>
+          <p className="mt-1 text-xs text-gray-500">
+            {scopeLabel ? `Showing: ${scopeLabel} · ` : ""}
+            Mistakes and average module scores
+          </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -239,8 +270,13 @@ export function InsightsCharts({ insights, program }: InsightsChartsProps) {
       )}
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-        <h3 className="text-sm font-semibold text-gray-900">Accuracy trend</h3>
-        <p className="mt-1 text-xs text-gray-500">Correct answers per attempt</p>
+        <h3 className="text-sm font-semibold text-gray-900">
+          <InsightMetricLabel metric="accuracyTrend">Accuracy trend</InsightMetricLabel>
+        </h3>
+        <p className="mt-1 text-xs text-gray-500">
+          {scopeLabel ? `Showing: ${scopeLabel} · ` : ""}
+          Correct answers per attempt
+        </p>
         <div className="mt-4 h-48">
           {insights.accuracyTrend.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">

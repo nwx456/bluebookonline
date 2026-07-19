@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BookOpen, LayoutDashboard, X } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
-import { SourceAttribution } from "@/components/exams/SourceAttribution";
+import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { cn } from "@/lib/utils";
 import { formatScoreReportDate, scoreReport } from "@/app/exam/score-report-tokens";
 import {
@@ -149,11 +149,10 @@ export function FrqReview({
             </div>
 
             <div className={cn(scoreReport.sectionDivider, "px-6 py-3 space-y-3")}>
-              <SourceAttribution
+              <ExamSourceLine
                 sourceType={sourceType ?? null}
                 sourceName={sourceName ?? null}
                 sourceUrl={sourceUrl ?? null}
-                compact
               />
               <p className={scoreReport.disclaimer}>
                 Scored using AI based on College Board FRQ rubrics. This is practice feedback, not an official AP score.

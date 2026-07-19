@@ -6,6 +6,7 @@ import type {
   LibraryExamKind,
   LibraryFilters,
   LibraryInsights,
+  LibraryInsightsPayload,
   LibrarySort,
   LibrarySummary,
   LibraryTag,
@@ -13,6 +14,7 @@ import type {
 } from "@/lib/library-types";
 import { estimateApScore } from "@/lib/ap-score-estimate";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
+import { getInsightsSubjectLabel } from "@/lib/insights-subject-label";
 
 export function normalizeUserEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -1032,17 +1034,11 @@ export async function buildLibrarySummary(
   };
 }
 
-export async function buildLibraryInsights(
+async function aggregateLibraryInsights(
   supabase: SupabaseClient,
-  userEmail: string,
+  attempts: LibraryAttemptItem[],
   program?: "AP" | "SAT"
 ): Promise<LibraryInsights> {
-  const attempts = await listLibraryAttempts(supabase, userEmail, {
-    archived: false,
-    program,
-    sort: "oldest",
-  });
-
   const apPercents = attempts
     .filter(
       (a) =>
@@ -1237,6 +1233,42 @@ export async function buildLibraryInsights(
       };
     }),
     totalMistakes,
+  };
+}
+
+export async function buildLibraryInsights(
+  supabase: SupabaseClient,
+  userEmail: string,
+  options?: { program?: "AP" | "SAT"; subject?: string }
+): Promise<LibraryInsightsPayload> {
+  const program = options?.program;
+  const subject = options?.subject?.trim() || undefined;
+
+  const allAttempts = await listLibraryAttempts(supabase, userEmail, {
+    archived: false,
+    program,
+    sort: "oldest",
+  });
+
+  const overall = await aggregateLibraryInsights(supabase, allAttempts, program);
+
+  const availableSubjects = overall.subjectPerformance.map((row) => ({
+    id: row.subject,
+    label: getInsightsSubjectLabel(row.subject),
+    attemptCount: row.attemptCount,
+  }));
+
+  let filtered: LibraryInsights | null = null;
+  if (subject) {
+    const filteredAttempts = allAttempts.filter((a) => a.subject === subject);
+    filtered = await aggregateLibraryInsights(supabase, filteredAttempts, program);
+  }
+
+  return {
+    overall,
+    filtered,
+    filterSubject: subject ?? null,
+    availableSubjects,
   };
 }
 

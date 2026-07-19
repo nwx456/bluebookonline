@@ -36,6 +36,7 @@ import {
 } from "@/components/frq/JavaQuickReference";
 import { FrqReview, type FrqReviewResponse } from "@/components/frq/FrqReview";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
+import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { QuestionReportButton } from "@/components/exam/QuestionReportButton";
 import { flattenFrqParts, type FrqFlatPartItem } from "@/lib/frq-server";
 import {
@@ -74,6 +75,7 @@ interface FrqUploadMeta {
   sourceType?: string | null;
   sourceName?: string | null;
   sourceUrl?: string | null;
+  ownerEmail?: string | null;
 }
 
 type RubricBreakdown = Array<{
@@ -220,6 +222,15 @@ export default function FrqExamPageInner() {
   const isReview = Boolean(reviewAttemptId && reviewData);
   const isLastPart = currentIndex >= flatItems.length - 1;
 
+  const showSourceAttribution = useMemo(() => {
+    if (!upload?.sourceType || !upload?.sourceName) return false;
+    const ownerEmail = upload.ownerEmail?.trim().toLowerCase();
+    const viewerEmail = userEmail.trim().toLowerCase();
+    const isOwner = Boolean(ownerEmail && viewerEmail && ownerEmail === viewerEmail);
+    if (isOwner) return true;
+    return upload.isPubliclyVisible === true;
+  }, [upload, userEmail]);
+
   const flaggedItems = useMemo(
     () =>
       flatItems.filter((item) => flags[responseKey(item.questionId, item.partLabel)] === true),
@@ -276,6 +287,7 @@ export default function FrqExamPageInner() {
             sourceType: data.upload.sourceType ?? null,
             sourceName: data.upload.sourceName ?? null,
             sourceUrl: data.upload.sourceUrl ?? null,
+            ownerEmail: data.upload.ownerEmail ?? null,
           });
           setQuestions(data.questions);
           setAttemptId(reviewAttemptId);
@@ -614,6 +626,15 @@ export default function FrqExamPageInner() {
               <QuestionReportButton onClick={() => setReportModalOpen(true)} />
             )}
           </>
+        }
+        sourceLine={
+          showSourceAttribution ? (
+            <ExamSourceLine
+              sourceType={upload.sourceType ?? null}
+              sourceName={upload.sourceName ?? null}
+              sourceUrl={upload.sourceUrl}
+            />
+          ) : undefined
         }
       />
 

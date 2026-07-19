@@ -29,7 +29,7 @@ import { ExamHeader } from "@/app/exam/ExamHeader";
 import { ApScoreReportCard } from "@/app/exam/components/ApScoreReportCard";
 import { SatScoreReportCard } from "@/app/exam/components/SatScoreReportCard";
 import { ExamAttemptStatsStrip } from "@/app/exam/components/ExamAttemptStatsStrip";
-import { SourceAttribution } from "@/components/exams/SourceAttribution";
+import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { ExamFooter, ExamFooterQuestionNav } from "@/app/exam/ExamFooter";
 import { ExamQuestionChrome } from "@/app/exam/ExamQuestionChrome";
 import {
@@ -3454,15 +3454,13 @@ export default function ExamPage() {
             </button>
           </>
         }
-        subBanner={
+        sourceLine={
           showSourceAttribution ? (
-            <div className="border-t border-gray-200 bg-amber-50/80 px-4 py-2">
-              <SourceAttribution
-                sourceType={upload!.source_type!}
-                sourceName={upload!.source_name!}
-                sourceUrl={upload!.source_url}
-              />
-            </div>
+            <ExamSourceLine
+              sourceType={upload.source_type ?? null}
+              sourceName={upload.source_name ?? null}
+              sourceUrl={upload.source_url}
+            />
           ) : undefined
         }
       />

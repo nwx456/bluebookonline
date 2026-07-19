@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-session";
 import { buildLibraryInsights } from "@/lib/library-server";
+import { parseLibraryFilters } from "@/lib/library-api-utils";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -10,15 +11,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: authError ?? "Unauthorized" }, { status: 401 });
     }
 
-    const programParam = new URL(request.url).searchParams.get("program");
-    const program =
-      programParam === "AP" || programParam === "SAT" ? programParam : undefined;
+    const filters = parseLibraryFilters(new URL(request.url).searchParams);
 
     const supabase = createServerSupabaseAdmin();
     const insights = await buildLibraryInsights(
       supabase,
       user.email.trim().toLowerCase(),
-      program
+      { program: filters.program, subject: filters.subject }
     );
 
     return NextResponse.json({ insights });

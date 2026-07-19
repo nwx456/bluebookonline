@@ -53,6 +53,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {  cons
       editorType: course?.editorType ?? "richtext",
       createdAt: upload.created_at,
       isPubliclyVisible: isPubliclyVisibleExam(upload),
+      sourceType: (upload.source_type as string | null) ?? null,
+      sourceName: (upload.source_name as string | null) ?? null,
+      sourceUrl: (upload.source_url as string | null) ?? null,
+      ownerEmail: (upload.user_email as string | null) ?? null,
     },
     questions: (questions ?? []).map((q) => ({
       id: q.id,

@@ -28,7 +28,7 @@ export function BrandLogo({ size = "header", className, priority = false }: Bran
       height={LOGO_HEIGHT}
       decoding="async"
       fetchPriority={priority ? "high" : "auto"}
-      className={cn("block shrink-0", heightClasses[size], className)}
+      className={cn("block shrink-0 object-contain object-center", heightClasses[size], className)}
     />
   );
 }

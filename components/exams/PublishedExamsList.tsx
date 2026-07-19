@@ -14,9 +14,14 @@ interface PublishedExam {
   questionCount: number;
   ownerUsername: string;
   createdAt?: string;
+  examKind?: "mcq" | "frq";
   sourceType: string | null;
   sourceName: string | null;
   sourceUrl: string | null;
+}
+
+function publishedExamPath(exam: PublishedExam) {
+  return exam.examKind === "frq" ? `/frq/${exam.id}` : `/exam/${exam.id}`;
 }
 
 interface ApiResponse {
@@ -84,12 +89,13 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
   const isLoading = exams === null;
   const count = exams?.length ?? 0;
 
-  const handleSolveClick = (examId: string) => {
+  const handleSolveClick = (exam: PublishedExam) => {
+    const path = publishedExamPath(exam);
     if (!isLoggedIn) {
-      router.push(`/login?next=${encodeURIComponent(`/exam/${examId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(path)}`);
       return;
     }
-    router.push(`/exam/${examId}`);
+    router.push(path);
   };
 
   return (
@@ -163,20 +169,28 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {exams!.map((exam) => (
             <div
-              key={exam.id}
+              key={`${exam.examKind ?? "mcq"}-${exam.id}`}
               className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition-shadow flex flex-col"
             >
               <div className="flex items-start gap-3">
                 <FileText className="h-7 w-7 shrink-0 text-blue-600" />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm text-gray-900 truncate" title={exam.filename}>
-                    {exam.filename}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-sm text-gray-900 truncate" title={exam.filename}>
+                      {exam.filename}
+                    </h3>
+                    {exam.examKind === "frq" && (
+                      <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800">
+                        FRQ
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-3 space-y-1">
                 <SourceAttribution
                   compact
+                  showDisclaimer={false}
                   sourceType={exam.sourceType}
                   sourceName={exam.sourceName}
                   sourceUrl={exam.sourceUrl}
@@ -187,13 +201,13 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
               <div className="mt-4 space-y-2">
                 <button
                   type="button"
-                  onClick={() => handleSolveClick(exam.id)}
+                  onClick={() => handleSolveClick(exam)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                 >
                   <Play className="h-4 w-4" />
                   Solve
                 </button>
-                <ExamShareButton examId={exam.id} />
+                <ExamShareButton examId={exam.id} examKind={exam.examKind} />
               </div>
             </div>
           ))}

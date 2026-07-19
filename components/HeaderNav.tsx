@@ -25,7 +25,7 @@ export function HeaderNav() {
 
 function HeaderNavSkeleton() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-0 md:min-w-0 md:shrink">
       <div className="hidden h-9 w-56 rounded-full bg-gray-50 md:block" />
       <div className="h-9 w-9 rounded-md bg-gray-50 md:hidden" />
       <div className="hidden h-9 w-28 rounded-md bg-gray-50 md:block" />
@@ -114,7 +114,7 @@ function HeaderNavInner() {
   const openProfile = () => setProfileOpen(true);
 
   return (
-    <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2">
+    <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:ml-0 md:min-w-0 md:shrink">
       <nav
         className="hidden items-center gap-1 md:flex lg:gap-1.5"
         aria-label="Main navigation"

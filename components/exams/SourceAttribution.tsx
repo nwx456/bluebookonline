@@ -10,6 +10,7 @@ type SourceAttributionProps = {
   sourceName: string | null;
   sourceUrl?: string | null;
   compact?: boolean;
+  showDisclaimer?: boolean;
   className?: string;
 };
 
@@ -18,6 +19,7 @@ export function SourceAttribution({
   sourceName,
   sourceUrl,
   compact = false,
+  showDisclaimer = true,
   className = "",
 }: SourceAttributionProps) {
   const attribution = formatSourceAttribution({
@@ -53,10 +55,12 @@ export function SourceAttribution({
           </>
         ) : null}
       </p>
-      <TrademarkDisclaimer
-        variant="compact"
-        className={`${compact ? "mt-1" : "mt-2"} !mx-0 !text-left`}
-      />
+      {showDisclaimer ? (
+        <TrademarkDisclaimer
+          variant="compact"
+          className={`${compact ? "mt-1" : "mt-2"} !mx-0 !text-left`}
+        />
+      ) : null}
     </div>
   );
 }

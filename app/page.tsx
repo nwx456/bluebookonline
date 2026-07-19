@@ -16,6 +16,7 @@ import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
 import { CONTACT_EMAIL } from "@/lib/site-config";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
+import { SourceAttribution } from "@/components/exams/SourceAttribution";
 
 const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");
 const SAT_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "SAT");
@@ -113,6 +114,14 @@ interface PublishedExam {
   questionCount: number;
   ownerUsername: string;
   createdAt?: string;
+  examKind?: "mcq" | "frq";
+  sourceType?: string | null;
+  sourceName?: string | null;
+  sourceUrl?: string | null;
+}
+
+function publishedExamPath(exam: PublishedExam) {
+  return exam.examKind === "frq" ? `/frq/${exam.id}` : `/exam/${exam.id}`;
 }
 
 export default function Home() {
@@ -197,12 +206,13 @@ function HomeInner() {
 
   const subjectLabel = SUBJECTS.find((s) => s.value === subjectFilter)?.label ?? "All subjects";
 
-  const handleSolveClick = (examId: string) => {
+  const handleSolveClick = (exam: PublishedExam) => {
+    const path = publishedExamPath(exam);
     if (!user) {
-      router.push(`/login?next=${encodeURIComponent(`/exam/${examId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(path)}`);
       return;
     }
-    router.push(`/exam/${examId}`);
+    router.push(path);
   };
 
   const isNewExam = (createdAt?: string) => {
@@ -825,7 +835,7 @@ function HomeInner() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {exams.slice(0, 6).map((exam) => (
                       <div
-                        key={exam.id}
+                        key={`${exam.examKind ?? "mcq"}-${exam.id}`}
                         className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition-shadow flex flex-col"
                       >
                         <div className="flex items-start gap-3">
@@ -835,6 +845,11 @@ function HomeInner() {
                               <h3 className="font-medium text-gray-900 truncate" title={exam.filename}>
                                 {exam.filename}
                               </h3>
+                              {exam.examKind === "frq" && (
+                                <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800">
+                                  FRQ
+                                </span>
+                              )}
                               {isNewExam(exam.createdAt) && (
                                 <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">New</span>
                               )}
@@ -845,6 +860,15 @@ function HomeInner() {
                           <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                             {SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}
                           </span>
+                          {exam.sourceType && exam.sourceName ? (
+                            <SourceAttribution
+                              compact
+                              showDisclaimer={false}
+                              sourceType={exam.sourceType}
+                              sourceName={exam.sourceName}
+                              sourceUrl={exam.sourceUrl}
+                            />
+                          ) : null}
                           <p className="text-xs text-gray-500">
                             {exam.questionCount} questions
                           </p>
@@ -855,13 +879,13 @@ function HomeInner() {
                         <div className="mt-4 space-y-2">
                           <button
                             type="button"
-                            onClick={() => handleSolveClick(exam.id)}
+                            onClick={() => handleSolveClick(exam)}
                             className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                           >
                             <Play className="h-4 w-4" />
                             Solve
                           </button>
-                          <ExamShareButton examId={exam.id} />
+                          <ExamShareButton examId={exam.id} examKind={exam.examKind} />
                         </div>
                       </div>
                     ))}
@@ -872,7 +896,7 @@ function HomeInner() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {(exams.length > 6 ? exams.slice(6) : exams).map((exam) => (
                 <div
-                  key={exam.id}
+                  key={`${exam.examKind ?? "mcq"}-${exam.id}`}
                   className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-lg transition-shadow flex flex-col"
                 >
                   <div className="flex items-start gap-3">
@@ -882,6 +906,11 @@ function HomeInner() {
                         <h3 className="font-medium text-gray-900 truncate" title={exam.filename}>
                           {exam.filename}
                         </h3>
+                        {exam.examKind === "frq" && (
+                          <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800">
+                            FRQ
+                          </span>
+                        )}
                         {isNewExam(exam.createdAt) && (
                           <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">New</span>
                         )}
@@ -892,6 +921,15 @@ function HomeInner() {
                     <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
                       {SUBJECTS.find((s) => s.value === exam.subject)?.label ?? exam.subject}
                     </span>
+                    {exam.sourceType && exam.sourceName ? (
+                      <SourceAttribution
+                        compact
+                        showDisclaimer={false}
+                        sourceType={exam.sourceType}
+                        sourceName={exam.sourceName}
+                        sourceUrl={exam.sourceUrl}
+                      />
+                    ) : null}
                     <p className="text-xs text-gray-500">
                       {exam.questionCount} questions
                     </p>
@@ -902,13 +940,13 @@ function HomeInner() {
                   <div className="mt-4 space-y-2">
                     <button
                       type="button"
-                      onClick={() => handleSolveClick(exam.id)}
+                      onClick={() => handleSolveClick(exam)}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                     >
                       <Play className="h-4 w-4" />
                       Solve
                     </button>
-                    <ExamShareButton examId={exam.id} />
+                    <ExamShareButton examId={exam.id} examKind={exam.examKind} />
                   </div>
                 </div>
               ))}

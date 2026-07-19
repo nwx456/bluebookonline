@@ -30,14 +30,27 @@ export const metadata: Metadata = {
 async function fetchPublishedCounts(): Promise<Record<string, number>> {
   try {
     const supabase = createServerSupabaseAdmin();
-    const { data } = await supabase
-      .from("pdf_uploads")
-      .select("subject")
-      .eq("is_published", true)
-      .eq("moderation_status", "approved");
+    const [{ data: mcqRows }, { data: frqRows }] = await Promise.all([
+      supabase
+        .from("pdf_uploads")
+        .select("subject")
+        .eq("is_published", true)
+        .eq("moderation_status", "approved"),
+      supabase
+        .from("frq_uploads")
+        .select("course_id")
+        .eq("status", "ready")
+        .eq("is_published", true)
+        .eq("moderation_status", "approved"),
+    ]);
     const counts: Record<string, number> = {};
-    for (const row of data ?? []) {
+    for (const row of mcqRows ?? []) {
       const k = (row.subject as string) ?? "";
+      if (!k) continue;
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    for (const row of frqRows ?? []) {
+      const k = (row.course_id as string) ?? "";
       if (!k) continue;
       counts[k] = (counts[k] ?? 0) + 1;
     }

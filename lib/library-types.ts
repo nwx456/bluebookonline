@@ -112,6 +112,19 @@ export interface LibraryInsights {
   totalMistakes: number;
 }
 
+export interface LibraryInsightsSubjectOption {
+  id: string;
+  label: string;
+  attemptCount: number;
+}
+
+export interface LibraryInsightsPayload {
+  overall: LibraryInsights;
+  filtered: LibraryInsights | null;
+  filterSubject: string | null;
+  availableSubjects: LibraryInsightsSubjectOption[];
+}
+
 export interface LibrarySummary {
   program: "AP" | "SAT";
   activeUploads: number;
