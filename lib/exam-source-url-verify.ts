@@ -1,5 +1,3 @@
-import { isExamSourceHostnameBlocked } from "./exam-source";
-
 const VERIFY_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
 const USER_AGENT = "APPracticeExamOnline-SourceVerify/1.0";
@@ -61,7 +59,6 @@ function isPrivateOrBlockedHostname(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTNAMES.has(h)) return true;
   if (h === "localhost" || h.endsWith(".localhost")) return true;
-  if (isExamSourceHostnameBlocked(h)) return true;
 
   const ipv4 = parseIPv4(h);
   if (ipv4 && isPrivateIPv4(ipv4)) return true;

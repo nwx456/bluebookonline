@@ -4,13 +4,6 @@ export type ExamSourceType = (typeof EXAM_SOURCE_TYPES)[number];
 const MAX_SOURCE_NAME_LEN = 200;
 const MAX_SOURCE_URL_LEN = 2048;
 
-const BLOCKED_SOURCE_DOMAINS = [
-  "collegeboard.org",
-  "act.org",
-  "ets.org",
-  "bluebook.collegeboard.org",
-];
-
 export const EXAM_SOURCE_TYPE_LABELS: Record<ExamSourceType, string> = {
   book: "Published book / study guide",
   agency: "Test prep agency / course provider",
@@ -33,28 +26,6 @@ export type ExamSourceValidationResult =
 
 function isExamSourceType(value: string): value is ExamSourceType {
   return (EXAM_SOURCE_TYPES as readonly string[]).includes(value);
-}
-
-function hostnameFromUrl(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-function isBlockedSourceUrl(url: string): boolean {
-  const host = hostnameFromUrl(url);
-  if (!host) return true;
-  return isExamSourceHostnameBlocked(host);
-}
-
-/** Whether a hostname is blocked for exam source links (official providers, etc.). */
-export function isExamSourceHostnameBlocked(host: string): boolean {
-  const h = host.toLowerCase();
-  return BLOCKED_SOURCE_DOMAINS.some(
-    (blocked) => h === blocked || h.endsWith(`.${blocked}`)
-  );
 }
 
 export function validateExamSource(input: {
@@ -111,12 +82,6 @@ export function validateExamSource(input: {
       sourceUrl = parsed.toString();
     } catch {
       return { ok: false, error: "Source URL is not valid." };
-    }
-    if (isBlockedSourceUrl(sourceUrl)) {
-      return {
-        ok: false,
-        error: "Official exam provider URLs cannot be used as a source link.",
-      };
     }
   }
 
