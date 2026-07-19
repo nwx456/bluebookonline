@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { ClipboardCheck, FileText, Flag, Mail, Shield } from "lucide-react";
+import { ClipboardCheck, FileText, Flag, Mail, Presentation, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,8 @@ const tabs = [
   { href: "/admin/reports", label: "Reported Questions", icon: Flag },
 
   { href: "/admin/moderators", label: "Moderators", icon: Shield },
+
+  { href: "/admin/presentation", label: "Sunum", icon: Presentation },
 
 ] as const;
 
