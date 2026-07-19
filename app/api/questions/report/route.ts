@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const examKind = (body.examKind ?? body.exam_kind ?? "mcq") as string;
-    const partLabel = (body.partLabel ?? body.part_label ?? "") as string;
+    const partLabelRaw = (body.partLabel ?? body.part_label ?? "") as string;
+    const partLabelNormalized = partLabelRaw.trim() || null;
 
     const validation = validateQuestionReportInput({
       reasonCodes: body.reasonCodes ?? body.reason_codes,
@@ -75,22 +76,26 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: existing } = await supabase
+      let existingQuery = supabase
         .from("question_reports")
         .select("id")
         .eq("exam_kind", "frq")
         .eq("user_email", userEmail)
         .eq("frq_question_id", frqQuestionId)
-        .eq("frq_attempt_id", frqAttemptId)
-        .eq("part_label", partLabel || "")
-        .maybeSingle();
+        .eq("frq_attempt_id", frqAttemptId);
+
+      existingQuery = partLabelNormalized
+        ? existingQuery.eq("part_label", partLabelNormalized)
+        : existingQuery.is("part_label", null);
+
+      const { data: existing } = await existingQuery.maybeSingle();
 
       const reportPayload = {
         exam_kind: "frq" as const,
         frq_question_id: frqQuestionId,
         frq_upload_id: frqUploadId,
         frq_attempt_id: frqAttemptId,
-        part_label: partLabel || null,
+        part_label: partLabelNormalized,
         question_id: null,
         upload_id: null,
         attempt_id: null,

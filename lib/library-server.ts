@@ -13,6 +13,12 @@ import type {
   LibraryUploadItem,
 } from "@/lib/library-types";
 import { estimateApScore } from "@/lib/ap-score-estimate";
+import {
+  applySatSixModuleEffectiveCounts,
+  countFrqQuestionsByUploadIds,
+  countQuestionsByUploadIds,
+  fetchSatQuestionModulesByUploadIds,
+} from "@/lib/countQuestionsByUpload";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
 import { getInsightsSubjectLabel } from "@/lib/insights-subject-label";
 
@@ -164,7 +170,7 @@ async function listMcqLibraryUploads(
   let query = supabase
     .from("pdf_uploads")
     .select(
-      "id, filename, display_title, personal_notes, archived_at, subject, exam_program, created_at, is_published, moderation_status, publish_requested_at, source_type, source_name, source_url"
+      "id, filename, display_title, personal_notes, archived_at, subject, exam_program, sat_adaptive_mode, created_at, is_published, moderation_status, publish_requested_at, source_type, source_name, source_url"
     )
     .eq("user_email", userEmail);
 
@@ -187,13 +193,28 @@ async function listMcqLibraryUploads(
 
   let questionCounts: Record<string, number> = {};
   if (ids.length) {
-    const { data: questions } = await supabase
-      .from("questions")
-      .select("upload_id")
-      .in("upload_id", ids);
-    for (const q of questions ?? []) {
-      const uploadId = q.upload_id as string;
-      questionCounts[uploadId] = (questionCounts[uploadId] ?? 0) + 1;
+    questionCounts = await countQuestionsByUploadIds(supabase, ids);
+    const sixModuleIds = uploads
+      .filter(
+        (row) =>
+          (row as { exam_program?: string | null }).exam_program === "SAT" &&
+          (row as { sat_adaptive_mode?: string | null }).sat_adaptive_mode === "six_module"
+      )
+      .map((row) => row.id as string);
+    if (sixModuleIds.length > 0) {
+      const satModulesByUpload = await fetchSatQuestionModulesByUploadIds(
+        supabase,
+        sixModuleIds
+      );
+      questionCounts = applySatSixModuleEffectiveCounts(
+        questionCounts,
+        uploads.map((row) => ({
+          id: row.id as string,
+          exam_program: (row as { exam_program?: string | null }).exam_program,
+          sat_adaptive_mode: (row as { sat_adaptive_mode?: string | null }).sat_adaptive_mode,
+        })),
+        satModulesByUpload
+      );
     }
   }
 
@@ -283,10 +304,16 @@ async function listFrqLibraryUploads(
   const ids = uploads.map((row) => row.id as string);
   const tagMap = await fetchTagsForEntities(supabase, userEmail, "frq_upload", ids);
 
+  const liveQuestionCounts =
+    ids.length > 0 ? await countFrqQuestionsByUploadIds(supabase, ids) : {};
+
   let items: LibraryUploadItem[] = uploads.map((row) => {
     const titleRaw = (row.title as string) ?? "FRQ Exam";
     const displayTitle = (row.display_title as string | null) ?? null;
     const courseId = (row.course_id as string) ?? "AP_US_HISTORY";
+    const storedCount = (row.question_count as number) ?? 0;
+    const liveCount = liveQuestionCounts[row.id as string] ?? 0;
+    const questionCount = liveCount > 0 ? liveCount : storedCount;
     return {
       id: row.id as string,
       examKind: "frq" as LibraryExamKind,
@@ -297,7 +324,7 @@ async function listFrqLibraryUploads(
       title: resolveDisplayTitle(displayTitle, titleRaw),
       subject: courseId,
       examProgram: "AP",
-      questionCount: (row.question_count as number) ?? 0,
+      questionCount,
       maxScore: (row.max_score as number) ?? 0,
       courseId,
       courseLabel: getFrqCourseLabel(courseId),

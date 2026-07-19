@@ -81,6 +81,7 @@ import {
   SatModuleResultOverlay,
   type ModuleScoreResult,
 } from "@/app/exam/SatModuleResultOverlay";
+import { MODERATOR_PREVIEW_ATTEMPT_ID } from "@/lib/moderator-exam-preview";
 
 const PdfPageView = dynamic(() => import("./PdfPageView"), { ssr: false });
 const TableImageView = dynamic(() => import("./TableImageView"), { ssr: false });
@@ -866,6 +867,9 @@ export default function ExamPage() {
   const loadAttemptId = resumeAttemptId || reviewAttemptId;
   const reviewQuestionNum = searchParams.get("question");
   const wrongOnly = searchParams.get("wrongOnly") === "1";
+  const moderatorPreview = searchParams.get("moderatorPreview") === "1";
+  const moderatorPreviewQuestionId = searchParams.get("questionId")?.trim() ?? "";
+  const isModeratorPreview = moderatorPreview && !!moderatorPreviewQuestionId;
   const reviewQuestion = reviewQuestionNum ? parseInt(reviewQuestionNum, 10) : null;
   const [upload, setUpload] = useState<PdfUpload | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -877,6 +881,7 @@ export default function ExamPage() {
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [preStartUnlockRemaining, setPreStartUnlockRemaining] = useState(PRE_START_UNLOCK_SECONDS);
   const [timerVisible, setTimerVisible] = useState(true);
@@ -1001,6 +1006,45 @@ export default function ExamPage() {
       setLoading(false);
       return;
     }
+    if (isModeratorPreview) {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.access_token) {
+          router.push(`/login?next=${encodeURIComponent(pathname + (searchParams.toString() ? `?${searchParams.toString()}` : ""))}`);
+          return;
+        }
+        fetch(
+          `/api/moderator/exams/${id}/preview?examKind=mcq&questionId=${encodeURIComponent(moderatorPreviewQuestionId)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        )
+          .then(async (r) => {
+            const data = await r.json();
+            if (!r.ok || data.error) {
+              setPreviewError(typeof data.error === "string" ? data.error : "Could not load exam preview.");
+              setLoading(false);
+              return;
+            }
+            setUpload(data.upload as PdfUpload);
+            setQuestions((data.questions ?? []) as Question[]);
+            setAttemptId(MODERATOR_PREVIEW_ATTEMPT_ID);
+            const idx =
+              typeof data.targetQuestionIndex === "number" && data.targetQuestionIndex >= 0
+                ? data.targetQuestionIndex
+                : 0;
+            setCurrentIndex(idx);
+            if (typeof data.pdfUrl === "string" && data.pdfUrl) {
+              setPdfUrl(data.pdfUrl);
+            }
+            setTimerPaused(true);
+            setLoading(false);
+          })
+          .catch(() => {
+            setPreviewError("Could not load exam preview.");
+            setLoading(false);
+          });
+      });
+      return;
+    }
     if (loadAttemptId) {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -1105,7 +1149,7 @@ export default function ExamPage() {
       if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);
       if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
     });
-  }, [id, loadAttemptId, reviewQuestion]);
+  }, [id, loadAttemptId, reviewQuestion, isModeratorPreview, moderatorPreviewQuestionId, router, pathname, searchParams]);
 
   useEffect(() => {
     if (!id || !upload?.storage_path) {
@@ -1163,7 +1207,7 @@ export default function ExamPage() {
 
   const saveAnswer = useCallback(
     async (questionId: string, userAnswer: string | null, isFlagged: boolean) => {
-      if (!attemptId) return;
+      if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID) return;
       await fetch("/api/exam/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1252,7 +1296,7 @@ export default function ExamPage() {
 
   const completeExam = useCallback(
     async (skipAiGrading: boolean) => {
-      if (!attemptId || completing) return;
+      if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID || completing) return;
       setCompleting(true);
       setCompletingSkipAi(skipAiGrading);
       try {
@@ -1612,7 +1656,7 @@ export default function ExamPage() {
 
   const persistAttemptProgress = useCallback(
     async (opts?: { currentModuleIndex?: number }) => {
-      if (!attemptId) return;
+      if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID) return;
       const supabase = createClient();
       const {
         data: { session },
@@ -1636,7 +1680,7 @@ export default function ExamPage() {
   );
 
   const saveAndExit = useCallback(async () => {
-    if (!attemptId || savingExit || examCompleted) return;
+    if (!attemptId || savingExit || examCompleted || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID) return;
     setSavingExit(true);
     try {
       await Promise.all(
@@ -1700,7 +1744,7 @@ export default function ExamPage() {
   const scoreModule = useCallback(
     async (skipAiGrading: boolean) => {
       const modId = moduleTransitionShown ?? currentModuleId;
-      if (!attemptId || !modId || scoringModule) return;
+      if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID || !modId || scoringModule) return;
       setScoringModule(true);
       setModuleTransitionError(null);
       try {
@@ -2014,6 +2058,17 @@ export default function ExamPage() {
     return (
       <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
         <div className="text-sm text-gray-500">Loading…</div>
+      </div>
+    );
+  }
+
+  if (isModeratorPreview && previewError) {
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center gap-4 p-4">
+        <p className="text-center text-gray-700">{previewError}</p>
+        <Link href="/moderator/reports" className="text-blue-600 font-medium hover:underline">
+          Back to reports
+        </Link>
       </div>
     );
   }
@@ -2578,7 +2633,8 @@ export default function ExamPage() {
     usesSatModules
   );
   const displayUsername = formatDisplayUsername(userName, userEmail);
-  const canReport = Boolean(attemptId && !examCompleted && currentQuestion);
+  const canReport =
+    Boolean(attemptId && attemptId !== MODERATOR_PREVIEW_ATTEMPT_ID && !examCompleted && currentQuestion);
 
   const questionBlockContent = isEmptySatModule ? (
     emptyModulePanel
@@ -3146,6 +3202,12 @@ export default function ExamPage() {
         </>
       )}
 
+      {isModeratorPreview ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+          Moderator preview — read-only. Answers and reports are disabled.
+        </div>
+      ) : null}
+
       <ExamHeader
         headerTitle={examHeaderTitle}
         headerTitleShort={examHeaderTitleShort}
@@ -3171,6 +3233,7 @@ export default function ExamPage() {
         onHideTimer={() => setTimerVisible(false)}
         onShowTimer={() => setTimerVisible(true)}
         toolbarPrimary={
+          isModeratorPreview ? null : (
           <button
             type="button"
             onClick={() => void saveAndExit()}
@@ -3180,6 +3243,7 @@ export default function ExamPage() {
             <Save className="h-4 w-4 shrink-0" />
             {savingExit ? "Saving…" : "Save & exit"}
           </button>
+          )
         }
         toolbarOverflow={
           <>
@@ -3292,6 +3356,7 @@ export default function ExamPage() {
         }
         toolbar={
           <>
+            {!isModeratorPreview ? (
             <button
               type="button"
               onClick={() => void saveAndExit()}
@@ -3301,6 +3366,7 @@ export default function ExamPage() {
               <Save className="h-4 w-4 shrink-0" />
               {savingExit ? "Saving…" : "Save & exit"}
             </button>
+            ) : null}
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
               <button
                 type="button"
@@ -3850,7 +3916,7 @@ export default function ExamPage() {
                     Skip to {nextModuleDef.shortLabel}
                   </button>
                 )}
-                {isLastSatModule && (
+                {isLastSatModule && !isModeratorPreview && (
                   <button
                     type="button"
                     onClick={() => setShowEndExamConfirm(true)}
@@ -3892,7 +3958,7 @@ export default function ExamPage() {
                 >
                   Next
                 </button>
-                {isOnLastQuestionOfModule && usesSatModules && !isLastSatModule && (
+                {isOnLastQuestionOfModule && usesSatModules && !isLastSatModule && !isModeratorPreview && (
                   <button
                     type="button"
                     onClick={() => setModuleTransitionShown(currentModuleId)}
@@ -3901,7 +3967,7 @@ export default function ExamPage() {
                     Submit Module
                   </button>
                 )}
-                {isOnLastQuestionOfModule && (!usesSatModules || isLastSatModule) && (
+                {isOnLastQuestionOfModule && (!usesSatModules || isLastSatModule) && !isModeratorPreview && (
                   <button
                     type="button"
                     onClick={() => setShowEndExamConfirm(true)}

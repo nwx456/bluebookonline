@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { canStartExamAccess } from "@/lib/class-access";
 import { resolveAssignmentExamAccess } from "@/lib/class-server";
 import { isPubliclyVisibleExam } from "@/lib/moderator-auth";
+import { computeSatSixModuleEffectiveCount } from "@/lib/sat-effective-question-count";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -83,23 +84,8 @@ export async function POST(request: NextRequest) {
       const rows = questions ?? [];
       if (uploadMeta?.exam_program !== "SAT" || rows.length === 0) return rows.length;
       if (uploadMeta.sat_adaptive_mode !== "six_module") return rows.length;
-      let total = 0;
-      for (const section of ["rw", "math"] as const) {
-        const sectionRows = rows.filter((r) => r.sat_section === section);
-        if (sectionRows.length === 0) continue;
-        const m1 = sectionRows.filter((r) => r.sat_module !== 2).length;
-        const m2easy = sectionRows.filter(
-          (r) => r.sat_module === 2 && r.sat_module_variant === "easy"
-        ).length;
-        const m2hard = sectionRows.filter(
-          (r) => r.sat_module === 2 && r.sat_module_variant === "hard"
-        ).length;
-        const m2plain = sectionRows.filter(
-          (r) => r.sat_module === 2 && !r.sat_module_variant
-        ).length;
-        total += m1 + Math.max(m2plain, m2easy, m2hard);
-      }
-      return total > 0 ? total : rows.length;
+      const effective = computeSatSixModuleEffectiveCount(rows);
+      return effective > 0 ? effective : rows.length;
     })();
     if (totalQuestions === 0) {
       return NextResponse.json(

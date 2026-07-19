@@ -271,7 +271,7 @@ export function FrqUploadSection() {
                 ))}
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Editor: {FRQ_COURSES[courseId].editorType === "code" ? "Java code editor" : "Rich text (Bluebook)"} ·{" "}
+                Editor: {FRQ_COURSES[courseId].editorType === "code" ? "Plain text (monospace)" : "Rich text (Bluebook)"} ·{" "}
                 {FRQ_COURSES[courseId].sectionDurationMin} min section
               </p>
             </div>

@@ -4,6 +4,7 @@ import {
   type QuestionReportReasonCode,
 } from "@/lib/question-report-reasons";
 import { formatSourceAttribution } from "@/lib/exam-source";
+import { getMcqExamDisplayName, getFrqExamDisplayName } from "@/lib/exam-display-name";
 import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
 
@@ -169,6 +170,49 @@ function aggregateReportRows(rows: ReportRow[]) {
   };
 }
 
+const REPORTS_PAGE_SIZE = 1000;
+
+async function fetchAllReportRows(
+  supabase: ReturnType<typeof createServerSupabaseAdmin>,
+  status: ReportStatusFilter
+): Promise<ReportRow[]> {
+  const all: ReportRow[] = [];
+  let from = 0;
+
+  for (;;) {
+    let reportQuery = supabase
+      .from("question_reports")
+      .select(
+        "id, exam_kind, question_id, upload_id, frq_question_id, frq_upload_id, part_label, user_email, reason_codes, custom_note, status, created_at, updated_at"
+      )
+      .order("updated_at", { ascending: false })
+      .range(from, from + REPORTS_PAGE_SIZE - 1);
+
+    if (status === "open") {
+      reportQuery = reportQuery.eq("status", "open");
+    } else if (status === "dismissed") {
+      reportQuery = reportQuery.eq("status", "dismissed");
+    }
+
+    const { data: page, error } = await reportQuery;
+    if (error) {
+      console.error("fetchAllReportRows error:", error);
+      throw new Error("Failed to load reports.");
+    }
+    if (!page?.length) break;
+
+    all.push(...(page as ReportRow[]));
+    if (page.length < REPORTS_PAGE_SIZE) break;
+    from += REPORTS_PAGE_SIZE;
+  }
+
+  return all;
+}
+
+function groupLastUpdatedAt(group: ReportGroup): number {
+  return Math.max(...group.rows.map((row) => new Date(row.updated_at).getTime()));
+}
+
 export async function fetchQuestionReportInbox(params: {
   status: ReportStatusFilter;
   limit?: number;
@@ -178,27 +222,10 @@ export async function fetchQuestionReportInbox(params: {
   const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
   const offset = Math.max(params.offset ?? 0, 0);
 
-  let reportQuery = supabase
-    .from("question_reports")
-    .select(
-      "id, exam_kind, question_id, upload_id, frq_question_id, frq_upload_id, part_label, user_email, reason_codes, custom_note, status, created_at, updated_at"
-    )
-    .order("updated_at", { ascending: false });
-
-  if (params.status === "open") {
-    reportQuery = reportQuery.eq("status", "open");
-  } else if (params.status === "dismissed") {
-    reportQuery = reportQuery.eq("status", "dismissed");
-  }
-
-  const { data: reports, error: reportsError } = await reportQuery;
-  if (reportsError) {
-    console.error("fetchQuestionReportInbox reports error:", reportsError);
-    throw new Error("Failed to load reports.");
-  }
+  const reports = await fetchAllReportRows(supabase, params.status);
 
   const grouped = new Map<string, ReportGroup>();
-  for (const row of (reports ?? []) as ReportRow[]) {
+  for (const row of reports) {
     const key = reportGroupKey(row);
     const meta = buildGroupFromRow(row);
     if (!key || !meta) continue;
@@ -211,9 +238,11 @@ export async function fetchQuestionReportInbox(params: {
     }
   }
 
-  const groupKeys = [...grouped.keys()];
-  const total = groupKeys.length;
-  const pageKeys = groupKeys.slice(offset, offset + limit);
+  const sortedGroupKeys = [...grouped.entries()]
+    .sort((a, b) => groupLastUpdatedAt(b[1]) - groupLastUpdatedAt(a[1]))
+    .map(([key]) => key);
+  const total = sortedGroupKeys.length;
+  const pageKeys = sortedGroupKeys.slice(offset, offset + limit);
 
   if (pageKeys.length === 0) {
     return { items: [], total };
@@ -249,7 +278,7 @@ export async function fetchQuestionReportInbox(params: {
       ? supabase
           .from("pdf_uploads")
           .select(
-            "id, filename, subject, exam_program, user_email, source_type, source_name, source_url"
+            "id, filename, display_title, subject, exam_program, user_email, source_type, source_name, source_url"
           )
           .in("id", mcqUploadIds)
       : Promise.resolve({ data: [], error: null }),
@@ -314,7 +343,11 @@ export async function fetchQuestionReportInbox(params: {
         },
         ...aggregate,
         exam: {
-          filename: (upload?.filename as string | undefined) ?? "Unknown exam",
+          filename: getMcqExamDisplayName({
+            displayTitle: upload?.display_title as string | null | undefined,
+            filename: upload?.filename as string | null | undefined,
+            fallback: "Unknown exam",
+          }),
           subject: (upload?.subject as string | undefined) ?? "",
           subjectLabel: subjectLabel((upload?.subject as string | undefined) ?? null),
           examProgram: (upload?.exam_program as string | null | undefined) ?? null,
@@ -353,10 +386,11 @@ export async function fetchQuestionReportInbox(params: {
       options: {},
       ...aggregate,
       exam: {
-        filename:
-          (upload?.display_title as string | undefined) ??
-          (upload?.title as string | undefined) ??
-          "Unknown FRQ exam",
+        filename: getFrqExamDisplayName({
+          displayTitle: upload?.display_title as string | null | undefined,
+          title: upload?.title as string | null | undefined,
+          fallback: "Unknown FRQ exam",
+        }),
         subject: courseId,
         subjectLabel: getFrqCourseLabel(courseId),
         examProgram: "FRQ",

@@ -15,7 +15,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const body = await request.json().catch(() => ({}));
     const note = typeof body.note === "string" ? body.note.trim() : undefined;
     const examKind =
-      body.examKind === "frq" || body.examKind === "mcq" ? body.examKind : "mcq";
+      body.examKind === "frq" || body.examKind === "mcq" ? body.examKind : null;
+    if (!examKind) {
+      return NextResponse.json({ error: "examKind is required (mcq or frq)." }, { status: 400 });
+    }
     const partLabel =
       typeof body.partLabel === "string" ? body.partLabel : body.partLabel === null ? null : undefined;
     const moderatorEmail = normalizeEmail(auth.user!.email!);

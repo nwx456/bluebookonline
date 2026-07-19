@@ -38,6 +38,7 @@ import { FrqReview, type FrqReviewResponse } from "@/components/frq/FrqReview";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
 import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { QuestionReportButton } from "@/components/exam/QuestionReportButton";
+import { MODERATOR_PREVIEW_ATTEMPT_ID } from "@/lib/moderator-exam-preview";
 import { flattenFrqParts, type FrqFlatPartItem } from "@/lib/frq-server";
 import {
   frqStemProseClass,
@@ -129,6 +130,10 @@ export default function FrqExamPageInner() {
   const frqUploadId = params.id as string;
   const reviewAttemptId = searchParams.get("reviewAttemptId");
   const assignmentId = searchParams.get("assignmentId");
+  const moderatorPreview = searchParams.get("moderatorPreview") === "1";
+  const moderatorPreviewQuestionId = searchParams.get("questionId")?.trim() ?? "";
+  const moderatorPreviewPartLabel = searchParams.get("partLabel")?.trim() ?? "";
+  const isModeratorPreview = moderatorPreview && !!moderatorPreviewQuestionId;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +275,44 @@ export default function FrqExamPageInner() {
         }
         const headers = { Authorization: `Bearer ${session.access_token}` };
 
+        if (isModeratorPreview) {
+          const previewParams = new URLSearchParams({
+            examKind: "frq",
+            questionId: moderatorPreviewQuestionId,
+          });
+          if (moderatorPreviewPartLabel) {
+            previewParams.set("partLabel", moderatorPreviewPartLabel);
+          }
+          const previewRes = await fetch(
+            `/api/moderator/exams/${frqUploadId}/preview?${previewParams.toString()}`,
+            { headers }
+          );
+          const previewData = await previewRes.json().catch(() => ({}));
+          if (!previewRes.ok || previewData.error) {
+            throw new Error(
+              typeof previewData.error === "string"
+                ? previewData.error
+                : "Could not load exam preview."
+            );
+          }
+          if (!cancelled) {
+            setUpload(previewData.upload as FrqUploadMeta);
+            setQuestions(previewData.questions as FrqQuestion[]);
+            setAttemptId(MODERATOR_PREVIEW_ATTEMPT_ID);
+            const idx =
+              typeof previewData.targetPartIndex === "number" && previewData.targetPartIndex >= 0
+                ? previewData.targetPartIndex
+                : 0;
+            setCurrentIndex(idx);
+            if (typeof previewData.pdfUrl === "string" && previewData.pdfUrl) {
+              setPdfUrl(previewData.pdfUrl);
+            }
+            setTimerPaused(true);
+            setRemainingSeconds((previewData.upload?.sectionDurationMin ?? 90) * 60);
+          }
+          return;
+        }
+
         if (reviewAttemptId) {
           const res = await fetch(`/api/frq/exam/attempt/${reviewAttemptId}`, { headers });
           if (!res.ok) throw new Error("Could not load attempt.");
@@ -368,7 +411,15 @@ export default function FrqExamPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [frqUploadId, reviewAttemptId, assignmentId, router]);
+  }, [
+    frqUploadId,
+    reviewAttemptId,
+    assignmentId,
+    router,
+    isModeratorPreview,
+    moderatorPreviewQuestionId,
+    moderatorPreviewPartLabel,
+  ]);
 
   useEffect(() => {
     if (isReview || timerPaused || remainingSeconds <= 0) return;
@@ -379,7 +430,7 @@ export default function FrqExamPageInner() {
   }, [isReview, timerPaused, remainingSeconds]);
 
   const handleSubmit = useCallback(async () => {
-    if (!attemptId || submitting) return;
+    if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID || submitting) return;
     setSubmitting(true);
     setGrading(true);
     setShowEndExamConfirm(false);
@@ -406,6 +457,7 @@ export default function FrqExamPageInner() {
     if (
       remainingSeconds === 0 &&
       attemptId &&
+      attemptId !== MODERATOR_PREVIEW_ATTEMPT_ID &&
       !isReview &&
       !grading &&
       !submitting &&
@@ -423,7 +475,7 @@ export default function FrqExamPageInner() {
 
   const saveResponse = useCallback(
     async (questionId: string, partLabel: string, text: string, flagged: boolean) => {
-      if (!attemptId || isReview) return;
+      if (!attemptId || attemptId === MODERATOR_PREVIEW_ATTEMPT_ID || isReview) return;
       const key = responseKey(questionId, partLabel);
       if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
       saveTimers.current[key] = setTimeout(async () => {
@@ -518,7 +570,12 @@ export default function FrqExamPageInner() {
   const activeKey = responseKey(currentItem.questionId, currentItem.partLabel);
   const activeResponse = responses[activeKey] ?? "";
   const displayUsername = formatDisplayUsername(userName, userEmail);
-  const canReport = Boolean(attemptId && process.env.NEXT_PUBLIC_QUESTION_REPORTS !== "0");
+  const canReport =
+    Boolean(
+      attemptId &&
+        attemptId !== MODERATOR_PREVIEW_ATTEMPT_ID &&
+        process.env.NEXT_PUBLIC_QUESTION_REPORTS !== "0"
+    );
 
   const answerPanel = (
     <div className="flex flex-col gap-4 p-6">
@@ -551,7 +608,7 @@ export default function FrqExamPageInner() {
           label={
             currentItem.partLabel ? `Part ${currentItem.partLabel}.java` : "Response.java"
           }
-          disabled={grading}
+          disabled={grading || isModeratorPreview}
         />
       ) : (
         <BluebookRichTextEditor
@@ -559,7 +616,7 @@ export default function FrqExamPageInner() {
           onChange={(html) =>
             handleResponseChange(currentItem.questionId, currentItem.partLabel, html)
           }
-          disabled={grading}
+          disabled={grading || isModeratorPreview}
         />
       )}
     </div>
@@ -567,6 +624,11 @@ export default function FrqExamPageInner() {
 
   return (
     <div className={cn(examUi.examShellMobile, "bg-[#f2f5f9]")}>
+      {isModeratorPreview ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+          Moderator preview — read-only. Responses and reports are disabled.
+        </div>
+      ) : null}
       <ExamHeader
         headerTitle={`${upload.courseLabel} — Section II`}
         headerTitleShort={`${upload.courseLabel} — Sec II`}
@@ -825,6 +887,7 @@ export default function FrqExamPageInner() {
                 Next
               </button>
             ) : (
+              !isModeratorPreview ? (
               <button
                 type="button"
                 onClick={() => setShowEndExamConfirm(true)}
@@ -838,12 +901,13 @@ export default function FrqExamPageInner() {
               >
                 {grading ? "Submitting…" : "End Exam"}
               </button>
+              ) : null
             )}
           </div>
         }
       />
 
-      {canReport && currentQuestion && attemptId && (
+      {canReport && currentQuestion && attemptId && attemptId !== MODERATOR_PREVIEW_ATTEMPT_ID && (
         <QuestionReportFlow
           examKind="frq"
           frqQuestionId={currentQuestion.id}

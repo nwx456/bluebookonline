@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
   ChevronRight,
+  ExternalLink,
   Loader2,
   Search,
   Shield,
@@ -16,10 +17,14 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import type { QuestionReportInboxItem } from "@/lib/question-report-inbox";
+import { buildFrqExamPreviewUrl, buildMcqExamPreviewUrl } from "@/lib/moderator-exam-preview";
+import { FRQ_COURSE_IDS, getFrqCourseLabel } from "@/lib/frq-courses";
 import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
 import { cn } from "@/lib/utils";
 
 type TabStatus = "open" | "dismissed" | "all";
+
+const REPORTS_PAGE_LIMIT = 50;
 
 type ModeratorReportsClientProps = {
   variant?: "moderator" | "admin";
@@ -76,6 +81,10 @@ export default function ModeratorReportsClient({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [subjectFilter, setSubjectFilter] = useState(() => searchParams.get("subject") ?? "");
+  const [offset, setOffset] = useState(() => {
+    const raw = Number(searchParams.get("offset"));
+    return Number.isFinite(raw) && raw >= 0 ? raw : 0;
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -109,60 +118,108 @@ export default function ModeratorReportsClient({
     });
   }, [router, isAdminVariant]);
 
-  const loadReports = useCallback(async (token: string, status: TabStatus) => {
+  const fetchGenerationRef = useRef(0);
+  const syncUrlRef = useRef<
+    (next: { q?: string; subject?: string; offset?: number; status?: TabStatus }) => void
+  >(() => {});
+
+  const syncUrl = useCallback(
+    (next: { q?: string; subject?: string; offset?: number; status?: TabStatus }) => {
+      const params = new URLSearchParams();
+      const statusVal = next.status ?? tab;
+      const qVal = next.q ?? q;
+      const subjectVal = next.subject ?? subjectFilter;
+      const offsetVal = next.offset ?? offset;
+
+      params.set("status", statusVal);
+      if (qVal.trim()) params.set("q", qVal.trim());
+      if (subjectVal) params.set("subject", subjectVal);
+      if (offsetVal > 0) params.set("offset", String(offsetVal));
+
+      const qs = params.toString();
+      const href = qs ? `${basePath}?${qs}` : basePath;
+      if (typeof window !== "undefined") {
+        const current = `${window.location.pathname}${window.location.search}`;
+        if (current === href) return;
+      }
+      router.replace(href, { scroll: false });
+    },
+    [router, basePath, tab, q, subjectFilter, offset]
+  );
+
+  syncUrlRef.current = syncUrl;
+
+  const loadReports = useCallback(async () => {
+    if (!accessToken) return;
+
+    const generation = ++fetchGenerationRef.current;
     setListLoading(true);
     setListError(null);
     try {
-      const res = await fetch(`/api/moderator/reports?status=${status}&limit=50`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const params = new URLSearchParams({
+        status: tab,
+        limit: String(REPORTS_PAGE_LIMIT),
+        offset: String(offset),
+      });
+      const res = await fetch(`/api/moderator/reports?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       const data = await res.json().catch(() => ({}));
+      if (generation !== fetchGenerationRef.current) return;
+
       if (!res.ok) {
         setListError(typeof data.error === "string" ? data.error : "Failed to load reports.");
         setItems([]);
         setTotal(0);
         return;
       }
-      setItems(Array.isArray(data.items) ? data.items : []);
-      setTotal(typeof data.total === "number" ? data.total : 0);
+
+      const nextTotal = typeof data.total === "number" ? data.total : 0;
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+
+      if (nextTotal > 0 && offset >= nextTotal && nextItems.length === 0) {
+        setOffset(0);
+        syncUrlRef.current({ offset: 0 });
+        return;
+      }
+
+      setTotal(nextTotal);
+      setItems(nextItems);
     } catch {
+      if (generation !== fetchGenerationRef.current) return;
       setListError("Connection error.");
       setItems([]);
       setTotal(0);
     } finally {
-      setListLoading(false);
+      if (generation === fetchGenerationRef.current) {
+        setListLoading(false);
+      }
     }
-  }, []);
+  }, [accessToken, tab, offset]);
 
   useEffect(() => {
     if (!accessToken || checking) return;
-    void loadReports(accessToken, tab);
-  }, [accessToken, checking, tab, loadReports]);
+    void loadReports();
+  }, [accessToken, checking, loadReports]);
 
   const setTabAndUrl = useCallback(
     (next: TabStatus) => {
       setTab(next);
       setSelectedKey(null);
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("status", next);
-      router.replace(`${basePath}?${params.toString()}`);
+      setOffset(0);
+      syncUrl({ status: next, offset: 0 });
     },
-    [router, searchParams, basePath]
+    [syncUrl]
   );
 
-  const syncFiltersToUrl = useCallback(
-    (next: { q?: string; subject?: string }) => {
-      const params = new URLSearchParams(searchParams.toString());
-      const qVal = next.q ?? q;
-      const subjectVal = next.subject ?? subjectFilter;
-      if (qVal.trim()) params.set("q", qVal.trim());
-      else params.delete("q");
-      if (subjectVal) params.set("subject", subjectVal);
-      else params.delete("subject");
-      router.replace(`${basePath}?${params.toString()}`);
-    },
-    [router, searchParams, basePath, q, subjectFilter]
-  );
+  const hasActiveFilters = Boolean(q.trim() || subjectFilter);
+
+  const clearFilters = useCallback(() => {
+    setQ("");
+    setSubjectFilter("");
+    setOffset(0);
+    syncUrl({ q: "", subject: "", offset: 0 });
+  }, [syncUrl]);
 
   const filteredItems = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -180,6 +237,26 @@ export default function ModeratorReportsClient({
       return haystack.includes(term);
     });
   }, [items, q, subjectFilter]);
+
+  const canPrev = offset > 0;
+  const canNext = offset + REPORTS_PAGE_LIMIT < total;
+  const pageStart = total === 0 ? 0 : Math.min(offset + 1, total);
+  const pageEnd = total === 0 ? 0 : Math.min(offset + REPORTS_PAGE_LIMIT, total);
+
+  const emptyListMessage = useMemo(() => {
+    if (total > 0 && items.length === 0) {
+      return "No reports on this page. Go back to the first page.";
+    }
+    if (items.length > 0 && filteredItems.length === 0) {
+      return "No reports on this page match your search or subject filter.";
+    }
+    if (items.length === 0) {
+      return tab === "open"
+        ? "No open reported questions. Handled items appear under All."
+        : "No reported questions in this tab.";
+    }
+    return null;
+  }, [total, items.length, filteredItems.length, tab]);
 
   const runAction = useCallback(
     async (
@@ -220,14 +297,14 @@ export default function ModeratorReportsClient({
           setSelectedKey(null);
           setConfirmDeleteKey(null);
         }
-        await loadReports(accessToken, tab);
+        await loadReports();
       } catch {
         setListError("Connection error.");
       } finally {
         setActionId(null);
       }
     },
-    [accessToken, tab, loadReports]
+    [loadReports]
   );
 
   const selected = items.find((i) => itemKey(i) === selectedKey) ?? null;
@@ -270,6 +347,12 @@ export default function ModeratorReportsClient({
         ))}
       </div>
 
+      {tab === "open" ? (
+        <p className="text-xs text-gray-500">
+          Handled reports (deleted questions) appear under the All tab only.
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-3 rounded-md border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-sm">
           <span className="font-medium text-gray-700">Search</span>
@@ -280,38 +363,59 @@ export default function ModeratorReportsClient({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") syncFiltersToUrl({ q: e.currentTarget.value });
+                if (e.key === "Enter") syncUrl({ q: e.currentTarget.value });
               }}
               placeholder="Search by exam or question…"
               className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
         </label>
-        <label className="flex min-w-[160px] flex-col gap-1 text-sm">
-          <span className="font-medium text-gray-700">Subject</span>
+        <label className="flex min-w-[180px] flex-col gap-1 text-sm">
+          <span className="font-medium text-gray-700">Subject / course</span>
           <select
             value={subjectFilter}
             onChange={(e) => {
               setSubjectFilter(e.target.value);
-              syncFiltersToUrl({ subject: e.target.value });
+              setOffset(0);
+              syncUrl({ subject: e.target.value, offset: 0 });
             }}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">All subjects</option>
-            {SUBJECT_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {SUBJECT_LABELS[key]}
-              </option>
-            ))}
+            <option value="">All subjects & courses</option>
+            <optgroup label="MCQ subjects">
+              {SUBJECT_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {SUBJECT_LABELS[key]}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="FRQ courses">
+              {FRQ_COURSE_IDS.map((courseId) => (
+                <option key={courseId} value={courseId}>
+                  {getFrqCourseLabel(courseId)}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
-        <button
-          type="button"
-          onClick={() => syncFiltersToUrl({ q })}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Apply
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => syncUrl({ q })}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Apply
+          </button>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {listError ? (
@@ -327,19 +431,43 @@ export default function ModeratorReportsClient({
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
-        <section className="rounded-md border border-gray-200 bg-white shadow-sm">
-          {listLoading ? (
+        <section className="relative rounded-md border border-gray-200 bg-white shadow-sm">
+          {listLoading && items.length === 0 ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" aria-hidden />
             </div>
           ) : filteredItems.length === 0 ? (
-            <p className="px-6 py-12 text-center text-sm text-gray-500">
-              {items.length === 0
-                ? "No reported questions in this tab."
-                : "No reports match your filters."}
-            </p>
+            <div className="space-y-3 px-6 py-12 text-center text-sm text-gray-500">
+              <p>{emptyListMessage}</p>
+              {total > 0 && items.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOffset(0);
+                    syncUrl({ offset: 0 });
+                  }}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Go to first page
+                </button>
+              ) : null}
+              {items.length > 0 && hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  Clear search and subject filter
+                </button>
+              ) : null}
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className={cn("overflow-x-auto", listLoading && "opacity-60")}>
+              {listLoading ? (
+                <div className="absolute right-3 top-3 z-10">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden />
+                </div>
+              ) : null}
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -407,10 +535,41 @@ export default function ModeratorReportsClient({
               </table>
             </div>
           )}
-          {!listLoading && total > items.length ? (
-            <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">
-              Showing {items.length} of {total} reported questions.
-            </p>
+          {total > 0 ? (
+            <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-500">
+                Showing {pageStart}–{pageEnd} of {total} reported questions
+                {filteredItems.length !== items.length
+                  ? ` (${filteredItems.length} after filters on this page)`
+                  : ""}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!canPrev || listLoading}
+                  onClick={() => {
+                    const next = Math.max(0, offset - REPORTS_PAGE_LIMIT);
+                    setOffset(next);
+                    syncUrl({ offset: next });
+                  }}
+                  className="rounded-md border border-gray-200 px-3 py-1 text-sm disabled:opacity-40 hover:bg-gray-50"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={!canNext || listLoading}
+                  onClick={() => {
+                    const next = offset + REPORTS_PAGE_LIMIT;
+                    setOffset(next);
+                    syncUrl({ offset: next });
+                  }}
+                  className="rounded-md border border-gray-200 px-3 py-1 text-sm disabled:opacity-40 hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           ) : null}
         </section>
 
@@ -529,6 +688,25 @@ export default function ModeratorReportsClient({
               ) : null}
 
               <div className="flex flex-col gap-2 border-t border-gray-100 pt-4">
+                {selected.uploadId ? (
+                  <a
+                    href={
+                      selected.examKind === "frq"
+                        ? buildFrqExamPreviewUrl(
+                            selected.uploadId,
+                            selected.questionId,
+                            selected.partLabel
+                          )
+                        : buildMcqExamPreviewUrl(selected.uploadId, selected.questionId)
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View on exam screen
+                  </a>
+                ) : null}
                 <button
                   type="button"
                   disabled={actionId === itemKey(selected)}
