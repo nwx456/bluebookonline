@@ -2,7 +2,12 @@
 title: "AP World History: Modern Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP World History: Modern exam: 9 units from 1200-Present, the four-part exam format (MCQ, SAQ, DBQ, LEQ), the 7-point DBQ rubric, comparison strategies, and a focused study plan."
 date: "2026-04-04"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap world history study guide"
+seoTitle: "AP World History Study Guide 2026 (Free)"
+metaDescription: "Complete AP World History guide: 9 units, DBQ/LEQ strategy, and free practice + score calculator."
 tags:
   - "AP World History"
   - "AP World"

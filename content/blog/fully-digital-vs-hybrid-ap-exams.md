@@ -118,6 +118,14 @@ See our [Bluebook interface guide](/blog/bluebook-interface-explained) for tool 
 2. Download [sample FRQ booklets](https://cb.org/ap-digital-hybrid) for your subject
 3. Use our [AP score calculators](/tools/ap-score-calculator) — FRQs are 50% on Calc, Bio, Chem
 
+## Subject-Specific Format Guides
+
+**Fully digital:** [Human Geography](/blog/ap-human-geography-complete-guide) · [Environmental Science](/blog/ap-environmental-science-complete-guide) · [US Gov](/blog/ap-us-government-complete-guide) · [European History](/blog/ap-european-history-complete-guide) · [English Lit](/blog/ap-english-literature-complete-guide) · [CSA](/blog/ap-csa-complete-guide) · [CSP](/blog/ap-csp-complete-guide)
+
+**Hybrid digital:** [Calculus BC](/blog/ap-calculus-bc-complete-guide) · [Precalculus](/blog/ap-precalculus-complete-guide) · [Physics 1](/blog/ap-physics-1-complete-guide) · [Physics 2](/blog/ap-physics-2-complete-guide) · [Physics C](/blog/ap-physics-c-mechanics-complete-guide) · [Microeconomics](/blog/ap-microeconomics-complete-guide) · [Macroeconomics](/blog/ap-macroeconomics-complete-guide)
+
+See [all 24 study guides](/blog) and [exam dates 2026](/blog/ap-exam-dates-2026).
+
 ## Exam Day Checklist
 
 Don't walk in unprepared: [AP Exam Day Checklist 2026](/blog/ap-exam-day-checklist)

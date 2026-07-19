@@ -12,6 +12,7 @@ export const BLOG_CATEGORIES = [
   "Digital Exams",
   "Study Guides",
   "Course Selection",
+  "Score Calculators",
 ] as const;
 
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];

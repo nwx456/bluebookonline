@@ -111,6 +111,17 @@ Official resources are the gold standard, but quantity is limited. Supplement wi
 | April | Bluebook practice exam + [1-month cram plan](/blog/one-month-ap-study-plan) |
 | May (exam week) | Light review + [exam day checklist](/blog/ap-exam-day-checklist) |
 
+## Complete Study Guides by Subject
+
+Pair official resources with our CED-aligned guides for all 24 AP exams:
+
+- **Sciences:** [Biology](/blog/ap-biology-complete-guide) · [Chemistry](/blog/ap-chemistry-complete-guide) · [Physics 1](/blog/ap-physics-1-complete-guide) · [Environmental Science](/blog/ap-environmental-science-complete-guide)
+- **Math:** [Calculus AB](/blog/ap-calculus-ab-complete-guide) · [BC](/blog/ap-calculus-bc-complete-guide) · [Precalculus](/blog/ap-precalculus-complete-guide) · [Statistics](/blog/ap-statistics-complete-guide)
+- **History:** [APUSH](/blog/ap-us-history-complete-guide) · [World](/blog/ap-world-history-complete-guide) · [European](/blog/ap-european-history-complete-guide)
+- **Gov & Econ:** [US Gov](/blog/ap-us-government-complete-guide) · [Comp Gov](/blog/ap-comparative-government-complete-guide) · [Micro](/blog/ap-microeconomics-complete-guide) · [Macro](/blog/ap-macroeconomics-complete-guide)
+- **English & CS:** [Lang](/blog/ap-english-language-complete-guide) · [Lit](/blog/ap-english-literature-complete-guide) · [CSA](/blog/ap-csa-complete-guide) · [CSP](/blog/ap-csp-complete-guide)
+- **More:** [Human Geography](/blog/ap-human-geography-complete-guide) · [Psychology](/blog/ap-psychology-complete-guide) · [Physics 2](/blog/ap-physics-2-complete-guide) · [Physics C](/blog/ap-physics-c-mechanics-complete-guide)
+
 ## Sources
 
 - [AP Central: Instructional Resources](https://apcentral.collegeboard.org/instructional-resources)

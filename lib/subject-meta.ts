@@ -113,6 +113,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP CSA is fully digital, so you type all four free-response Java code answers directly in the Bluebook app. There is no paper booklet for FRQs.",
       },
     ],
+    relatedBlogSlug: "ap-csa-complete-guide",
     examDate2026: "Fri, May 15, 2026 (12 PM Local)",
   },
   AP_CSP: {
@@ -181,6 +182,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "The end-of-course exam is 3 hours total — 70 multiple-choice questions in 120 minutes plus a 60-minute written-response section that uses your Personalized Project Reference. The Create PT is completed in class before the exam (due Apr 30, 2026).",
       },
     ],
+    relatedBlogSlug: "ap-csp-complete-guide",
     examDate2026: "Thu, May 14, 2026 (12 PM Local). Create PT due Thu, Apr 30, 2026.",
   },
   AP_MICROECONOMICS: {
@@ -247,6 +249,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. A four-function calculator is permitted on both the multiple-choice and free-response sections (this changed in 2022 and remains in effect for the 2026 hybrid digital exam).",
       },
     ],
+    relatedBlogSlug: "ap-microeconomics-complete-guide",
     examDate2026: "Mon, May 4, 2026 (12 PM Local)",
   },
   AP_MACROECONOMICS: {
@@ -313,6 +316,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. A four-function calculator is permitted on both sections (this policy was added in 2022 and remains in effect for the 2026 hybrid digital exam).",
       },
     ],
+    relatedBlogSlug: "ap-macroeconomics-complete-guide",
     examDate2026: "Fri, May 8, 2026 (12 PM Local)",
   },
   AP_PSYCHOLOGY: {
@@ -683,6 +687,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. Approved scientific or graphing calculators are permitted on both sections, and an equations sheet plus reference tables are available throughout the exam.",
       },
     ],
+    relatedBlogSlug: "ap-physics-1-complete-guide",
     examDate2026: "Wed, May 6, 2026 (12 PM Local)",
   },
   AP_PHYSICS_2: {
@@ -751,6 +756,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. Approved scientific or graphing calculators are permitted on both sections, and an equations sheet plus reference tables are available throughout the exam.",
       },
     ],
+    relatedBlogSlug: "ap-physics-2-complete-guide",
     examDate2026: "Thu, May 7, 2026 (8 AM Local)",
   },
   AP_PHYSICS_C_MECH: {
@@ -819,6 +825,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Physics 1 covers similar topics with algebra; Physics C: Mechanics uses calculus, goes deeper, and emphasizes derivations and analytical setups in addition to numerical answers.",
       },
     ],
+    relatedBlogSlug: "ap-physics-c-mechanics-complete-guide",
     examDate2026: "Wed, May 13, 2026 (12 PM Local)",
   },
   AP_PHYSICS_C_EM: {
@@ -884,6 +891,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Both Physics C exams are the strongest preparation for college engineering programs and may earn calculus-based physics credit.",
       },
     ],
+    relatedBlogSlug: "ap-physics-c-em-complete-guide",
     examDate2026: "Thu, May 14, 2026 (12 PM Local)",
   },
   AP_ENVIRONMENTAL_SCIENCE: {
@@ -962,6 +970,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Typed. APES is fully digital — all three FRQ responses are typed directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-environmental-science-complete-guide",
     examDate2026: "Fri, May 15, 2026 (8 AM Local)",
   },
   AP_HUMAN_GEOGRAPHY: {
@@ -1036,6 +1045,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP Human Geography is fully digital — you type all three free-response answers directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-human-geography-complete-guide",
     examDate2026: "Tue, May 5, 2026 (8 AM Local)",
   },
   AP_ENGLISH_LANG: {
@@ -1189,6 +1199,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP English Literature is fully digital — all three essays are typed directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-english-literature-complete-guide",
     examDate2026: "Wed, May 6, 2026 (8 AM Local)",
   },
   AP_US_HISTORY: {
@@ -1446,6 +1457,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP European History is fully digital — all written responses (SAQs, DBQ, Long Essay) are typed directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-european-history-complete-guide",
     examDate2026: "Mon, May 4, 2026 (12 PM Local)",
   },
   AP_US_GOVERNMENT: {
@@ -1516,6 +1528,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP US Government is fully digital, so all four FRQs (Concept Application, Quantitative Analysis, SCOTUS Comparison, Argument Essay) are typed directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-us-government-complete-guide",
     examDate2026: "Tue, May 5, 2026 (12 PM Local)",
   },
   AP_COMPARATIVE_GOVERNMENT: {
@@ -1587,6 +1600,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP Comparative Government is fully digital — all four FRQs (Conceptual, Quantitative, Comparative, Argument Essay) are typed directly in the Bluebook app.",
       },
     ],
+    relatedBlogSlug: "ap-comparative-government-complete-guide",
     examDate2026: "Wed, May 6, 2026 (12 PM Local)",
   },
   AP_CALCULUS_AB: {
@@ -1741,6 +1755,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes. AP Calculus BC is hybrid digital — MCQs are answered in the Bluebook app and the 6 FRQs are handwritten in a paper exam booklet.",
       },
     ],
+    relatedBlogSlug: "ap-calculus-bc-complete-guide",
     examDate2026: "Mon, May 11, 2026 (8 AM Local)",
   },
   AP_PRECALCULUS: {
@@ -1819,6 +1834,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "No. Unit 4 (Functions Involving Parameters, Vectors, and Matrices) is taught as enrichment but is not assessed on the AP Precalculus Exam — only Units 1-3 appear.",
       },
     ],
+    relatedBlogSlug: "ap-precalculus-complete-guide",
     examDate2026: "Tue, May 12, 2026 (8 AM Local)",
   },
   SAT_RW: {

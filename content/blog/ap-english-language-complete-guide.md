@@ -2,7 +2,12 @@
 title: "AP English Language Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP English Language and Composition exam: 45-question MCQ format, three essays, the 6-point rubric explained, sophistication strategies, and a focused study plan."
 date: "2026-04-06"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap english language study guide"
+seoTitle: "AP English Language Study Guide 2026 (Free)"
+metaDescription: "Complete AP Lang guide: 3 essays, MCQ format, 6-point rubric, and free practice + score calculator."
 tags:
   - "AP English Language"
   - "AP Lang"

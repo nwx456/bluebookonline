@@ -97,6 +97,20 @@ Low pass rate doesn't mean "don't take it" — it means **prepare seriously**. U
 4. **Plug results into a calculator** — e.g., [AP Bio calculator](/tools/ap-score-calculator/ap-biology)
 5. **Review mistakes systematically** via [Mistake Review](/dashboard/mistakes)
 
+## Complete Study Guides (All 24 AP Subjects)
+
+Every subject has a [complete study guide](/blog) with CED unit weights, FRQ strategy, and official resources:
+
+**Math & CS:** [Calc AB](/blog/ap-calculus-ab-complete-guide) · [Calc BC](/blog/ap-calculus-bc-complete-guide) · [Precalc](/blog/ap-precalculus-complete-guide) · [Stats](/blog/ap-statistics-complete-guide) · [CSA](/blog/ap-csa-complete-guide) · [CSP](/blog/ap-csp-complete-guide)
+
+**Sciences:** [Biology](/blog/ap-biology-complete-guide) · [Chemistry](/blog/ap-chemistry-complete-guide) · [Environmental Science](/blog/ap-environmental-science-complete-guide) · [Physics 1](/blog/ap-physics-1-complete-guide) · [Physics 2](/blog/ap-physics-2-complete-guide) · [Physics C Mech](/blog/ap-physics-c-mechanics-complete-guide) · [Physics C E&M](/blog/ap-physics-c-em-complete-guide)
+
+**History & Social Science:** [APUSH](/blog/ap-us-history-complete-guide) · [World](/blog/ap-world-history-complete-guide) · [European](/blog/ap-european-history-complete-guide) · [Human Geo](/blog/ap-human-geography-complete-guide) · [US Gov](/blog/ap-us-government-complete-guide) · [Comp Gov](/blog/ap-comparative-government-complete-guide) · [Micro](/blog/ap-microeconomics-complete-guide) · [Macro](/blog/ap-macroeconomics-complete-guide)
+
+**English & Psych:** [Lang](/blog/ap-english-language-complete-guide) · [Lit](/blog/ap-english-literature-complete-guide) · [Psychology](/blog/ap-psychology-complete-guide)
+
+**All calculators:** [AP score calculator by subject](/blog/ap-score-calculator-by-subject)
+
 ## Score Distributions vs. Equating
 
 Distributions show **outcomes**; [equating](/blog/how-ap-exams-are-scored) determines **cutoffs**. A exam with a low 5-rate might have generous equating if the test was unusually hard — you can't know until July.

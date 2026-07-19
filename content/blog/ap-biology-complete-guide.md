@@ -2,7 +2,12 @@
 title: "AP Biology Complete Study Guide (2026 Exam)"
 description: "Master AP Biology for the May 2026 exam: hybrid digital format, all 8 units with weights, the FRQ types graders actually score, the most-missed topics, and a focused study plan."
 date: "2026-04-09"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap biology study guide"
+seoTitle: "AP Biology Study Guide 2026 (Free)"
+metaDescription: "Complete AP Biology guide: 8 units, FRQ types, hybrid format, and free practice tests + score calculator."
 tags:
   - "AP Biology"
   - "AP Science"

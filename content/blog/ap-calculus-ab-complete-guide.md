@@ -2,7 +2,12 @@
 title: "AP Calculus AB Complete Study Guide (2026 Exam)"
 description: "Everything you need for the May 2026 AP Calculus AB exam: format, unit-by-unit breakdown, FRQ strategy, calculator policy, the questions students actually ask, and a 12-week study plan."
 date: "2026-04-10"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap calculus ab study guide"
+seoTitle: "AP Calculus AB Study Guide 2026 (Free)"
+metaDescription: "Complete AP Calculus AB guide: 8 units, calculator policy, FRQ tips, and free practice + score calculator."
 tags:
   - "AP Calculus AB"
   - "AP Math"

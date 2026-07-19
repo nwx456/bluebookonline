@@ -2,7 +2,12 @@
 title: "AP Chemistry Complete Study Guide (2026 Exam)"
 description: "Conquer the May 2026 AP Chemistry exam: all 9 units with weights, hybrid digital format, FRQ point values, calculator and reference-sheet rules, equilibrium and acid-base strategies, and a focused study plan."
 date: "2026-04-05"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap chemistry study guide"
+seoTitle: "AP Chemistry Study Guide 2026 (Free)"
+metaDescription: "Complete AP Chemistry guide: 9 units, FRQ strategy, hybrid format, and free practice + score calculator."
 tags:
   - "AP Chemistry"
   - "AP Science"

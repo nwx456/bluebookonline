@@ -11,12 +11,12 @@ const baseUrl = getSiteUrl();
 export const metadata: Metadata = {
   title: "AP Score Calculator 2026 — Free Score Predictors",
   description:
-    "Free AP score calculators for 10 popular exams. Enter MCQ and FRQ practice scores to predict your 1–5 AP score. Based on official section weights.",
+    "Free AP score calculators for all 24 AP exams. Enter MCQ and FRQ practice scores to predict your 1–5 AP score. Based on official section weights.",
   alternates: { canonical: `${baseUrl}/tools/ap-score-calculator` },
   openGraph: {
     title: `AP Score Calculator 2026 | ${SITE_NAME}`,
     description:
-      "Predict your AP exam score from practice test results. Free calculators for Calculus, Biology, Chemistry, Physics, APUSH, and more.",
+      "Predict your AP exam score from practice test results. Free calculators for all 24 AP subjects including Calculus, Biology, Chemistry, Physics, History, and more.",
     url: `${baseUrl}/tools/ap-score-calculator`,
     type: "website",
     images: [`${baseUrl}/og-image.png`],

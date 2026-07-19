@@ -2,7 +2,12 @@
 title: "AP Psychology Complete Study Guide (2026 Redesigned Exam)"
 description: "Everything for the May 2026 AP Psychology exam in the new format: AAQ + EBQ free response, all 5 units, common Reddit questions, study schedule, and how to memorize 350+ key terms."
 date: "2026-04-08"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap psychology study guide"
+seoTitle: "AP Psychology Study Guide 2026 (Redesigned Exam)"
+metaDescription: "Complete AP Psychology guide: redesigned format, 5 units, AAQ/EBQ FRQs, and free practice + score calculator."
 tags:
   - "AP Psychology"
   - "AP Social Sciences"

@@ -2,7 +2,12 @@
 title: "AP Statistics Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 AP Statistics exam: hybrid digital format, 9 units with weights, the FRQ types graders score, calculator skills, the investigative task, and a focused study plan."
 date: "2026-04-03"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "ap statistics study guide"
+seoTitle: "AP Statistics Study Guide 2026 (Free)"
+metaDescription: "Complete AP Statistics guide: 9 units, inference recipe, Investigative Task, and free practice + score calculator."
 tags:
   - "AP Statistics"
   - "AP Stats"

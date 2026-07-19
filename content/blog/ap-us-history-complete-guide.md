@@ -2,7 +2,12 @@
 title: "AP US History (APUSH) Complete Study Guide (2026 Exam)"
 description: "Master the May 2026 APUSH exam: 9 historical periods, the four-part exam format (MCQ, SAQ, DBQ, LEQ), 7-point DBQ rubric, and the questions Reddit asks every spring."
 date: "2026-04-07"
+updated: "2026-07-19"
 author: "AP Practice Exam Online Team"
+category: "Study Guides"
+focusKeyword: "apush study guide"
+seoTitle: "AP US History (APUSH) Study Guide 2026"
+metaDescription: "Complete APUSH guide: 9 periods, DBQ/LEQ rubrics, and free practice + score calculator."
 tags:
   - "AP US History"
   - "APUSH"

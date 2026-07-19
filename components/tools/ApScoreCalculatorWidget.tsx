@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { FrqSlider } from "@/components/ui/FrqSlider";
 import { NumericStepper } from "@/components/ui/NumericStepper";
 import {
   buildMcqPresets,
@@ -68,29 +69,22 @@ export function ApScoreCalculatorWidget({ exam }: ApScoreCalculatorWidgetProps) 
             </p>
           </div>
 
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-gray-900">Free response points</p>
+          <div className="space-y-3">
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">FRQ score</p>
             {exam.frqParts.map((part) => (
-              <div key={part.id}>
-                <label htmlFor={part.id} className="block text-xs text-gray-600 mb-1">
-                  {part.label} (max {part.maxPoints})
-                </label>
-                <input
-                  id={part.id}
-                  type="number"
-                  min={0}
-                  max={part.maxPoints}
-                  step={0.5}
-                  value={frqPoints[part.id] ?? 0}
-                  onChange={(e) =>
-                    setFrqPoints((prev) => ({
-                      ...prev,
-                      [part.id]: Math.min(part.maxPoints, Math.max(0, Number(e.target.value) || 0)),
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                />
-              </div>
+              <FrqSlider
+                key={part.id}
+                id={part.id}
+                label={part.label}
+                value={frqPoints[part.id] ?? 0}
+                max={part.maxPoints}
+                onChange={(next) =>
+                  setFrqPoints((prev) => ({
+                    ...prev,
+                    [part.id]: next,
+                  }))
+                }
+              />
             ))}
             <p className="text-xs text-gray-500">
               FRQ weight: {Math.round(exam.frqWeight * 100)}% of composite

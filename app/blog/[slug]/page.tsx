@@ -5,6 +5,7 @@ import { Calendar, ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { BlogPostCta } from "@/components/blog/BlogPostCta";
 import { BlogRelatedPosts } from "@/components/blog/BlogRelatedPosts";
+import { BlogSavePdfButton } from "@/components/blog/BlogSavePdfButton";
 import { BlogTableOfContents } from "@/components/blog/BlogTableOfContents";
 import {
   buildFaqPageJsonLd,
@@ -107,7 +108,7 @@ export default async function BlogPostPage({
   const relatedPosts = getRelatedPosts(post, 3);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+    <div className="blog-post-page min-h-screen bg-[#F9FAFB] flex flex-col">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPostingJsonLd) }}
@@ -123,42 +124,47 @@ export default async function BlogPostPage({
         />
       )}
 
-      <SiteHeader />
+      <div className="print:hidden">
+        <SiteHeader />
+      </div>
 
-      <main className="flex-1 mx-auto w-full max-w-3xl px-4 py-10">
+      <main className="flex-1 mx-auto w-full max-w-3xl px-4 py-10 print:max-w-none print:px-0 print:py-0">
         <Link
           href="/blog"
-          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline mb-6"
+          className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline mb-6 print:hidden"
         >
           <ArrowLeft className="h-4 w-4" />
           All posts
         </Link>
 
-        <article className="rounded-2xl bg-white px-6 py-10 sm:px-10 shadow-sm border border-gray-100">
+        <article className="rounded-2xl bg-white px-6 py-10 sm:px-10 shadow-sm border border-gray-100 print:border-0 print:shadow-none print:px-0 print:py-0">
           <header className="mb-6">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-              <Calendar className="h-3.5 w-3.5" />
-              <time dateTime={post.date}>{formatBlogDate(post.date)}</time>
-              {post.updated && post.updated !== post.date && (
-                <>
-                  <span className="text-gray-400">&middot;</span>
-                  <span>
-                    Updated <time dateTime={post.updated}>{formatBlogDate(post.updated)}</time>
-                  </span>
-                </>
-              )}
-              {post.author && (
-                <>
-                  <span className="text-gray-400">&middot;</span>
-                  <span>{post.author}</span>
-                </>
-              )}
-              {post.category && (
-                <>
-                  <span className="text-gray-400">&middot;</span>
-                  <span className="font-medium text-blue-600">{post.category}</span>
-                </>
-              )}
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <Calendar className="h-3.5 w-3.5" />
+                <time dateTime={post.date}>{formatBlogDate(post.date)}</time>
+                {post.updated && post.updated !== post.date && (
+                  <>
+                    <span className="text-gray-400">&middot;</span>
+                    <span>
+                      Updated <time dateTime={post.updated}>{formatBlogDate(post.updated)}</time>
+                    </span>
+                  </>
+                )}
+                {post.author && (
+                  <>
+                    <span className="text-gray-400">&middot;</span>
+                    <span>{post.author}</span>
+                  </>
+                )}
+                {post.category && (
+                  <>
+                    <span className="text-gray-400">&middot;</span>
+                    <span className="font-medium text-blue-600">{post.category}</span>
+                  </>
+                )}
+              </div>
+              <BlogSavePdfButton />
             </div>
             <h1 className="mt-3 text-3xl font-semibold text-gray-900 leading-tight">
               {post.title}
@@ -199,13 +205,27 @@ export default async function BlogPostPage({
             </section>
           )}
 
-          <BlogPostCta post={post} />
+          <div className="print:hidden">
+            <BlogPostCta post={post} />
+          </div>
+
+          <footer className="hidden print:block mt-10 border-t border-gray-200 pt-6 text-xs text-gray-500">
+            <p className="font-medium text-gray-700">{SITE_NAME}</p>
+            <p className="mt-1">
+              Source:{" "}
+              <span className="text-gray-600">
+                {baseUrl.replace(/^https?:\/\//, "")}/blog/{post.slug}
+              </span>
+            </p>
+          </footer>
         </article>
 
-        <BlogRelatedPosts posts={relatedPosts} />
+        <div className="print:hidden">
+          <BlogRelatedPosts posts={relatedPosts} />
+        </div>
       </main>
 
-      <footer className="border-t border-gray-200 bg-white py-6">
+      <footer className="border-t border-gray-200 bg-white py-6 print:hidden">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
             <Link href="/" className="text-gray-600 hover:text-blue-600 hover:underline">

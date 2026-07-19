@@ -166,6 +166,103 @@ body {
   margin: 1rem 0;
 }
 
+/* Score calculator range sliders (MCQ + FRQ) */
+.score-range-slider-wrap {
+  display: flex;
+  align-items: center;
+  height: 2.5rem;
+}
+
+.score-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2.5rem;
+  margin: 0;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+
+.score-range-slider:focus-visible {
+  outline: none;
+}
+
+.score-range-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 0 0 4px rgba(37, 99, 235, 0.25);
+}
+
+.score-range-slider::-webkit-slider-runnable-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    #2563eb 0%,
+    #2563eb var(--slider-progress, 0%),
+    #e5e7eb var(--slider-progress, 0%),
+    #e5e7eb 100%
+  );
+}
+
+.score-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  margin-top: -0.4375rem;
+  border-radius: 9999px;
+  border: 2px solid #2563eb;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+  transition: box-shadow 0.15s ease;
+}
+
+.score-range-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.15),
+    0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.score-range-slider::-moz-range-track {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #e5e7eb;
+}
+
+.score-range-slider::-moz-range-progress {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #2563eb;
+}
+
+.score-range-slider::-moz-range-thumb {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 9999px;
+  border: 2px solid #2563eb;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: grab;
+}
+
+.score-range-slider:active::-moz-range-thumb {
+  cursor: grabbing;
+}
+
+.score-range-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.score-range-slider:disabled::-webkit-slider-thumb,
+.score-range-slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+}
+
 /* Legal document content (markdown-rendered HTML) */
 .prose-legal {
   color: #374151;
@@ -236,11 +333,37 @@ body {
 }
 
 @media print {
+  @page {
+    margin: 1.5cm;
+  }
+
   .legal-document-page nav,
   .legal-document-page .prose-legal {
     max-width: 100%;
   }
   .prose-legal h2 {
     page-break-after: avoid;
+  }
+
+  .blog-post-page {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .blog-post-page main {
+    max-width: 100%;
+  }
+  .blog-post-page article {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .prose-blog h2,
+  .prose-blog h3 {
+    page-break-after: avoid;
+  }
+  .prose-blog table,
+  .prose-blog blockquote,
+  .prose-blog pre {
+    page-break-inside: avoid;
   }
 }

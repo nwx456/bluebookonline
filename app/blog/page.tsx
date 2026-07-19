@@ -11,7 +11,7 @@ const baseUrl = getSiteUrl();
 export const metadata: Metadata = {
   title: "Blog - AP & Digital SAT Tips, Bluebook Guides, Study Strategies",
   description:
-    "Practical guides for AP and Digital SAT students: how to prepare for the digital Bluebook exam, study strategies for AP Calculus, Biology, Psychology, and SAT R&W / Math.",
+    "Guides for all 24 AP subjects: study guides, score calculators, digital Bluebook tips, and exam strategies backed by official College Board resources.",
   alternates: { canonical: `${baseUrl}/blog` },
   openGraph: {
     title: `Blog | ${SITE_NAME}`,
@@ -52,7 +52,7 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
   const heroTitle = isSat ? "Digital SAT Prep Blog" : "AP Exam Prep Blog";
   const heroSubtitle = isSat
     ? "Practical guides for the Digital SAT: Bluebook strategies, Module 2 adaptive routing, grid-in pacing, and Desmos tips. Fresh posts coming soon."
-    : "Practical guides for AP students: digital Bluebook exam strategies, subject-specific study tips, score calculators, and how to use AI tools responsibly during prep.";
+    : "Complete guides for all 24 AP subjects, free score calculators, digital Bluebook strategies, and official College Board study resources.";
 
   const blogJsonLd = {
     "@context": "https://schema.org",
