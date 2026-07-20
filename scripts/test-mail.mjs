@@ -5,8 +5,8 @@
 import { config } from "dotenv";
 import nodemailer from "nodemailer";
 
-config({ path: ".env.local" });
 config({ path: ".env" });
+config({ path: ".env.local", override: true });
 
 const to = process.argv[2]?.trim();
 if (!to) {
@@ -85,13 +85,14 @@ try {
   if (mode === "smtp") {
     const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
     const user = (process.env.SMTP_USER ?? "").trim();
-    const pass = (process.env.SMTP_PASS ?? "").trim();
+    const pass = (process.env.SMTP_PASS ?? "").trim().replace(/\s+/g, "");
     const secure =
       (process.env.SMTP_SECURE ?? "").trim().toLowerCase() === "true" || port === 465;
     const transporter = nodemailer.createTransport({
       host: smtpHost,
       port,
       secure,
+      requireTLS: !secure && port === 587,
       auth: user ? { user, pass } : undefined,
     });
     await transporter.sendMail({
@@ -112,7 +113,7 @@ try {
   console.error("FAIL –", err instanceof Error ? err.message : err);
   if (err && typeof err === "object" && "code" in err && err.code === "EAUTH") {
     console.error(
-      "\nHint: Gmail rejected credentials (535). Use a @gmail.com or Google Workspace account with a fresh App Password (2FA required)."
+      "\nHint: SMTP rejected credentials (535). For Google Workspace use SMTP_USER=info@apracticexamonline.com with a fresh App Password (2FA required)."
     );
   }
   process.exit(1);

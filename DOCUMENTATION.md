@@ -41,7 +41,8 @@ Next.js API Routes
 - **Sağlayıcı:** `MAIL_PROVIDER` ile `resend` | `smtp` | `gmail` veya otomatik seçim (önce `RESEND_API_KEY`, sonra `SMTP_HOST`, sonra Gmail).
 - **Kimden adres:** `MAIL_FROM` (tam RFC), veya `MAIL_FROM_NAME` + `MAIL_FROM_EMAIL` / `GMAIL_USER`.
 - **Resend:** `RESEND_API_KEY` + panelde domain doğrulama; `MAIL_FROM_EMAIL` doğrulanmış domainden olmalı.
-- **SMTP:** `SMTP_HOST`, `SMTP_PORT` (varsayılan 587), `SMTP_USER`, `SMTP_PASS`, isteğe bağlı `SMTP_SECURE=true` (465).
+- **SMTP:** `SMTP_HOST`, `SMTP_PORT` (varsayılan 587), `SMTP_USER`, `SMTP_PASS`, isteğe bağlı `SMTP_SECURE=true` (465). Google Workspace: `smtp.gmail.com`, App Password gerekir.
+- **Env dosyaları:** Next.js ve `test:mail` için `.env.local` önceliklidir; kök `.env` içinde eski `MAIL_PROVIDER=gmail` bırakmayın (SMTP ayarlarını ezerek 535 hatasına yol açar).
 - **Admin toplu gönderim:** `docs/schema_mail_ops.sql` ile `admin_mail_log` ve `outbound_email_jobs` tablolarını oluşturun.
 - **Hız limiti (isteğe bağlı):** `ADMIN_MAIL_DAILY_RECIPIENT_CAP`, `ADMIN_MAIL_HOURLY_RECIPIENT_CAP` (0 = kapalı).
 - **Kuyruk:** `ADMIN_MAIL_JOB_THRESHOLD` (varsayılan 50) üzeri alıcıda job kuyruğu + `202`; worker: `POST /api/internal/mail-worker` header `x-mail-worker-secret: MAIL_WORKER_SECRET`. Üretimde `NEXT_PUBLIC_BASE_URL` ve `MAIL_WORKER_SECRET` ile `after()` kısmi işler; uzun kuyruk için periyodik Cron ile aynı endpoint çağrılabilir.
@@ -582,10 +583,18 @@ Deploy öncesi ve sonrası manuel adımlar (kod değişiklikleri tamamlandıktan
 
 ```
 NEXT_PUBLIC_BASE_URL=https://www.apracticexamonline.com
-MAIL_FROM_NAME=AP Practice Exam Online
+MAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=info@apracticexamonline.com
+SMTP_PASS=<Google Workspace App Password>
 MAIL_FROM_EMAIL=info@apracticexamonline.com
-MAIL_FROM="AP Practice Exam Online" <info@apracticexamonline.com>
+MAIL_FROM_NAME=AP Practice Exam Online
 ```
+
+Remove legacy `GMAIL_USER` / `GMAIL_APP_PASSWORD` after switching to SMTP. Redeploy after env changes.
+
+Vercel CLI ile toplu güncelleme: `scripts/sync-vercel-mail-env.ps1` (`$env:SMTP_PASS` set edip çalıştırın; önce `npx vercel login`).
 
 ### Supabase Dashboard → Authentication → URL Configuration
 

@@ -43,13 +43,14 @@ function smtpTransport() {
   const host = (process.env.SMTP_HOST ?? "").trim();
   const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
   const user = (process.env.SMTP_USER ?? "").trim();
-  const pass = (process.env.SMTP_PASS ?? "").trim();
+  const pass = (process.env.SMTP_PASS ?? "").trim().replace(/\s+/g, "");
   const secure =
     (process.env.SMTP_SECURE ?? "").trim().toLowerCase() === "true" || port === 465;
   return nodemailer.createTransport({
     host,
     port,
     secure,
+    requireTLS: !secure && port === 587,
     auth: user ? { user, pass } : undefined,
   });
 }

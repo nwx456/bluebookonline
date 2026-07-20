@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Password reset email is not configured on the server. Set RESEND_API_KEY, or SMTP credentials, or GMAIL_USER + GMAIL_APP_PASSWORD in .env.local.",
+            "Password reset email is not configured on the server. Set MAIL_PROVIDER=smtp with SMTP_HOST, SMTP_USER, and SMTP_PASS, or RESEND_API_KEY. See .env.example.",
         },
         { status: 500 }
       );

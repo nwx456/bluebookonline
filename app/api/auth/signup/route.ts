@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Email verification is not configured on the server. Set RESEND_API_KEY (recommended), or SMTP_HOST + credentials, or GMAIL_USER + GMAIL_APP_PASSWORD in .env.local. See DOCUMENTATION.md.",
+            "Email verification is not configured on the server. Set MAIL_PROVIDER=smtp with SMTP_HOST, SMTP_USER, and SMTP_PASS (Google Workspace: smtp.gmail.com), or RESEND_API_KEY. See .env.example.",
         },
         { status: 500 }
       );
@@ -211,14 +211,14 @@ export async function POST(request: NextRequest) {
         emailErr instanceof Error &&
         "code" in emailErr &&
         (emailErr as NodeJS.ErrnoException).code === "EAUTH"
-          ? " Gmail rejected the credentials (535). Use a @gmail.com or Google Workspace account with a fresh App Password, or switch to Resend/SMTP."
+          ? " SMTP rejected the credentials (535). For Google Workspace use an App Password with SMTP_USER=info@apracticexamonline.com, or check SMTP_PASS."
           : "";
       return NextResponse.json(
         {
           error:
             (detail
               ? `Verification email could not be sent: ${detail}.${hint}`
-              : "Verification email could not be sent. Check GMAIL_USER and GMAIL_APP_PASSWORD in .env.local, or try Resend/SMTP. See .env.example.") +
+              : "Verification email could not be sent. Check MAIL_PROVIDER=smtp and SMTP_HOST/SMTP_USER/SMTP_PASS in .env.local. See .env.example.") +
             (isDev ? "" : " Please try again later."),
         },
         { status: 500 }
