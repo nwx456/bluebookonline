@@ -59,6 +59,7 @@ export default function AdminMailPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [recipientSearch, setRecipientSearch] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -239,16 +240,38 @@ export default function AdminMailPage() {
     };
   }, [activeJobId, accessToken]);
 
+  const filteredRecipients = useMemo(() => {
+    const q = recipientSearch.trim().toLowerCase();
+    if (!q) return recipients;
+    return recipients.filter(
+      (r) => r.username.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)
+    );
+  }, [recipients, recipientSearch]);
+
   const allSelected = useMemo(
-    () => recipients.length > 0 && selected.size === recipients.length,
-    [recipients.length, selected.size]
+    () =>
+      filteredRecipients.length > 0 &&
+      filteredRecipients.every((r) => selected.has(r.email)),
+    [filteredRecipients, selected]
   );
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected(new Set());
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const r of filteredRecipients) {
+          next.delete(r.email);
+        }
+        return next;
+      });
     } else {
-      setSelected(new Set(recipients.map((r) => r.email)));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const r of filteredRecipients) {
+          next.add(r.email);
+        }
+        return next;
+      });
     }
   };
 
@@ -462,7 +485,7 @@ export default function AdminMailPage() {
               <button
                 type="button"
                 onClick={toggleAll}
-                disabled={recipients.length === 0 || listLoading}
+                disabled={filteredRecipients.length === 0 || listLoading}
                 className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {allSelected ? "Clear selection" : "Select all"}
@@ -480,8 +503,25 @@ export default function AdminMailPage() {
           <p className="mt-1 text-sm text-gray-500">
             {sendToAllRegistered
               ? `All ${recipients.length} registered user(s) will receive this message`
-              : `${selected.size} selected · ${recipients.length} registered`}
+              : recipientSearch.trim()
+                ? `${filteredRecipients.length} shown · ${recipients.length} total · ${selected.size} selected`
+                : `${selected.size} selected · ${recipients.length} registered`}
           </p>
+
+          <div className="mt-3">
+            <label htmlFor="recipient-search" className="sr-only">
+              Search by username or email
+            </label>
+            <input
+              id="recipient-search"
+              type="search"
+              value={recipientSearch}
+              onChange={(e) => setRecipientSearch(e.target.value)}
+              placeholder="Search by username or email…"
+              className="w-full max-w-md rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              autoComplete="off"
+            />
+          </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button
@@ -525,6 +565,8 @@ export default function AdminMailPage() {
               </div>
             ) : recipients.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500">No users in usertable.</p>
+            ) : filteredRecipients.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">No recipients match your search.</p>
             ) : (
               <table className="min-w-full text-left text-sm">
                 <thead className="sticky top-0 bg-gray-50 text-gray-600">
@@ -544,7 +586,7 @@ export default function AdminMailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {recipients.map((r) => (
+                  {filteredRecipients.map((r) => (
                     <tr key={r.email} className="bg-white hover:bg-gray-50/80">
                       <td className="px-3 py-2">
                         <input

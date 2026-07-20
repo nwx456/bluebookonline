@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolvePostAuthPath } from "@/lib/post-login-redirect";
+import { logServerError } from "@/lib/error-logging";
 
 export async function POST(request: NextRequest) {
+  let loginEmail: string | null = null;
   try {
     const body = await request.json();
     const { email, password, next } = body;
+    if (typeof email === "string") loginEmail = email.trim().toLowerCase();
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       return NextResponse.json(
@@ -58,6 +61,11 @@ export async function POST(request: NextRequest) {
       user: data.user ? { id: data.user.id, email: data.user.email } : undefined,
     });
   } catch (err) {
+    void logServerError(err, {
+      request,
+      endpoint: "/api/auth/login",
+      user: loginEmail ? { email: loginEmail } : null,
+    });
     console.error("Login error:", err);
     return NextResponse.json(
       { error: "Sign in failed. Please try again." },

@@ -7,12 +7,14 @@ import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import { PresentationShell } from "@/components/presentation/PresentationShell";
 import { usePresentationStats } from "@/components/presentation/usePresentationStats";
+import { getPresentationContent } from "@/components/presentation/content";
 
-export default function AdminPresentationPage() {
+export default function AdminPresentationEnPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const { stats, loading: statsLoading } = usePresentationStats(accessToken);
+  const { ui } = getPresentationContent("en");
 
   useEffect(() => {
     const supabase = createClient();
@@ -34,10 +36,10 @@ export default function AdminPresentationPage() {
   if (checking) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#F9FAFB]">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-label="Loading" />
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-label={ui.loading} />
       </div>
     );
   }
 
-  return <PresentationShell locale="tr" stats={stats} statsLoading={statsLoading} />;
+  return <PresentationShell locale="en" stats={stats} statsLoading={statsLoading} />;
 }

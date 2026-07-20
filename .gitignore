@@ -44,3 +44,5 @@ next-env.d.ts
 # SAT eval fixtures (user-provided PDFs)
 fixtures/sat/*.pdf
 !fixtures/sat/README.md
+
+.vercel

@@ -1,7 +1,11 @@
-import { SLIDE_PROBLEM } from "../content/tr";
+"use client";
+
 import { SlideAmbientBackground } from "../SlideAmbientBackground";
+import { usePresentationContent } from "../PresentationContentContext";
 
 export function Slide03Problem() {
+  const { slideProblem } = usePresentationContent();
+
   return (
     <div className="relative flex h-full flex-col justify-center overflow-hidden px-6 sm:px-12 lg:px-16">
       <SlideAmbientBackground variant="problem" />
@@ -11,7 +15,7 @@ export function Slide03Problem() {
           className="presentation-fade-up text-sm font-semibold uppercase tracking-widest text-red-600 sm:text-base"
           style={{ animationDelay: "0ms" }}
         >
-          {SLIDE_PROBLEM.headline}
+          {slideProblem.headline}
         </p>
 
         <blockquote
@@ -19,7 +23,7 @@ export function Slide03Problem() {
           style={{ animationDelay: "100ms" }}
         >
           <p className="text-xl font-semibold leading-snug text-gray-900 sm:text-2xl lg:text-3xl">
-            {SLIDE_PROBLEM.statement}
+            {slideProblem.statement}
           </p>
         </blockquote>
 
@@ -27,11 +31,11 @@ export function Slide03Problem() {
           className="presentation-fade-up mt-4 max-w-4xl text-base text-gray-600 sm:text-lg"
           style={{ animationDelay: "180ms" }}
         >
-          {SLIDE_PROBLEM.schoolPainLine}
+          {slideProblem.schoolPainLine}
         </p>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {SLIDE_PROBLEM.costs.map((cost, index) => (
+          {slideProblem.costs.map((cost, index) => (
             <div
               key={cost.label}
               className="presentation-fade-up rounded-2xl border border-gray-200 border-t-2 border-t-red-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"

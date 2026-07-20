@@ -5,12 +5,14 @@ import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 import { getMailConfigError } from "@/lib/mail";
 import { isValidCountryCode, resolveLegalRegion } from "@/lib/legal/countries";
 import { encryptPendingPassword } from "@/lib/pending-registration-crypto";
+import { logServerError } from "@/lib/error-logging";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[a-z0-9]{4,20}$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(request: NextRequest) {
+  let signupEmail: string | null = null;
   try {
     const body = await request.json();
     const {
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
         : "STUDENT";
 
     const normalizedEmail = email.trim().toLowerCase();
+    signupEmail = normalizedEmail;
     const normalizedUsername = username.trim().toLowerCase();
     const legalRegion = resolveLegalRegion(countryCode);
     const normalizedCountry = countryCode.trim().toUpperCase() === "OTHER" ? null : countryCode.trim().toUpperCase();
@@ -232,6 +235,11 @@ export async function POST(request: NextRequest) {
       legalRegion,
     });
   } catch (err) {
+    void logServerError(err, {
+      request,
+      endpoint: "/api/auth/signup",
+      user: signupEmail ? { email: signupEmail } : null,
+    });
     console.error("Signup error:", err);
     return NextResponse.json(
       { error: "Registration failed. Please try again." },

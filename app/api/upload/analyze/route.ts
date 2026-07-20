@@ -58,6 +58,7 @@ import {
   PHASE_VALIDATE,
   type ProgressEvent,
 } from "@/lib/upload-analyze-progress";
+import { logServerError } from "@/lib/error-logging";
 
 export const maxDuration = 300;
 
@@ -518,6 +519,7 @@ function looksLikeQuestionStemOnly(text: string | null): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  let logUserEmail: string | null = null;
   try {
     const contentType = request.headers.get("content-type") ?? "";
     if (!contentType.includes("application/json")) {
@@ -601,6 +603,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    logUserEmail = userEmail;
 
     const supabase = createServerSupabaseAdmin();
     const { data: userRow, error: userCheckError } = await supabase
@@ -703,6 +707,11 @@ export async function POST(request: NextRequest) {
     if (err instanceof AnalyzeFailError) {
       return NextResponse.json(err.payload, { status: err.status });
     }
+    void logServerError(err, {
+      request,
+      endpoint: "/api/upload/analyze",
+      user: logUserEmail ? { email: logUserEmail } : null,
+    });
     console.error("Upload analyze error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Analysis failed." },

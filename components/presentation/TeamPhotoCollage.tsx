@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { TEAM_COLLAGE_PHOTOS } from "./content/tr";
+import { usePresentationContent } from "./PresentationContentContext";
 
 export function TeamPhotoCollage() {
+  const { teamCollagePhotos } = usePresentationContent();
+
   return (
     <div className="grid h-full w-full grid-cols-4 grid-rows-3 gap-2 p-2 pb-24 sm:gap-3 sm:p-3">
-      {TEAM_COLLAGE_PHOTOS.map((photo, index) => (
+      {teamCollagePhotos.map((photo, index) => (
         <div
           key={photo.src}
           className={cn(

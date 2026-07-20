@@ -2,7 +2,8 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SLIDE_COUNT } from "./content/tr";
+import { SLIDE_COUNT } from "./content";
+import { usePresentationContent } from "./PresentationContentContext";
 
 type SlideNavigationProps = {
   current: number;
@@ -11,6 +12,7 @@ type SlideNavigationProps = {
 };
 
 export function SlideNavigation({ current, onPrev, onNext }: SlideNavigationProps) {
+  const { ui } = usePresentationContent();
   const isLast = current === SLIDE_COUNT - 1;
 
   return (
@@ -19,11 +21,11 @@ export function SlideNavigation({ current, onPrev, onNext }: SlideNavigationProp
         <button
           type="button"
           onClick={onPrev}
-          aria-label={current === 0 ? "Admin paneline dön" : "Önceki slayt"}
+          aria-label={current === 0 ? ui.backToAdmin : ui.prevSlide}
           className="inline-flex min-h-12 min-w-12 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
           <ChevronLeft className="h-6 w-6" aria-hidden />
-          <span className="sr-only sm:not-sr-only sm:ml-1 sm:text-base sm:font-medium">Geri</span>
+          <span className="sr-only sm:not-sr-only sm:ml-1 sm:text-base sm:font-medium">{ui.back}</span>
         </button>
 
         <span className="min-w-[5rem] text-center text-base font-medium tabular-nums text-gray-600">
@@ -34,7 +36,7 @@ export function SlideNavigation({ current, onPrev, onNext }: SlideNavigationProp
           type="button"
           onClick={onNext}
           disabled={isLast}
-          aria-label="Sonraki slayt"
+          aria-label={ui.nextSlide}
           className={cn(
             "inline-flex min-h-12 min-w-12 items-center justify-center rounded-full px-2 transition-colors",
             isLast
@@ -42,7 +44,7 @@ export function SlideNavigation({ current, onPrev, onNext }: SlideNavigationProp
               : "bg-blue-600 text-white hover:bg-blue-700"
           )}
         >
-          <span className="sr-only sm:not-sr-only sm:mr-1 sm:text-base sm:font-medium">İleri</span>
+          <span className="sr-only sm:not-sr-only sm:mr-1 sm:text-base sm:font-medium">{ui.next}</span>
           <ChevronRight className="h-6 w-6" aria-hidden />
         </button>
       </div>

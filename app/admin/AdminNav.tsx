@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { Activity, ClipboardCheck, FileText, Flag, Mail, Presentation, Settings, Shield } from "lucide-react";
+import { Activity, AlertTriangle, ClipboardCheck, FileText, Flag, Mail, Presentation, Settings, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 const tabs = [
 
   { href: "/admin/mail", label: "Mail", icon: Mail },
+
+  { href: "/admin/error-logs", label: "Error Logs", icon: AlertTriangle },
 
   { href: "/admin/pdfs", label: "PDFs", icon: FileText },
 
@@ -26,7 +28,9 @@ const tabs = [
 
   { href: "/admin/activity", label: "Moderator Activity", icon: Activity },
 
-  { href: "/admin/presentation", label: "Presentation", icon: Presentation },
+  { href: "/admin/presentation", label: "Presentation (TR)", icon: Presentation },
+
+  { href: "/admin/presentation/en", label: "Presentation (EN)", icon: Presentation },
 
   { href: "/admin/settings", label: "Settings", icon: Settings },
 
@@ -53,7 +57,10 @@ export function AdminNav() {
 
           {tabs.map(({ href, label, icon: Icon }) => {
 
-            const active = pathname === href || pathname.startsWith(`${href}/`);
+            const active =
+              href === "/admin/presentation"
+                ? pathname === "/admin/presentation"
+                : pathname === href || pathname.startsWith(`${href}/`);
 
             return (
 

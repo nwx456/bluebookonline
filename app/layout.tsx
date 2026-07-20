@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { AdSenseLoader } from "@/components/AdSenseLoader";
+import { ErrorReportingProvider } from "@/components/errors/ErrorReportingProvider";
 import { SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 const inter = Inter({
@@ -117,7 +118,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {children}
+        <ErrorReportingProvider>
+          {children}
+        </ErrorReportingProvider>
         <CookieConsentBanner />
         <AdSenseLoader />
       </body>

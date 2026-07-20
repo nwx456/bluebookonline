@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { examUi } from "@/app/exam/exam-ui-tokens";
-import { SLIDE_COUNT } from "./content/tr";
+import { SLIDE_COUNT, type PresentationLocale } from "./content";
+import {
+  PresentationContentProvider,
+  usePresentationContent,
+} from "./PresentationContentContext";
 import { SlideNavigation } from "./SlideNavigation";
 import { SlideProgress } from "./SlideProgress";
 import type { PresentationStats, SlideProps } from "./types";
@@ -29,12 +33,14 @@ const SLIDES: SlideEntry[] = [
 ];
 
 type PresentationShellProps = {
+  locale: PresentationLocale;
   stats: PresentationStats;
   statsLoading: boolean;
 };
 
-export function PresentationShell({ stats, statsLoading }: PresentationShellProps) {
+function PresentationShellInner({ stats, statsLoading }: Omit<PresentationShellProps, "locale">) {
   const router = useRouter();
+  const { ui } = usePresentationContent();
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState<"next" | "prev">("next");
   const [animating, setAnimating] = useState(false);
@@ -89,7 +95,7 @@ export function PresentationShell({ stats, statsLoading }: PresentationShellProp
     <div
       className={cn(examUi.examShellMobile, "bg-[#F9FAFB]")}
       role="region"
-      aria-label="Yatırımcı sunumu"
+      aria-label={ui.regionLabel}
     >
       <SlideProgress current={current} />
 
@@ -116,5 +122,13 @@ export function PresentationShell({ stats, statsLoading }: PresentationShellProp
 
       <SlideNavigation current={current} onPrev={goPrev} onNext={goNext} />
     </div>
+  );
+}
+
+export function PresentationShell({ locale, stats, statsLoading }: PresentationShellProps) {
+  return (
+    <PresentationContentProvider locale={locale}>
+      <PresentationShellInner stats={stats} statsLoading={statsLoading} />
+    </PresentationContentProvider>
   );
 }

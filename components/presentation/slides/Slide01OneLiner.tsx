@@ -1,8 +1,12 @@
+"use client";
+
 import { BrandLogo } from "@/components/BrandLogo";
-import { SLIDE_ONE_LINER } from "../content/tr";
 import { SlideAmbientBackground } from "../SlideAmbientBackground";
+import { usePresentationContent } from "../PresentationContentContext";
 
 export function Slide01OneLiner() {
+  const { slideOneLiner, slideOneTagline } = usePresentationContent();
+
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden px-6 text-center">
       <SlideAmbientBackground variant="hero" />
@@ -16,13 +20,13 @@ export function Slide01OneLiner() {
           className="presentation-fade-up text-3xl font-bold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl"
           style={{ animationDelay: "120ms" }}
         >
-          {SLIDE_ONE_LINER}
+          {slideOneLiner}
         </h1>
         <p
           className="presentation-fade-up max-w-2xl text-base text-blue-600/70 sm:text-lg lg:text-xl"
           style={{ animationDelay: "240ms" }}
         >
-          AP Practice Exam Online — Bluebook deneyiminde AP ve Digital SAT pratiği
+          {slideOneTagline}
         </p>
       </div>
     </div>

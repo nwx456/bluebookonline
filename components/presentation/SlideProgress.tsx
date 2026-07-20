@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { SLIDE_COUNT } from "./content/tr";
+import { SLIDE_COUNT } from "./content";
+import { usePresentationContent } from "./PresentationContentContext";
 
 type SlideProgressProps = {
   current: number;
@@ -9,6 +10,7 @@ type SlideProgressProps = {
 };
 
 export function SlideProgress({ current, total = SLIDE_COUNT }: SlideProgressProps) {
+  const { ui } = usePresentationContent();
   const progress = ((current + 1) / total) * 100;
 
   return (
@@ -21,7 +23,7 @@ export function SlideProgress({ current, total = SLIDE_COUNT }: SlideProgressPro
           aria-valuenow={current + 1}
           aria-valuemin={1}
           aria-valuemax={total}
-          aria-label={`Slayt ${current + 1} / ${total}`}
+          aria-label={ui.slideProgress(current + 1, total)}
         />
       </div>
       <div className="flex justify-center gap-1.5 pt-3">

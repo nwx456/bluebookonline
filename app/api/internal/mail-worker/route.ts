@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin-broadcast-helpers";
 import { getWorkerBatchSize } from "@/lib/admin-mail-limits";
 import { isAuthorizedMailWorkerRequest } from "@/lib/admin-mail-worker-auth";
+import { logServerError } from "@/lib/error-logging";
 
 type RecipientRow = { email: string; username?: string | null };
 
@@ -215,6 +216,7 @@ export async function GET(request: NextRequest) {
   try {
     return await processMailWorkerBatch(null);
   } catch (e) {
+    void logServerError(e, { request, endpoint: "/api/internal/mail-worker" });
     console.error("mail-worker GET:", e);
     return NextResponse.json({ error: "Server error." }, { status: 500 });
   }
@@ -235,6 +237,7 @@ export async function POST(request: NextRequest) {
       typeof body?.jobId === "string" && body.jobId.trim() ? body.jobId.trim() : null;
     return await processMailWorkerBatch(jobId);
   } catch (e) {
+    void logServerError(e, { request, endpoint: "/api/internal/mail-worker" });
     console.error("mail-worker POST:", e);
     return NextResponse.json({ error: "Server error." }, { status: 500 });
   }

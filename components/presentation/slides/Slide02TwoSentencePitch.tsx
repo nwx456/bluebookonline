@@ -1,8 +1,11 @@
-import { formatPitchSentence1, SLIDE_TWO_SENTENCE } from "../content/tr";
+"use client";
+
 import { SlideAmbientBackground } from "../SlideAmbientBackground";
+import { usePresentationContent } from "../PresentationContentContext";
 import type { SlideProps } from "../types";
 
 export function Slide02TwoSentencePitch({ stats, statsLoading }: SlideProps) {
+  const { slideTwoSentence, formatPitchSentence1 } = usePresentationContent();
   const sentence1 = formatPitchSentence1(
     stats.registeredUsers,
     stats.attemptsCompleted,
@@ -18,13 +21,13 @@ export function Slide02TwoSentencePitch({ stats, statsLoading }: SlideProps) {
           className="presentation-fade-up text-sm font-semibold uppercase tracking-widest text-blue-600 sm:text-base"
           style={{ animationDelay: "0ms" }}
         >
-          Pitch
+          {slideTwoSentence.pitchLabel}
         </p>
         <p
           className="presentation-fade-up mt-2 max-w-4xl text-sm text-gray-500 sm:text-base lg:text-lg"
           style={{ animationDelay: "80ms" }}
         >
-          {SLIDE_TWO_SENTENCE.base}
+          {slideTwoSentence.base}
         </p>
 
         <div className="mt-6 space-y-5">
@@ -35,7 +38,9 @@ export function Slide02TwoSentencePitch({ stats, statsLoading }: SlideProps) {
             <p className="text-lg font-medium leading-relaxed text-gray-900 sm:text-xl lg:text-2xl">
               {sentence1}
               {statsLoading && (
-                <span className="ml-2 text-sm font-normal text-gray-400">(güncelleniyor…)</span>
+                <span className="ml-2 text-sm font-normal text-gray-400">
+                  {slideTwoSentence.statsUpdating}
+                </span>
               )}
             </p>
           </div>
@@ -45,7 +50,7 @@ export function Slide02TwoSentencePitch({ stats, statsLoading }: SlideProps) {
             style={{ animationDelay: "280ms" }}
           >
             <p className="text-lg font-medium leading-relaxed text-gray-900 sm:text-xl lg:text-2xl">
-              {SLIDE_TWO_SENTENCE.sentence2}
+              {slideTwoSentence.sentence2}
             </p>
           </div>
 
@@ -54,7 +59,7 @@ export function Slide02TwoSentencePitch({ stats, statsLoading }: SlideProps) {
             style={{ animationDelay: "400ms" }}
           >
             <p className="text-left text-base font-medium leading-relaxed text-blue-800 sm:text-lg">
-              {SLIDE_TWO_SENTENCE.institutionalHighlight}
+              {slideTwoSentence.institutionalHighlight}
             </p>
           </div>
         </div>

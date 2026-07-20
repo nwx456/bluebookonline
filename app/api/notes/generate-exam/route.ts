@@ -33,6 +33,7 @@ import {
   validateNotesExamResponse,
 } from "@/lib/notes-exam-validate";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
+import { logServerError } from "@/lib/error-logging";
 
 export const maxDuration = 300;
 
@@ -394,11 +395,14 @@ async function performNotesGenerate(
 }
 
 export async function POST(request: NextRequest) {
+  let logUser: { id?: string; email?: string | null } | null = null;
   try {
     const { user, error: authError } = await getAuthUser(request);
     if (authError || !user?.email) {
       return NextResponse.json({ error: authError ?? "Authentication required." }, { status: 401 });
     }
+
+    logUser = { id: user.id, email: user.email };
 
     const userEmail = user.email.trim().toLowerCase();
     const parsed = await parseGenerateExamBody(request);
@@ -507,6 +511,11 @@ export async function POST(request: NextRequest) {
     if (err instanceof GenerateFailError) {
       return NextResponse.json(err.payload, { status: err.status });
     }
+    void logServerError(err, {
+      request,
+      endpoint: "/api/notes/generate-exam",
+      user: logUser,
+    });
     console.error("notes generate-exam error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Exam generation failed." },
