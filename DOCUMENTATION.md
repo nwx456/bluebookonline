@@ -596,6 +596,10 @@ Remove legacy `GMAIL_USER` / `GMAIL_APP_PASSWORD` after switching to SMTP. Redep
 
 Vercel CLI ile toplu güncelleme: `scripts/sync-vercel-mail-env.ps1` (`$env:SMTP_PASS` set edip çalıştırın; önce `npx vercel login`).
 
+**Vercel proje adı:** `apracticexamonline` (repo adı `bluebookonline` değil). Env'leri yanlış projeye eklemeyin.
+
+**Sık hata:** Vercel'de `GMAIL_USER=info@apractiexamonline.com` gibi yazım hatası (c eksik) → Google 535 reddeder. `SMTP_USER` ve `MAIL_FROM_EMAIL` tam olarak `info@apracticexamonline.com` olmalı.
+
 ### Supabase Dashboard → Authentication → URL Configuration
 
 - Site URL: `https://www.apracticexamonline.com`
