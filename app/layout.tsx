@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { AdSenseLoader } from "@/components/AdSenseLoader";
 import { ErrorReportingProvider } from "@/components/errors/ErrorReportingProvider";
-import { SITE_NAME, SITE_URL } from "@/lib/site-config";
+import { SITE_META_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const baseUrl = SITE_URL;
@@ -17,8 +19,7 @@ const adsenseClient =
   process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT ?? "ca-pub-4827369932089836";
 
 const defaultTitle = `${SITE_NAME} – AP Exam Practice Platform`;
-const defaultDescription =
-  "Practice AP exams online with the real Bluebook experience. Upload PDFs, solve questions, get instant AI scoring. Free for AP CSA, AP CSP, AP Economics, AP Calculus and more. For students worldwide.";
+const defaultDescription = SITE_META_DESCRIPTION;
 
 export const viewport = {
   width: "device-width",
@@ -96,24 +97,20 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('consent', 'default', {
-                ad_storage: 'denied',
-                ad_user_data: 'denied',
-                ad_personalization: 'denied',
-                analytics_storage: 'denied',
-                wait_for_update: 500
-              });
-            `,
-          }}
-        />
-      </head>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+        <Script id="gtag-consent-default" strategy="beforeInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('consent', 'default', {
+              ad_storage: 'denied',
+              ad_user_data: 'denied',
+              ad_personalization: 'denied',
+              analytics_storage: 'denied',
+              wait_for_update: 500
+            });
+          `}
+        </Script>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

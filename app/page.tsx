@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
+import { HomeHero } from "@/components/home/HomeHero";
 import { HomePage } from "@/components/home/HomePage";
-import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
+import { getSiteUrl, SITE_META_DESCRIPTION, SITE_NAME } from "@/lib/site-config";
 
 const baseUrl = getSiteUrl();
 
 const title = `${SITE_NAME} – AP Exam Practice Platform`;
-const description =
-  "Practice AP exams online with the real Bluebook experience. Upload PDFs, solve questions, get instant AI scoring. Free for AP CSA, AP CSP, AP Economics, AP Calculus and more. For students worldwide.";
+const description = SITE_META_DESCRIPTION;
 
 export const metadata: Metadata = {
   title,
@@ -27,5 +27,10 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <HomePage />;
+  return (
+    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+      <HomeHero program="AP" />
+      <HomePage />
+    </div>
+  );
 }

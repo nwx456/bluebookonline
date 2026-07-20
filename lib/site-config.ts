@@ -1,4 +1,6 @@
 export const SITE_NAME = "AP Practice Exam Online";
+export const SITE_META_DESCRIPTION =
+  "Practice AP exams online with real Bluebook-style questions. Instant AI scoring for AP CSA, CSP, Calculus, Economics & more. Free for students worldwide.";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.apracticexamonline.com";
 export const CONTACT_EMAIL = "info@apracticexamonline.com";

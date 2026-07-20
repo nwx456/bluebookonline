@@ -3,8 +3,6 @@
 import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SiteHeader } from "@/components/SiteHeader";
-import { BrandLogo } from "@/components/BrandLogo";
 import { TrademarkDisclaimer } from "@/components/legal/TrademarkDisclaimer";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -14,11 +12,11 @@ import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
 import { SUBJECT_META } from "@/lib/subject-meta";
 import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
+import { AP_SUBJECT_KEYS } from "@/lib/home-hero-content";
 import { CONTACT_EMAIL } from "@/lib/site-config";
 import { ExamShareButton } from "@/components/exams/ExamShareButton";
 import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 
-const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");
 const SAT_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "SAT");
 
 function buildSubjects(program: ExamProgram) {
@@ -28,84 +26,6 @@ function buildSubjects(program: ExamProgram) {
     ...keys.map((v) => ({ value: v, label: SUBJECT_LABELS[v] })),
   ];
 }
-
-const HOME_FAQ_JSON_LD_AP = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What is AP Practice Exam Online?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "A free platform that mimics the real College Board Bluebook digital exam experience. Practice AP and SAT exams with a familiar interface: upload PDFs, solve multiple-choice questions, and get instant scoring. AI can generate answer keys when your PDF has none.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is it free?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. AP Practice Exam Online mimics the real Bluebook experience and is free for educational use. Sign up to upload and publish exams.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How does AI scoring work?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "If your PDF has no answer key, AI generates one when you first complete the exam. The key is saved so future attempts skip AI and use the stored answers.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Can I use my own PDFs?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. Sign in, go to Dashboard, and upload your AP exam PDF. The system extracts questions automatically. You can publish exams to share with others.",
-      },
-    },
-  ],
-};
-
-const HOME_FAQ_JSON_LD_SAT = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "What is AP Practice Exam Online SAT practice?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "A free Digital SAT practice platform mimicking the real Bluebook experience. Upload SAT PDFs (Reading & Writing, Math, or a full test) and solve adaptive modules with grid-in support and a built-in Desmos calculator.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "How long is the Digital SAT?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Approximately 2 hours 14 minutes: Reading & Writing (2 modules x 32 min, 27 questions each) followed by Math (2 modules x 35 min, 22 questions each).",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Does this support grid-in questions?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. SAT Math grid-in (Student-Produced Response) questions are fully supported with a numeric input box and AI-graded answer checking.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "Is there a built-in calculator?",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "Yes. SAT Math modules embed the official Desmos graphing calculator, available throughout the section just like the real Digital SAT.",
-      },
-    },
-  ],
-};
 
 interface PublishedExam {
   id: string;
@@ -142,8 +62,6 @@ function HomeInner() {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [subjectOpen, setSubjectOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [configError, setConfigError] = useState(false);
   const [howToOpen, setHowToOpen] = useState(true);
   const [warningsOpen, setWarningsOpen] = useState(false);
   const [subjectsOpen, setSubjectsOpen] = useState(false);
@@ -162,7 +80,6 @@ function HomeInner() {
   const examsHref = appendProgramToHref("/exams", program);
 
   useEffect(() => {
-    setMounted(true);
     try {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -173,7 +90,7 @@ function HomeInner() {
       });
       return () => subscription.unsubscribe();
     } catch {
-      setConfigError(true);
+      // Auth unavailable; exam list and public links still work.
     }
   }, []);
 
@@ -222,83 +139,9 @@ function HomeInner() {
     return now.getTime() - d.getTime() < 3 * 24 * 60 * 60 * 1000;
   };
 
-  const heroTitle =
-    program === "SAT"
-      ? "Free Digital SAT Practice with the Bluebook Experience"
-      : "Free AP Exam Practice with the Bluebook Experience";
-  const heroSubtitle =
-    program === "SAT"
-      ? "Practice Digital SAT (Reading & Writing + Math) with AI-scored modules. Upload your own PDF or solve community-published full tests."
-      : `Practice ${AP_SUBJECT_KEYS.length} AP subjects with AI-scored digital exams. Upload your own PDF or solve community-published mock tests.`;
-  const heroDescription =
-    program === "SAT"
-      ? "AP Practice Exam Online mimics the real Digital SAT Bluebook interface. Adaptive Module 2 routing, built-in Desmos graphing calculator on Math, grid-in support, and scaled scoring (400–1600). Free for students worldwide."
-      : "AP Practice Exam Online mimics the real College Board Bluebook digital exam interface. Get a familiar testing layout, instant AI scoring, and detailed answer explanations for every AP practice test. Free for students worldwide. For educational practice only.";
-  const heroLinkLabel =
-    program === "SAT" ? "Browse SAT practice tests →" : "Browse all 24 AP practice tests →";
-
   return (
-    <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(program === "SAT" ? HOME_FAQ_JSON_LD_SAT : HOME_FAQ_JSON_LD_AP),
-        }}
-      />
-      <SiteHeader />
-
-      <main className="flex-1 mx-auto w-full max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
-        <section className="mb-8 text-center rounded-2xl bg-gradient-to-b from-white to-gray-50/80 px-3 py-6 shadow-sm border border-gray-100 sm:px-6 sm:py-10">
-          <div className="flex flex-col items-center gap-6 w-full">
-            <BrandLogo size="hero" priority />
-            <h1 className="text-xl font-bold tracking-tight leading-tight text-gray-900 sm:text-3xl lg:text-4xl max-w-3xl">
-              {heroTitle}
-            </h1>
-            <p className="text-base text-gray-600 max-w-2xl">{heroSubtitle}</p>
-          </div>
-          <div className="mt-5">
-            <Link
-              href={examsHref}
-              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline"
-            >
-              {heroLinkLabel}
-            </Link>
-          </div>
-          {configError ? (
-            <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 max-w-lg mx-auto">
-              Configuration error: Supabase environment variables are missing. If you&apos;re the site owner, add{" "}
-              <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-              <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in Vercel → Project Settings → Environment Variables, then redeploy.
-            </div>
-          ) : !mounted ? null : !user ? (
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link
-                href="/login"
-                className="rounded-md border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-md bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Sign up
-              </Link>
-            </div>
-          ) : (
-            <Link
-              href="/dashboard"
-              className="mt-6 inline-block rounded-md bg-blue-600 px-5 py-3 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Dashboard
-            </Link>
-          )}
-        </section>
-
-        <p className="mb-8 max-w-2xl mx-auto px-4 text-center text-sm leading-relaxed text-gray-500">
-          {heroDescription}
-        </p>
-
+    <>
+      <main className="flex-1 mx-auto w-full max-w-4xl px-3 pb-6 sm:px-4 sm:pb-8">
         <section className="mb-8">
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div
@@ -1036,6 +879,6 @@ function HomeInner() {
           <TrademarkDisclaimer variant="compact" className="mt-4 px-2" />
         </div>
       </footer>
-    </div>
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HomeHero } from "@/components/home/HomeHero";
 import { HomePage } from "@/components/home/HomePage";
 import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
@@ -48,7 +49,10 @@ export default function SatLandingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
-      <HomePage />
+      <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
+        <HomeHero program="SAT" />
+        <HomePage />
+      </div>
     </>
   );
 }

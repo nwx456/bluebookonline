@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { Activity, AlertTriangle, ClipboardCheck, FileText, Flag, Mail, Presentation, Settings, Shield } from "lucide-react";
+import { Activity, AlertTriangle, ClipboardCheck, FileText, Flag, Mail, Presentation, Settings, Shield, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 const tabs = [
 
   { href: "/admin/mail", label: "Mail", icon: Mail },
+
+  { href: "/admin/users", label: "Users", icon: Users },
 
   { href: "/admin/error-logs", label: "Error Logs", icon: AlertTriangle },
 
