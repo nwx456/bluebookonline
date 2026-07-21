@@ -1,21 +1,34 @@
 ---
-title: "AP Exam Dates 2026: Complete May Schedule"
-description: "Every AP exam date and time for May 2026, organized by week. Includes hybrid vs fully digital format notes and what to bring."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap exam dates 2026"
-seoTitle: "AP Exam Dates 2026 (Complete Schedule)"
-metaDescription: "Full AP exam schedule for May 2026. Every subject, date, time, and format (digital vs hybrid). Plan your study calendar now."
-tags: ["AP Exam Dates", "2026"]
+title: 'AP Exam Dates 2026: Complete May Schedule'
+description: >-
+  Every AP exam date and time for May 2026, organized by week. Includes hybrid
+  vs fully digital format notes and what to bring.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap exam dates 2026
+seoTitle: AP Exam Dates 2026 (Complete Schedule)
+metaDescription: >-
+  Full AP exam schedule for May 2026. Every subject, date, time, and format
+  (digital vs hybrid). Plan your study calendar now.
+tags:
+  - AP Exam Dates
+  - '2026'
 draft: false
 faq:
-  - question: "When do AP exams start in 2026?"
-    answer: "The 2026 AP Exam administration runs May 4–15, 2026, with most exams at 8 AM or 12 PM local time."
-  - question: "Can I take two AP exams on the same day?"
-    answer: "College Board schedules conflicting exams on alternate dates. Check your school's AP coordinator for your specific schedule."
-  - question: "When do AP scores come out?"
-    answer: "Scores typically release in July. See our guide on when AP scores come out."
+  - question: When do AP exams start in 2026?
+    answer: >-
+      The 2026 AP Exam administration runs May 4–15, 2026, with most exams at 8
+      AM or 12 PM local time.
+  - question: Can I take two AP exams on the same day?
+    answer: >-
+      College Board schedules conflicting exams on alternate dates. Check your
+      school's AP coordinator for your specific schedule.
+  - question: When do AP scores come out?
+    answer: >-
+      Scores typically release in July. See our guide on when AP scores come
+      out.
+updated: '2026-07-21'
 ---
 
 The 2026 AP Exam administration runs **May 4–15, 2026**. All times are **local time** at your test center.
@@ -67,6 +80,8 @@ See [fully digital vs hybrid](/blog/fully-digital-vs-hybrid-ap-exams) for the co
 **4 weeks out:** Full-length practice tests + [score calculators](/tools/ap-score-calculator).
 
 **1 week out:** [Exam day checklist](/blog/ap-exam-day-checklist) + light review only.
+
+**Also see:** [AP registration deadlines](/blog/ap-exam-registration-deadlines-2026) · [When to start AP prep](/blog/when-to-start-ap-exam-prep) · [AP exam length by subject](/blog/ap-exam-length-by-subject)
 
 **Exam morning:** Arrive 30 min early. Device charged. No notes.
 

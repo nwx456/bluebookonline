@@ -1,23 +1,37 @@
 ---
-title: "AP Computer Science Principles Complete Study Guide (2026 Exam)"
-description: "Master AP CSP for May 2026: 70 MCQs + Create Performance Task, five big ideas, exam format, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap computer science principles study guide"
-seoTitle: "AP CSP Study Guide 2026"
-metaDescription: "Complete AP CSP guide: Create PT, 70 MCQs (70%), big idea weights, and free practice + score calculator."
-tags: ["AP CSP", "Computer Science", "Study Guide"]
+title: AP Computer Science Principles Complete Study Guide (2026 Exam)
+description: >-
+  Master AP CSP for May 2026: 70 MCQs + Create Performance Task, five big ideas,
+  exam format, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap computer science principles study guide
+seoTitle: AP CSP Study Guide 2026
+metaDescription: >-
+  Complete AP CSP guide: Create PT, 70 MCQs (70%), big idea weights, and free
+  practice + score calculator.
+tags:
+  - AP CSP
+  - Computer Science
+  - Study Guide
 draft: false
 faq:
-  - question: "What is the Create Performance Task?"
-    answer: "A programming project submitted by April 30, scored 0–6 on a rubric. It counts for 30% of your AP score."
-  - question: "Do I need to know a specific language?"
-    answer: "No. CSP is language-neutral for the exam MCQs. Your Create PT can use any language your teacher approves."
-  - question: "Is CSP easier than CSA?"
-    answer: "CSP is broader and less coding-intensive. CSA is Java-focused programming. See our comparison guide."
+  - question: What is the Create Performance Task?
+    answer: >-
+      A programming project submitted by April 30, scored 0–6 on a rubric. It
+      counts for 30% of your AP score.
+  - question: Do I need to know a specific language?
+    answer: >-
+      No. CSP is language-neutral for the exam MCQs. Your Create PT can use any
+      language your teacher approves.
+  - question: Is CSP easier than CSA?
+    answer: >-
+      CSP is broader and less coding-intensive. CSA is Java-focused programming.
+      See our comparison guide.
 ---
+**Short answer:** The 2026 AP Computer Science Principles exam is Thu, May 14, 2026 (12 PM Local). Create PT due Thu, Apr 30, 2026. — 70 MCQs, 180 minutes total, fully digital in Bluebook.
 
 The 2026 AP CSP end-of-course exam is **Thursday, May 14, 2026 (12 PM local)**. The **Create Performance Task is due Thursday, April 30, 2026**.
 

@@ -1,26 +1,37 @@
 ---
-title: "AP Physics 1 Complete Study Guide (2026 Exam)"
-description: "Master AP Physics 1 for May 2026: redesigned hybrid format, 8 units with weights, FRQ types, and a focused study plan with free practice."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap physics 1 study guide"
-seoTitle: "AP Physics 1 Study Guide 2026 (Free)"
-metaDescription: "Complete AP Physics 1 guide: 40 MCQs + 4 FRQs, unit weights, calculator policy, and free Bluebook-style practice + score calculator."
+title: AP Physics 1 Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Physics 1 for May 2026: redesigned hybrid format, 8 units with
+  weights, FRQ types, and a focused study plan with free practice.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap physics 1 study guide
+seoTitle: AP Physics 1 Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Physics 1 guide: 40 MCQs + 4 FRQs, unit weights, calculator
+  policy, and free Bluebook-style practice + score calculator.
 tags:
-  - "AP Physics 1"
-  - "AP Science"
-  - "Study Guide"
+  - AP Physics 1
+  - AP Science
+  - Study Guide
 draft: false
 faq:
-  - question: "Is AP Physics 1 calculus-based?"
-    answer: "No. Physics 1 is algebra-based. You need strong algebra and trigonometry, not calculus."
-  - question: "What changed in the 2025 Physics 1 redesign?"
-    answer: "The exam now has 40 MCQs and 4 FRQs (50/50 weighting), down from the older 50 MCQ / 5 FRQ format."
-  - question: "Which units are heaviest?"
-    answer: "Units 2 (Force) and 3 (Work, Energy, Power) each account for 18–23% of the exam."
+  - question: Is AP Physics 1 calculus-based?
+    answer: >-
+      No. Physics 1 is algebra-based. You need strong algebra and trigonometry,
+      not calculus.
+  - question: What changed in the 2025 Physics 1 redesign?
+    answer: >-
+      The exam now has 40 MCQs and 4 FRQs (50/50 weighting), down from the older
+      50 MCQ / 5 FRQ format.
+  - question: Which units are heaviest?
+    answer: >-
+      Units 2 (Force) and 3 (Work, Energy, Power) each account for 18–23% of the
+      exam.
 ---
+**Short answer:** The 2026 AP Physics 1: Algebra-Based exam is Wed, May 6, 2026 (12 PM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Physics 1 exam is **Wednesday, May 6, 2026 (12 PM local)**. Algebra-based mechanics covering kinematics through fluids. Pass rates improved significantly in 2025 (~66% earned 3+) after the exam redesign.
 

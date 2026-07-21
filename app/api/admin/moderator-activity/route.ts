@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminUser } from "@/lib/admin-mail-auth";
 import {
   deriveExamModerationAction,
@@ -32,6 +33,79 @@ function normalizeModeratorFilter(value: string | null): string | null {
   return value.trim().toLowerCase();
 }
 
+async function attachFirstQuestionIds(
+  supabase: SupabaseClient,
+  items: ModeratorActivityItem[]
+): Promise<ModeratorActivityItem[]> {
+  const mcqUploadIds = [
+    ...new Set(
+      items
+        .filter((item) => item.targetType === "exam_mcq" && item.uploadId)
+        .map((item) => item.uploadId as string)
+    ),
+  ];
+  const frqUploadIds = [
+    ...new Set(
+      items
+        .filter((item) => item.targetType === "exam_frq" && item.uploadId)
+        .map((item) => item.uploadId as string)
+    ),
+  ];
+
+  if (mcqUploadIds.length === 0 && frqUploadIds.length === 0) {
+    return items;
+  }
+
+  const mcqFirstQuestion = new Map<string, string>();
+  const frqFirstQuestion = new Map<string, string>();
+
+  const [mcqResult, frqResult] = await Promise.all([
+    mcqUploadIds.length
+      ? supabase
+          .from("questions")
+          .select("id, upload_id, question_number")
+          .in("upload_id", mcqUploadIds)
+          .order("question_number", { ascending: true })
+          .order("id", { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; upload_id: string; question_number: number }[] }),
+    frqUploadIds.length
+      ? supabase
+          .from("frq_questions")
+          .select("id, frq_upload_id, question_number")
+          .in("frq_upload_id", frqUploadIds)
+          .order("question_number", { ascending: true })
+          .order("id", { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; frq_upload_id: string; question_number: number }[] }),
+  ]);
+
+  for (const row of mcqResult.data ?? []) {
+    const uploadId = String(row.upload_id);
+    if (!mcqFirstQuestion.has(uploadId)) {
+      mcqFirstQuestion.set(uploadId, String(row.id));
+    }
+  }
+
+  for (const row of frqResult.data ?? []) {
+    const uploadId = String(row.frq_upload_id);
+    if (!frqFirstQuestion.has(uploadId)) {
+      frqFirstQuestion.set(uploadId, String(row.id));
+    }
+  }
+
+  return items.map((item) => {
+    if (!item.uploadId || item.questionId) return item;
+    if (item.targetType === "exam_mcq") {
+      const questionId = mcqFirstQuestion.get(item.uploadId);
+      return questionId ? { ...item, questionId } : item;
+    }
+    if (item.targetType === "exam_frq") {
+      const questionId = frqFirstQuestion.get(item.uploadId);
+      return questionId ? { ...item, questionId } : item;
+    }
+    return item;
+  });
+}
+
 /**
  * GET /api/admin/moderator-activity?moderator=&action=&limit=&offset=
  */
@@ -59,7 +133,7 @@ export async function GET(request: NextRequest) {
       let mcqQuery = supabase
         .from("pdf_uploads")
         .select(
-          "id, filename, display_title, moderation_status, is_published, moderated_at, moderated_by"
+          "id, filename, display_title, moderation_status, is_published, moderated_at, moderated_by, storage_path"
         )
         .not("moderated_by", "is", null)
         .not("moderated_at", "is", null);
@@ -93,13 +167,18 @@ export async function GET(request: NextRequest) {
             filename: row.filename as string | null,
           }),
           note: null,
+          uploadId: String(row.id),
+          questionId: null,
+          partLabel: null,
+          hasStoragePath: Boolean((row.storage_path as string | null)?.trim()),
+          examKind: "mcq",
         });
       }
 
       let frqQuery = supabase
         .from("frq_uploads")
         .select(
-          "id, title, display_title, moderation_status, is_published, moderated_at, moderated_by"
+          "id, title, display_title, moderation_status, is_published, moderated_at, moderated_by, storage_path"
         )
         .not("moderated_by", "is", null)
         .not("moderated_at", "is", null);
@@ -133,6 +212,11 @@ export async function GET(request: NextRequest) {
             title: row.title as string | null,
           }),
           note: null,
+          uploadId: String(row.id),
+          questionId: null,
+          partLabel: null,
+          hasStoragePath: Boolean((row.storage_path as string | null)?.trim()),
+          examKind: "frq",
         });
       }
     }
@@ -159,12 +243,14 @@ export async function GET(request: NextRequest) {
       const questionIds = [...new Set((reportRows ?? []).map((r) => String(r.question_id)))];
       const mcqQuestionMap = new Map<
         string,
-        { questionNumber: number; examName: string }
+        { questionNumber: number; examName: string; uploadId: string }
       >();
       const frqQuestionMap = new Map<
         string,
-        { questionNumber: number; partLabel: string | null; examName: string }
+        { questionNumber: number; partLabel: string | null; examName: string; uploadId: string }
       >();
+      const mcqStoragePath = new Map<string, boolean>();
+      const frqStoragePath = new Map<string, boolean>();
 
       if (questionIds.length > 0) {
         const [{ data: mcqQuestions }, { data: frqQuestions }] = await Promise.all([
@@ -174,26 +260,30 @@ export async function GET(request: NextRequest) {
             .in("id", questionIds),
           supabase
             .from("frq_questions")
-            .select("id, question_number, part_label, upload_id")
+            .select("id, question_number, part_label, frq_upload_id")
             .in("id", questionIds),
         ]);
 
         const mcqUploadIds = [...new Set((mcqQuestions ?? []).map((q) => String(q.upload_id)))];
-        const frqUploadIds = [...new Set((frqQuestions ?? []).map((q) => String(q.upload_id)))];
+        const frqUploadIds = [...new Set((frqQuestions ?? []).map((q) => String(q.frq_upload_id)))];
 
         const [{ data: mcqUploads }, { data: frqUploads }] = await Promise.all([
           mcqUploadIds.length
             ? supabase
                 .from("pdf_uploads")
-                .select("id, filename, display_title")
+                .select("id, filename, display_title, storage_path")
                 .in("id", mcqUploadIds)
-            : Promise.resolve({ data: [] as { id: string; filename: string | null; display_title: string | null }[] }),
+            : Promise.resolve({
+                data: [] as { id: string; filename: string | null; display_title: string | null; storage_path: string | null }[],
+              }),
           frqUploadIds.length
             ? supabase
                 .from("frq_uploads")
-                .select("id, title, display_title")
+                .select("id, title, display_title, storage_path")
                 .in("id", frqUploadIds)
-            : Promise.resolve({ data: [] as { id: string; title: string | null; display_title: string | null }[] }),
+            : Promise.resolve({
+                data: [] as { id: string; title: string | null; display_title: string | null; storage_path: string | null }[],
+              }),
         ]);
 
         const mcqUploadName = new Map(
@@ -214,18 +304,28 @@ export async function GET(request: NextRequest) {
             }),
           ])
         );
+        for (const u of mcqUploads ?? []) {
+          mcqStoragePath.set(String(u.id), Boolean((u.storage_path as string | null)?.trim()));
+        }
+        for (const u of frqUploads ?? []) {
+          frqStoragePath.set(String(u.id), Boolean((u.storage_path as string | null)?.trim()));
+        }
 
         for (const q of mcqQuestions ?? []) {
+          const uploadId = String(q.upload_id);
           mcqQuestionMap.set(String(q.id), {
             questionNumber: Number(q.question_number) || 0,
-            examName: mcqUploadName.get(String(q.upload_id)) ?? "MCQ exam",
+            examName: mcqUploadName.get(uploadId) ?? "MCQ exam",
+            uploadId,
           });
         }
         for (const q of frqQuestions ?? []) {
+          const uploadId = String(q.frq_upload_id);
           frqQuestionMap.set(String(q.id), {
             questionNumber: Number(q.question_number) || 0,
             partLabel: (q.part_label as string | null) ?? null,
-            examName: frqUploadName.get(String(q.upload_id)) ?? "FRQ exam",
+            examName: frqUploadName.get(uploadId) ?? "FRQ exam",
+            uploadId,
           });
         }
       }
@@ -239,11 +339,23 @@ export async function GET(request: NextRequest) {
         const mcq = mcqQuestionMap.get(qid);
         const frq = frqQuestionMap.get(qid);
         let targetLabel = "Reported question";
+        let uploadId: string | null = null;
+        let hasStoragePath = false;
+        let examKind: "mcq" | "frq" | null = null;
+        let partLabel: string | null = null;
+
         if (mcq) {
           targetLabel = `Q#${mcq.questionNumber} · ${mcq.examName}`;
+          uploadId = mcq.uploadId;
+          hasStoragePath = mcqStoragePath.get(mcq.uploadId) ?? false;
+          examKind = "mcq";
         } else if (frq) {
           const part = frq.partLabel ? ` (${frq.partLabel})` : "";
           targetLabel = `Q#${frq.questionNumber}${part} · ${frq.examName}`;
+          uploadId = frq.uploadId;
+          hasStoragePath = frqStoragePath.get(frq.uploadId) ?? false;
+          examKind = "frq";
+          partLabel = frq.partLabel;
         }
 
         feed.push({
@@ -254,6 +366,11 @@ export async function GET(request: NextRequest) {
           targetType: "report",
           targetLabel,
           note: (row.note as string | null) ?? null,
+          uploadId,
+          questionId: qid,
+          partLabel,
+          hasStoragePath,
+          examKind,
         });
       }
     }
@@ -261,7 +378,8 @@ export async function GET(request: NextRequest) {
     feed.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
     const total = feed.length;
-    const items = feed.slice(offset, offset + limit);
+    const sliced = feed.slice(offset, offset + limit);
+    const items = await attachFirstQuestionIds(supabase, sliced);
 
     const { data: moderatorRows } = await supabase
       .from("moderators")

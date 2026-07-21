@@ -108,6 +108,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly" as const,
       priority: 0.9,
     },
+    {
+      url: `${base}/tools/sat-score-calculator`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.9,
+    },
     ...SCORE_CALCULATOR_EXAMS.map((exam) => ({
       url: `${base}/tools/ap-score-calculator/${exam.slug}`,
       lastModified: now,

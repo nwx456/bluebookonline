@@ -1,20 +1,54 @@
 ---
-title: "AP Biology Complete Study Guide (2026 Exam)"
-description: "Master AP Biology for the May 2026 exam: hybrid digital format, all 8 units with weights, the FRQ types graders actually score, the most-missed topics, and a focused study plan."
-date: "2026-04-09"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap biology study guide"
-seoTitle: "AP Biology Study Guide 2026 (Free)"
-metaDescription: "Complete AP Biology guide: 8 units, FRQ types, hybrid format, and free practice tests + score calculator."
+title: AP Biology Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Biology for the May 2026 exam: hybrid digital format, all 8 units
+  with weights, the FRQ types graders actually score, the most-missed topics,
+  and a focused study plan.
+date: '2026-04-09'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap biology study guide
+seoTitle: AP Biology Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Biology guide: 8 units, FRQ types, hybrid format, and free
+  practice tests + score calculator.
 tags:
-  - "AP Biology"
-  - "AP Science"
-  - "Study Guide"
-  - "Biology"
+  - AP Biology
+  - AP Science
+  - Study Guide
+  - Biology
 draft: false
+faq:
+  - question: How long is the AP Biology exam and how is it scored?
+    answer: >-
+      The exam is 3 hours total: 90 minutes for 60 multiple-choice questions
+      (50% of score) and 90 minutes for 6 free-response questions (2 long + 4
+      short, 50% of score). Long FRQs are typically worth 8-10 points each;
+      short FRQs are worth 4 points each.
+  - question: How much memorization does AP Biology require?
+    answer: >-
+      Less than students expect. The 2025-26 redesigned exam rewards
+      understanding processes (photosynthesis, signal transduction, evolution)
+      and interpreting data over rote facts. Roughly 50% of MCQs and most FRQs
+      include diagrams, graphs, or experimental data.
+  - question: What is the hardest unit on the AP Biology exam?
+    answer: >-
+      Cellular energetics (Unit 3, 12-16%) and gene expression regulation (Unit
+      6, 12-16%) are most commonly cited as difficult. Natural selection (Unit
+      7) is the highest-weighted unit at 13-20%, so master the Hardy-Weinberg
+      equation, phylogenetics, and evolution mechanisms.
+  - question: Is AP Biology good preparation for the MCAT?
+    answer: >-
+      Yes, especially for the biology and biochemistry sections. The
+      data-interpretation focus aligns well with MCAT passage style, and the
+      Hardy-Weinberg, kinetics, and metabolism content overlaps directly.
+sources:
+  - name: College Board AP Biology CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-biology'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Biology exam is Mon, May 4, 2026 (8 AM Local) — 60 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Biology exam is on **Monday, May 4, 2026 (8 AM local)** — and it is one of the first AP exams in the testing window. This guide covers the verified format from the College Board CED (updated for 2025-26), all eight units with their exam weights, the FRQ archetypes you should master, and the most common questions students ask on r/APStudents every spring.
 

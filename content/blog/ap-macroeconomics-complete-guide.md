@@ -1,23 +1,37 @@
 ---
-title: "AP Macroeconomics Complete Study Guide (2026 Exam)"
-description: "Master AP Macroeconomics for May 2026: 60 MCQs + 3 FRQs, AD-AS, fiscal/monetary policy, unit weights, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap macroeconomics study guide"
-seoTitle: "AP Macroeconomics Study Guide 2026"
-metaDescription: "Complete AP Macro guide: 60 MCQs (67%) + 3 FRQs (33%), AD-AS model, and free practice + score calculator."
-tags: ["AP Macroeconomics", "AP Economics", "Study Guide"]
+title: AP Macroeconomics Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Macroeconomics for May 2026: 60 MCQs + 3 FRQs, AD-AS,
+  fiscal/monetary policy, unit weights, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap macroeconomics study guide
+seoTitle: AP Macroeconomics Study Guide 2026
+metaDescription: >-
+  Complete AP Macro guide: 60 MCQs (67%) + 3 FRQs (33%), AD-AS model, and free
+  practice + score calculator.
+tags:
+  - AP Macroeconomics
+  - AP Economics
+  - Study Guide
 draft: false
 faq:
-  - question: "What graphs must I know?"
-    answer: "AD-AS, Phillips curve, money market, loanable funds, and foreign exchange — all correctly labeled."
-  - question: "How is Macro scored?"
-    answer: "MCQs are ~67% and FRQs ~33%. One long FRQ (10 pts) and two short FRQs (5 pts each)."
-  - question: "Is Macro harder than Micro?"
-    answer: "Pass rates are similar (~67%). Macro requires understanding interconnected policy models."
+  - question: What graphs must I know?
+    answer: >-
+      AD-AS, Phillips curve, money market, loanable funds, and foreign exchange
+      — all correctly labeled.
+  - question: How is Macro scored?
+    answer: >-
+      MCQs are ~67% and FRQs ~33%. One long FRQ (10 pts) and two short FRQs (5
+      pts each).
+  - question: Is Macro harder than Micro?
+    answer: >-
+      Pass rates are similar (~67%). Macro requires understanding interconnected
+      policy models.
 ---
+**Short answer:** The 2026 AP Macroeconomics exam is Fri, May 8, 2026 (12 PM Local) — 60 MCQs, 130 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Macroeconomics exam is **Friday, May 8, 2026 (12 PM local)**.
 

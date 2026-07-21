@@ -1,26 +1,38 @@
 ---
-title: "AP Physics 2 Complete Study Guide (2026 Exam)"
-description: "Master AP Physics 2 for May 2026: electricity, magnetism, optics, thermodynamics, modern physics — exam format, unit weights, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap physics 2 study guide"
-seoTitle: "AP Physics 2 Study Guide 2026 (Free)"
-metaDescription: "Complete AP Physics 2 guide: 40 MCQs + 4 FRQs, unit weights, and free practice tests + score calculator for 2026."
+title: AP Physics 2 Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Physics 2 for May 2026: electricity, magnetism, optics,
+  thermodynamics, modern physics — exam format, unit weights, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap physics 2 study guide
+seoTitle: AP Physics 2 Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Physics 2 guide: 40 MCQs + 4 FRQs, unit weights, and free practice
+  tests + score calculator for 2026.
 tags:
-  - "AP Physics 2"
-  - "AP Science"
-  - "Study Guide"
+  - AP Physics 2
+  - AP Science
+  - Study Guide
 draft: false
 faq:
-  - question: "Do I need Physics 1 before Physics 2?"
-    answer: "College Board recommends Physics 1 first. Physics 2 covers entirely different topics (E&M, optics, thermo, modern) — not a continuation of mechanics."
-  - question: "Is AP Physics 2 harder than Physics 1?"
-    answer: "Pass rates are similar (~72% in 2025). Physics 2 content is broader but the algebra level is comparable."
-  - question: "What is the exam format?"
-    answer: "40 MCQs (50%) + 4 FRQs (50%), hybrid digital, 3 hours. Calculator allowed throughout."
+  - question: Do I need Physics 1 before Physics 2?
+    answer: >-
+      College Board recommends Physics 1 first. Physics 2 covers entirely
+      different topics (E&M, optics, thermo, modern) — not a continuation of
+      mechanics.
+  - question: Is AP Physics 2 harder than Physics 1?
+    answer: >-
+      Pass rates are similar (~72% in 2025). Physics 2 content is broader but
+      the algebra level is comparable.
+  - question: What is the exam format?
+    answer: >-
+      40 MCQs (50%) + 4 FRQs (50%), hybrid digital, 3 hours. Calculator allowed
+      throughout.
 ---
+**Short answer:** The 2026 AP Physics 2: Algebra-Based exam is Thu, May 7, 2026 (8 AM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Physics 2 exam is **Thursday, May 7, 2026 (8 AM local)**. Covers thermodynamics, electricity, magnetism, optics, waves, and modern physics — all algebra-based.
 

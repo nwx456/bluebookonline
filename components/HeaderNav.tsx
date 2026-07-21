@@ -104,7 +104,7 @@ function HeaderNavInner() {
     noProgram ? target : appendProgramToHref(target, program);
 
   const loggedIn = mounted && !configError && Boolean(user);
-  const items = navItemsForUser(loggedIn, isTeacher);
+  const items = navItemsForUser(loggedIn, isTeacher, program);
 
   const displayName = user
     ? (user.user_metadata?.username as string)?.trim() ||

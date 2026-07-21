@@ -1,23 +1,36 @@
 ---
-title: "AP Physics C: Mechanics Complete Study Guide (2026 Exam)"
-description: "Master AP Physics C Mechanics for May 2026: calculus-based mechanics, 40 MCQs + 4 FRQs, unit weights, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap physics c mechanics study guide"
-seoTitle: "AP Physics C Mechanics Study Guide 2026"
-metaDescription: "Complete AP Physics C Mechanics guide: calculus-based FRQs, unit weights, and free practice + score calculator."
-tags: ["AP Physics C", "Study Guide"]
+title: 'AP Physics C: Mechanics Complete Study Guide (2026 Exam)'
+description: >-
+  Master AP Physics C Mechanics for May 2026: calculus-based mechanics, 40 MCQs
+  + 4 FRQs, unit weights, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap physics c mechanics study guide
+seoTitle: AP Physics C Mechanics Study Guide 2026
+metaDescription: >-
+  Complete AP Physics C Mechanics guide: calculus-based FRQs, unit weights, and
+  free practice + score calculator.
+tags:
+  - AP Physics C
+  - Study Guide
 draft: false
 faq:
-  - question: "Is Physics C harder than Physics 1?"
-    answer: "Physics C uses calculus and is typically taken by STEM majors. Pass rates are higher (~72%) but the math demand is greater."
-  - question: "What are the four FRQ types?"
-    answer: "Mathematical Routines, Translation Between Representations, Experimental Design, and Qualitative/Quantitative Translation."
-  - question: "Can I take Mechanics without Physics 1?"
-    answer: "Yes, if you have strong calculus and mechanics background. Many students take Mechanics concurrently with or after Calc AB/BC."
+  - question: Is Physics C harder than Physics 1?
+    answer: >-
+      Physics C uses calculus and is typically taken by STEM majors. Pass rates
+      are higher (~72%) but the math demand is greater.
+  - question: What are the four FRQ types?
+    answer: >-
+      Mathematical Routines, Translation Between Representations, Experimental
+      Design, and Qualitative/Quantitative Translation.
+  - question: Can I take Mechanics without Physics 1?
+    answer: >-
+      Yes, if you have strong calculus and mechanics background. Many students
+      take Mechanics concurrently with or after Calc AB/BC.
 ---
+**Short answer:** The 2026 AP Physics C: Mechanics exam is Wed, May 13, 2026 (12 PM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Physics C: Mechanics exam is **Wednesday, May 13, 2026 (12 PM local)**. Calculus-based mechanics for future engineers and physics majors.
 

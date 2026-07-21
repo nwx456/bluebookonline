@@ -1,26 +1,41 @@
 ---
-title: "AP Calculus BC Complete Study Guide (2026 Exam)"
-description: "Master AP Calculus BC for May 2026: hybrid digital format, all 10 units with weights, series and polar FRQs, calculator policy, and a focused study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap calculus bc study guide"
-seoTitle: "AP Calculus BC Study Guide 2026 (Free)"
-metaDescription: "Complete AP Calculus BC guide: exam format, unit weights, FRQ types, calculator policy, and free practice tests + score calculator."
+title: AP Calculus BC Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Calculus BC for May 2026: hybrid digital format, all 10 units with
+  weights, series and polar FRQs, calculator policy, and a focused study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap calculus bc study guide
+seoTitle: AP Calculus BC Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Calculus BC guide: exam format, unit weights, FRQ types,
+  calculator policy, and free practice tests + score calculator.
 tags:
-  - "AP Calculus BC"
-  - "AP Math"
-  - "Study Guide"
+  - AP Calculus BC
+  - AP Math
+  - Study Guide
 draft: false
 faq:
-  - question: "Does AP Calculus BC include all AB content?"
-    answer: "Yes. BC covers every AB topic plus parametric, polar, vector functions, and infinite series. You cannot take both AB and BC in the same year."
-  - question: "What is the calculator policy on AP Calc BC?"
-    answer: "A graphing calculator is required on MCQ Part B and FRQ Part A; it is not permitted on MCQ Part A or FRQ Part B."
-  - question: "Which BC units matter most?"
-    answer: "Units 6 (Integration), 9 (Parametric/Polar/Vectors), and 10 (Series) together account for roughly 45–50% of the exam."
+  - question: Does AP Calculus BC include all AB content?
+    answer: >-
+      Yes. BC covers every AB topic plus parametric, polar, vector functions,
+      and infinite series. You cannot take both AB and BC in the same year.
+  - question: What is the calculator policy on AP Calc BC?
+    answer: >-
+      A graphing calculator is required on MCQ Part B and FRQ Part A; it is not
+      permitted on MCQ Part A or FRQ Part B.
+  - question: Which BC units matter most?
+    answer: >-
+      Units 6 (Integration), 9 (Parametric/Polar/Vectors), and 10 (Series)
+      together account for roughly 45–50% of the exam.
+sources:
+  - name: College Board AP Calculus BC CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-calculus-bc'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Calculus BC exam is Mon, May 11, 2026 (8 AM Local) — 45 MCQs, 195 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Calculus BC exam is **Monday, May 11, 2026 (8 AM local)**. BC covers all AB content plus parametric equations, polar coordinates, vector-valued functions, and infinite series. Pass rates are typically higher than AB (~79% earn a 3+ in 2025), but earning a 5 requires mastery of series convergence tests and polar area/volume.
 

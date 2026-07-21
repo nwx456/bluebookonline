@@ -1,26 +1,37 @@
 ---
-title: "AP Precalculus Complete Study Guide (2026 Exam)"
-description: "Master AP Precalculus for May 2026: hybrid format, Units 1–3 exam weights, calculator policy, FRQ types, and a focused study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap precalculus study guide"
-seoTitle: "AP Precalculus Study Guide 2026 (Free)"
-metaDescription: "Complete AP Precalculus guide: 40 MCQs + 4 FRQs, unit weights, calculator sections, and free practice + score calculator."
+title: AP Precalculus Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Precalculus for May 2026: hybrid format, Units 1–3 exam weights,
+  calculator policy, FRQ types, and a focused study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap precalculus study guide
+seoTitle: AP Precalculus Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Precalculus guide: 40 MCQs + 4 FRQs, unit weights, calculator
+  sections, and free practice + score calculator.
 tags:
-  - "AP Precalculus"
-  - "AP Math"
-  - "Study Guide"
+  - AP Precalculus
+  - AP Math
+  - Study Guide
 draft: false
 faq:
-  - question: "Is Unit 4 on the AP Precalculus exam?"
-    answer: "No. Unit 4 (parameters, vectors, matrices) may be taught locally but is not assessed on the AP Exam. Only Units 1–3 are tested."
-  - question: "What calculator is allowed on AP Precalc?"
-    answer: "An approved graphing calculator in radian mode is required on MCQ Part B and FRQ 1–2; it is not permitted on MCQ Part A or FRQ 3–4."
-  - question: "How is AP Precalculus scored?"
-    answer: "MCQs are ~62.5% and FRQs ~37.5%. Each of the four FRQs is worth 6 raw points (24 total)."
+  - question: Is Unit 4 on the AP Precalculus exam?
+    answer: >-
+      No. Unit 4 (parameters, vectors, matrices) may be taught locally but is
+      not assessed on the AP Exam. Only Units 1–3 are tested.
+  - question: What calculator is allowed on AP Precalc?
+    answer: >-
+      An approved graphing calculator in radian mode is required on MCQ Part B
+      and FRQ 1–2; it is not permitted on MCQ Part A or FRQ 3–4.
+  - question: How is AP Precalculus scored?
+    answer: >-
+      MCQs are ~62.5% and FRQs ~37.5%. Each of the four FRQs is worth 6 raw
+      points (24 total).
 ---
+**Short answer:** The 2026 AP Precalculus exam is Tue, May 12, 2026 (8 AM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Precalculus exam is **Tuesday, May 12, 2026 (8 AM local)**. Launched in 2023, it bridges algebra II and calculus with polynomial, exponential, logarithmic, and trigonometric modeling. 2025 pass rate was ~81% — one of the highest among AP math exams.
 

@@ -1,21 +1,34 @@
 ---
-title: "AP English Language vs AP English Literature"
-description: "AP Lang or AP Lit? Compare essay types, MCQ focus, scoring weights, pass rates, and which fits your strengths."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Course Selection"
-focusKeyword: "ap lang vs ap lit"
-seoTitle: "AP Lang vs AP Lit: Which Should You Take?"
-metaDescription: "AP English Language vs Literature compared: rhetoric vs literary analysis, essay types, and exam weights."
-tags: ["AP English", "Course Selection"]
+title: AP English Language vs AP English Literature
+description: >-
+  AP Lang or AP Lit? Compare essay types, MCQ focus, scoring weights, pass
+  rates, and which fits your strengths.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Course Selection
+focusKeyword: ap lang vs ap lit
+seoTitle: 'AP Lang vs AP Lit: Which Should You Take?'
+metaDescription: >-
+  AP English Language vs Literature compared: rhetoric vs literary analysis,
+  essay types, and exam weights.
+tags:
+  - AP English
+  - Course Selection
 draft: false
 faq:
-  - question: "Can I take both AP Lang and AP Lit?"
-    answer: "Yes, often in junior (Lang) and senior (Lit) year. They test different skills."
-  - question: "Which has a higher pass rate?"
-    answer: "Both were ~74% in 2025. Lang had a larger jump from 2024 due to scoring changes."
-  - question: "Which is better for college credit?"
-    answer: "Both typically earn English composition or literature credit. Check your target colleges."
+  - question: Can I take both AP Lang and AP Lit?
+    answer: >-
+      Yes, often in junior (Lang) and senior (Lit) year. They test different
+      skills.
+  - question: Which has a higher pass rate?
+    answer: >-
+      Both were ~74% in 2025. Lang had a larger jump from 2024 due to scoring
+      changes.
+  - question: Which is better for college credit?
+    answer: >-
+      Both typically earn English composition or literature credit. Check your
+      target colleges.
+updated: '2026-07-21'
 ---
 
 Junior year dilemma: **AP English Language** or wait for **AP English Literature**? Or both?

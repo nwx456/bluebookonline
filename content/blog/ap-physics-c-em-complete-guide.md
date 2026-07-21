@@ -1,23 +1,34 @@
 ---
-title: "AP Physics C: Electricity & Magnetism Complete Study Guide (2026 Exam)"
-description: "Master AP Physics C E&M for May 2026: Gauss's law, circuits, Maxwell's equations, exam format, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap physics c em study guide"
-seoTitle: "AP Physics C E&M Study Guide 2026"
-metaDescription: "Complete AP Physics C Electricity & Magnetism guide with unit weights, FRQ types, and free practice + score calculator."
-tags: ["AP Physics C", "Study Guide"]
+title: 'AP Physics C: Electricity & Magnetism Complete Study Guide (2026 Exam)'
+description: >-
+  Master AP Physics C E&M for May 2026: Gauss's law, circuits, Maxwell's
+  equations, exam format, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap physics c em study guide
+seoTitle: AP Physics C E&M Study Guide 2026
+metaDescription: >-
+  Complete AP Physics C Electricity & Magnetism guide with unit weights, FRQ
+  types, and free practice + score calculator.
+tags:
+  - AP Physics C
+  - Study Guide
 draft: false
 faq:
-  - question: "Should I take Mechanics before E&M?"
-    answer: "College Board recommends Mechanics first. E&M is typically taken in the same year or the following year."
-  - question: "What calculus do I need?"
-    answer: "Integrals for electric fields and flux, derivatives for EM induction. Multivariable concepts appear but single-variable calc suffices."
-  - question: "Is the exam format the same as Mechanics?"
-    answer: "Yes — 40 MCQs and 4 FRQs, 50/50 weighting, hybrid digital, 3 hours."
+  - question: Should I take Mechanics before E&M?
+    answer: >-
+      College Board recommends Mechanics first. E&M is typically taken in the
+      same year or the following year.
+  - question: What calculus do I need?
+    answer: >-
+      Integrals for electric fields and flux, derivatives for EM induction.
+      Multivariable concepts appear but single-variable calc suffices.
+  - question: Is the exam format the same as Mechanics?
+    answer: 'Yes — 40 MCQs and 4 FRQs, 50/50 weighting, hybrid digital, 3 hours.'
 ---
+**Short answer:** The 2026 AP Physics C: Electricity and Magnetism exam is Thu, May 14, 2026 (12 PM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Physics C: Electricity and Magnetism exam is **Thursday, May 14, 2026 (12 PM local)**.
 

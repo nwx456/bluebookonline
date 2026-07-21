@@ -1,23 +1,35 @@
 ---
-title: "AP Microeconomics Complete Study Guide (2026 Exam)"
-description: "Master AP Microeconomics for May 2026: 60 MCQs + 3 FRQs, supply/demand graphs, unit weights, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap microeconomics study guide"
-seoTitle: "AP Microeconomics Study Guide 2026"
-metaDescription: "Complete AP Micro guide: 60 MCQs (67%) + 3 FRQs (33%), graph skills, and free practice + score calculator."
-tags: ["AP Microeconomics", "AP Economics", "Study Guide"]
+title: AP Microeconomics Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Microeconomics for May 2026: 60 MCQs + 3 FRQs, supply/demand graphs,
+  unit weights, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap microeconomics study guide
+seoTitle: AP Microeconomics Study Guide 2026
+metaDescription: >-
+  Complete AP Micro guide: 60 MCQs (67%) + 3 FRQs (33%), graph skills, and free
+  practice + score calculator.
+tags:
+  - AP Microeconomics
+  - AP Economics
+  - Study Guide
 draft: false
 faq:
-  - question: "Should I take Micro or Macro first?"
-    answer: "Either order works. Micro focuses on individual markets; Macro on the whole economy. See our comparison guide."
-  - question: "Do I need to draw graphs?"
-    answer: "Yes. Correctly labeled supply/demand, cost curves, and market structures are essential for FRQ full credit."
-  - question: "Is a calculator allowed?"
-    answer: "A four-function calculator is permitted on both sections."
+  - question: Should I take Micro or Macro first?
+    answer: >-
+      Either order works. Micro focuses on individual markets; Macro on the
+      whole economy. See our comparison guide.
+  - question: Do I need to draw graphs?
+    answer: >-
+      Yes. Correctly labeled supply/demand, cost curves, and market structures
+      are essential for FRQ full credit.
+  - question: Is a calculator allowed?
+    answer: A four-function calculator is permitted on both sections.
 ---
+**Short answer:** The 2026 AP Microeconomics exam is Mon, May 4, 2026 (12 PM Local) — 60 MCQs, 130 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Microeconomics exam is **Monday, May 4, 2026 (12 PM local)**.
 

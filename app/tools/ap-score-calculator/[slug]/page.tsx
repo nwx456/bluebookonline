@@ -11,6 +11,7 @@ import {
   SCORE_CALCULATOR_EXAMS,
   SCORE_CALCULATOR_DISCLAIMER,
 } from "@/lib/score-calculator-data";
+import { AP_CALCULATOR_HOW_TO_STEPS, buildHowToJsonLd } from "@/lib/geo-schema";
 import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
 const baseUrl = getSiteUrl();
@@ -70,6 +71,13 @@ export default async function ApScoreCalculatorSubjectPage({
 
   const faqJsonLd = buildFaqJsonLdForCalculator(exam, url);
 
+  const howToJsonLd = buildHowToJsonLd({
+    name: `How to use the ${exam.name} score calculator`,
+    description: exam.metaDescription,
+    url,
+    steps: AP_CALCULATOR_HOW_TO_STEPS,
+  });
+
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
       <script
@@ -79,6 +87,10 @@ export default async function ApScoreCalculatorSubjectPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
       />
 
       <SiteHeader />

@@ -1,20 +1,53 @@
 ---
-title: "AP Psychology Complete Study Guide (2026 Redesigned Exam)"
-description: "Everything for the May 2026 AP Psychology exam in the new format: AAQ + EBQ free response, all 5 units, common Reddit questions, study schedule, and how to memorize 350+ key terms."
-date: "2026-04-08"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap psychology study guide"
-seoTitle: "AP Psychology Study Guide 2026 (Redesigned Exam)"
-metaDescription: "Complete AP Psychology guide: redesigned format, 5 units, AAQ/EBQ FRQs, and free practice + score calculator."
+title: AP Psychology Complete Study Guide (2026 Redesigned Exam)
+description: >-
+  Everything for the May 2026 AP Psychology exam in the new format: AAQ + EBQ
+  free response, all 5 units, common Reddit questions, study schedule, and how
+  to memorize 350+ key terms.
+date: '2026-04-08'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap psychology study guide
+seoTitle: AP Psychology Study Guide 2026 (Redesigned Exam)
+metaDescription: >-
+  Complete AP Psychology guide: redesigned format, 5 units, AAQ/EBQ FRQs, and
+  free practice + score calculator.
 tags:
-  - "AP Psychology"
-  - "AP Social Sciences"
-  - "Study Guide"
-  - "Psychology"
+  - AP Psychology
+  - AP Social Sciences
+  - Study Guide
+  - Psychology
 draft: false
+faq:
+  - question: How long is the AP Psychology exam in 2026?
+    answer: >-
+      The exam is 2 hours 40 minutes total: 90 minutes for 75 multiple-choice
+      questions (67% of score) and 70 minutes for 2 free-response questions (33%
+      of score). The exam is fully digital in the Bluebook app.
+  - question: Did AP Psychology change recently?
+    answer: >-
+      Yes. Starting in the 2024-2025 school year, AP Psychology was redesigned
+      with five equally weighted units and a new free-response format: the
+      Article Analysis Question (AAQ) and Evidence-Based Question (EBQ). The
+      pre-2024 format with two FRQs is no longer used.
+  - question: What is the difference between the AAQ and EBQ?
+    answer: >-
+      The AAQ presents a brief research article and asks you to identify
+      methodology, apply concepts, and evaluate research design (~25 minutes).
+      The EBQ asks you to construct an argument supported by 3 provided sources
+      plus your own knowledge of psychology (~45 minutes).
+  - question: How many terms do I need to memorize for AP Psychology?
+    answer: >-
+      Roughly 300 to 400 key terms span the five units. Flashcards and active
+      recall outperform passive rereading. The 2024+ exam emphasizes application
+      over recognition, so practice using terms in context.
+sources:
+  - name: College Board AP Psychology CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-psychology'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Psychology exam is Tue, May 12, 2026 (12 PM Local) — 75 MCQs, 160 minutes total, fully digital in Bluebook.
 
 The 2026 AP Psychology exam runs on **Tuesday, May 12, 2026 (12 PM local)**. If you took AP Psychology before 2024, almost everything you knew about the test has changed. The redesigned exam debuted in 2024-2025, and the May 2026 administration follows the same new format. This guide is built around the verified College Board CED for the redesigned exam.
 

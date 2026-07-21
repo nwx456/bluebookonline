@@ -1,23 +1,35 @@
 ---
-title: "AP Environmental Science Complete Study Guide (2026 Exam)"
-description: "Master APES for May 2026: fully digital format, 80 MCQs + 3 FRQs, 9 units with weights, and a focused study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap environmental science study guide"
-seoTitle: "AP Environmental Science Study Guide 2026"
-metaDescription: "Complete APES guide: 80 MCQs (60%) + 3 FRQs (40%), unit weights, FRQ types, and free practice + score calculator."
-tags: ["AP Environmental Science", "APES", "Study Guide"]
+title: AP Environmental Science Complete Study Guide (2026 Exam)
+description: >-
+  Master APES for May 2026: fully digital format, 80 MCQs + 3 FRQs, 9 units with
+  weights, and a focused study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap environmental science study guide
+seoTitle: AP Environmental Science Study Guide 2026
+metaDescription: >-
+  Complete APES guide: 80 MCQs (60%) + 3 FRQs (40%), unit weights, FRQ types,
+  and free practice + score calculator.
+tags:
+  - AP Environmental Science
+  - APES
+  - Study Guide
 draft: false
 faq:
-  - question: "Is APES fully digital in 2026?"
-    answer: "Yes. Both MCQs and typed FRQs are completed in Bluebook — no paper booklet."
-  - question: "What are the three FRQ types?"
-    answer: "Design an Investigation, Analyze an Environmental Problem, and Analyze with Calculation."
-  - question: "Is a calculator allowed?"
-    answer: "Yes — four-function, scientific, or graphing calculator on both sections."
+  - question: Is APES fully digital in 2026?
+    answer: >-
+      Yes. Both MCQs and typed FRQs are completed in Bluebook — no paper
+      booklet.
+  - question: What are the three FRQ types?
+    answer: >-
+      Design an Investigation, Analyze an Environmental Problem, and Analyze
+      with Calculation.
+  - question: Is a calculator allowed?
+    answer: 'Yes — four-function, scientific, or graphing calculator on both sections.'
 ---
+**Short answer:** The 2026 AP Environmental Science exam is Fri, May 15, 2026 (8 AM Local) — 80 MCQs, 160 minutes total, fully digital in Bluebook.
 
 The 2026 AP Environmental Science exam is **Friday, May 15, 2026 (8 AM local)**. Interdisciplinary: biology, earth science, chemistry, and policy.
 

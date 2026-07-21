@@ -1,28 +1,40 @@
 ---
-title: "Which AP Classes Should You Take? A Grade-by-Grade Roadmap"
-description: "Grade-by-grade guide to choosing AP classes: freshman through senior year, balancing rigor, interests, and college goals with official pass rate data."
-date: "2026-02-05"
-author: "AP Practice Exam Online Team"
-category: "Course Selection"
-focusKeyword: "which ap classes should i take"
-seoTitle: "Which AP Classes Should You Take? (2026)"
-metaDescription: "Grade-by-grade AP course roadmap for 9th–12th graders. Balance rigor & interests using pass rate data — then practice free on our platform."
+title: Which AP Classes Should You Take? A Grade-by-Grade Roadmap
+description: >-
+  Grade-by-grade guide to choosing AP classes: freshman through senior year,
+  balancing rigor, interests, and college goals with official pass rate data.
+date: '2026-02-05'
+author: AP Practice Exam Online Team
+category: Course Selection
+focusKeyword: which ap classes should i take
+seoTitle: Which AP Classes Should You Take? (2026)
+metaDescription: >-
+  Grade-by-grade AP course roadmap for 9th–12th graders. Balance rigor &
+  interests using pass rate data — then practice free on our platform.
 tags:
-  - "AP Course Selection"
-  - "High School Planning"
-  - "College Prep"
+  - AP Course Selection
+  - High School Planning
+  - College Prep
 draft: false
-ctaPrimaryHref: "/exams"
-ctaPrimaryLabel: "Explore AP practice tests by subject"
+ctaPrimaryHref: /exams
+ctaPrimaryLabel: Explore AP practice tests by subject
 faq:
-  - question: "How many AP classes should I take freshman year?"
-    answer: "Most freshmen take 0–1 APs, often AP Human Geography or AP Computer Science Principles if offered. Focus on adjusting to high school rigor first."
-  - question: "What AP classes do colleges want to see?"
-    answer: "Colleges want rigorous courses relative to your school's offerings — not a specific list. Match APs to your intended major direction when possible."
-  - question: "Should I take AP classes I'm not interested in?"
-    answer: "Only if they serve a clear goal (graduation requirement, major prep). Interest drives the sustained effort AP exams require."
-image: "/og-image.png"
-imageAlt: "Grade-by-grade roadmap showing recommended AP courses for grades 9 through 12"
+  - question: How many AP classes should I take freshman year?
+    answer: >-
+      Most freshmen take 0–1 APs, often AP Human Geography or AP Computer
+      Science Principles if offered. Focus on adjusting to high school rigor
+      first.
+  - question: What AP classes do colleges want to see?
+    answer: >-
+      Colleges want rigorous courses relative to your school's offerings — not a
+      specific list. Match APs to your intended major direction when possible.
+  - question: Should I take AP classes I'm not interested in?
+    answer: >-
+      Only if they serve a clear goal (graduation requirement, major prep).
+      Interest drives the sustained effort AP exams require.
+image: /og-image.png
+imageAlt: Grade-by-grade roadmap showing recommended AP courses for grades 9 through 12
+updated: '2026-07-21'
 ---
 
 "I can take any AP next year — which ones?" Guidance counselors give general advice; Reddit gives conflicting opinions. This **grade-by-grade roadmap** balances College Board data, typical school sequences, and college admissions reality.

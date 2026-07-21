@@ -1,21 +1,35 @@
 ---
-title: "AP Computer Science A vs AP Computer Science Principles"
-description: "CSA or CSP? Compare Java programming depth, exam format, Create Performance Task, pass rates, and which to take first."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Course Selection"
-focusKeyword: "ap csa vs csp"
-seoTitle: "AP CSA vs CSP: Which Should You Take?"
-metaDescription: "AP Computer Science A vs Principles compared: Java coding vs broad computing concepts, exam format, and career paths."
-tags: ["AP CSA", "AP CSP", "Course Selection"]
+title: AP Computer Science A vs AP Computer Science Principles
+description: >-
+  CSA or CSP? Compare Java programming depth, exam format, Create Performance
+  Task, pass rates, and which to take first.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Course Selection
+focusKeyword: ap csa vs csp
+seoTitle: 'AP CSA vs CSP: Which Should You Take?'
+metaDescription: >-
+  AP Computer Science A vs Principles compared: Java coding vs broad computing
+  concepts, exam format, and career paths.
+tags:
+  - AP CSA
+  - AP CSP
+  - Course Selection
 draft: false
 faq:
-  - question: "Which is harder, CSA or CSP?"
-    answer: "CSA requires Java programming skills. CSP is broader and less coding-intensive. Pass rates are similar (~64–67%)."
-  - question: "Can I take both?"
-    answer: "Yes. Many students take CSP first (intro to computing) then CSA (Java programming)."
-  - question: "Which is better for CS majors?"
-    answer: "CSA is more valued for CS major credit. CSP introduces computing concepts but is less programming-focused."
+  - question: 'Which is harder, CSA or CSP?'
+    answer: >-
+      CSA requires Java programming skills. CSP is broader and less
+      coding-intensive. Pass rates are similar (~64–67%).
+  - question: Can I take both?
+    answer: >-
+      Yes. Many students take CSP first (intro to computing) then CSA (Java
+      programming).
+  - question: Which is better for CS majors?
+    answer: >-
+      CSA is more valued for CS major credit. CSP introduces computing concepts
+      but is less programming-focused.
+updated: '2026-07-21'
 ---
 
 Choosing between AP Computer Science A and AP Computer Science Principles? They sound similar but test **very different skills**.

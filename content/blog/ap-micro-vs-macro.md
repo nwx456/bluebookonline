@@ -1,21 +1,32 @@
 ---
-title: "AP Microeconomics vs Macroeconomics: Which Should You Take?"
-description: "Compare AP Micro and Macro: content, exam format, graph skills, pass rates, and whether to take one or both."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Course Selection"
-focusKeyword: "ap micro vs macro"
-seoTitle: "AP Micro vs Macro Economics (2026)"
-metaDescription: "AP Microeconomics vs Macroeconomics compared: supply/demand vs AD-AS, exam weights, and study guides for both."
-tags: ["AP Economics", "Course Selection"]
+title: 'AP Microeconomics vs Macroeconomics: Which Should You Take?'
+description: >-
+  Compare AP Micro and Macro: content, exam format, graph skills, pass rates,
+  and whether to take one or both.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Course Selection
+focusKeyword: ap micro vs macro
+seoTitle: AP Micro vs Macro Economics (2026)
+metaDescription: >-
+  AP Microeconomics vs Macroeconomics compared: supply/demand vs AD-AS, exam
+  weights, and study guides for both.
+tags:
+  - AP Economics
+  - Course Selection
 draft: false
 faq:
-  - question: "Which should I take first?"
-    answer: "Either order works. Micro focuses on individual markets; Macro on the whole economy. Many schools offer both in the same year."
-  - question: "Is the exam format the same?"
-    answer: "Yes — both have 60 MCQs (~67%) and 3 FRQs (~33%), hybrid digital format."
-  - question: "Do colleges prefer one over the other?"
-    answer: "Most accept both for social science credit. Check your target colleges' AP credit policies."
+  - question: Which should I take first?
+    answer: >-
+      Either order works. Micro focuses on individual markets; Macro on the
+      whole economy. Many schools offer both in the same year.
+  - question: Is the exam format the same?
+    answer: 'Yes — both have 60 MCQs (~67%) and 3 FRQs (~33%), hybrid digital format.'
+  - question: Do colleges prefer one over the other?
+    answer: >-
+      Most accept both for social science credit. Check your target colleges' AP
+      credit policies.
+updated: '2026-07-21'
 ---
 
 AP Microeconomics and AP Macroeconomics are often confused. Here's how they differ — and how to choose.

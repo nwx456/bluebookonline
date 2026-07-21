@@ -1,23 +1,35 @@
 ---
-title: "AP Score Calculator by Subject: All 24 Exams"
-description: "Complete list of free AP score calculators for every subject with pass rates, exam weights, and direct links to practice tests."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Score Calculators"
-focusKeyword: "ap score calculator by subject"
-seoTitle: "AP Score Calculator by Subject (All 24 Exams)"
-metaDescription: "Free AP score calculator for every subject. Pass rates, MCQ/FRQ weights, and links to practice tests for all 24 AP exams."
-tags: ["AP Score Calculator"]
+title: 'AP Score Calculator by Subject: All 24 Exams'
+description: >-
+  Complete list of free AP score calculators for every subject with pass rates,
+  exam weights, and direct links to practice tests.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Score Calculators
+focusKeyword: ap score calculator by subject
+seoTitle: AP Score Calculator by Subject (All 24 Exams)
+metaDescription: >-
+  Free AP score calculator for every subject. Pass rates, MCQ/FRQ weights, and
+  links to practice tests for all 24 AP exams.
+tags:
+  - AP Score Calculator
 draft: false
-ctaPrimaryHref: "/tools/ap-score-calculator"
-ctaPrimaryLabel: "Open score calculator hub"
+ctaPrimaryHref: /tools/ap-score-calculator
+ctaPrimaryLabel: Open score calculator hub
 faq:
-  - question: "How many AP score calculators do you offer?"
-    answer: "24 — one for every AP subject our platform supports, matching official CED section weights."
-  - question: "Which AP exam has the highest pass rate?"
-    answer: "Precalculus (~81%) and Calculus BC (~79%) led in 2025. Physics 1 historically had the lowest (~47% in 2024, ~66% in 2025)."
-  - question: "How do I pick the right calculator?"
-    answer: "Match your subject below. Enter MCQ correct and FRQ points from a practice test to estimate your 1–5 score."
+  - question: How many AP score calculators do you offer?
+    answer: >-
+      24 — one for every AP subject our platform supports, matching official CED
+      section weights.
+  - question: Which AP exam has the highest pass rate?
+    answer: >-
+      Precalculus (~81%) and Calculus BC (~79%) led in 2025. Physics 1
+      historically had the lowest (~47% in 2024, ~66% in 2025).
+  - question: How do I pick the right calculator?
+    answer: >-
+      Match your subject below. Enter MCQ correct and FRQ points from a practice
+      test to estimate your 1–5 score.
+updated: '2026-07-21'
 ---
 
 Every AP exam uses different section weights. This page links to a **free score calculator** for all 24 subjects, with 2025 pass rates from [College Board score distributions](https://apcentral.collegeboard.org/score-distributions).
@@ -73,7 +85,7 @@ Every AP exam uses different section weights. This page links to a **free score 
 3. See predicted 1–5 score
 4. Read the [complete study guide](/blog) for that subject
 
-See also: [How to use an AP score calculator](/blog/ap-score-calculator-how-to-use) · [How AP exams are scored](/blog/how-ap-exams-are-scored)
+See also: [How to use an AP score calculator](/blog/ap-score-calculator-how-to-use) · [How AP score calculators work](/blog/how-ap-score-calculators-work) · [How AP exams are scored](/blog/how-ap-exams-are-scored)
 
 ---
 

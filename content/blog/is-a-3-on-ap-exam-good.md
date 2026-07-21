@@ -1,28 +1,42 @@
 ---
-title: "Is a 3 on an AP Exam Good? What Your Score Means for College Credit"
-description: "A 3 is a passing AP score on most exams, but college credit policies vary. Learn what a 3 means for admissions, credit, and whether to report it."
-date: "2026-07-08"
-author: "AP Practice Exam Online Team"
-category: "Scores & Curves"
-focusKeyword: "is a 3 on ap exam good"
-seoTitle: "Is a 3 on an AP Exam Good? (2026 Guide)"
-metaDescription: "Is a 3 on an AP exam good enough for college credit? See what scores 3, 4, and 5 mean for admissions and credit — plus free practice to aim higher."
+title: Is a 3 on an AP Exam Good? What Your Score Means for College Credit
+description: >-
+  A 3 is a passing AP score on most exams, but college credit policies vary.
+  Learn what a 3 means for admissions, credit, and whether to report it.
+date: '2026-07-08'
+author: AP Practice Exam Online Team
+category: Scores & Curves
+focusKeyword: is a 3 on ap exam good
+seoTitle: Is a 3 on an AP Exam Good? (2026 Guide)
+metaDescription: >-
+  Is a 3 on an AP exam good enough for college credit? See what scores 3, 4, and
+  5 mean for admissions and credit — plus free practice to aim higher.
 tags:
-  - "AP Scores"
-  - "College Credit"
-  - "College Admissions"
+  - AP Scores
+  - College Credit
+  - College Admissions
 draft: false
-ctaPrimaryHref: "/tools/ap-score-calculator"
-ctaPrimaryLabel: "Estimate your AP score"
+ctaPrimaryHref: /tools/ap-score-calculator
+ctaPrimaryLabel: Estimate your AP score
 faq:
-  - question: "Is a 3 a passing AP score?"
-    answer: "Yes. College Board defines 3 as 'qualified' — a passing score on the AP scale. Most colleges consider 3+ as passing, but credit policies differ."
-  - question: "Do colleges accept a 3 for credit?"
-    answer: "Many public universities accept 3s for credit; selective privates often require 4 or 5. Check each college's AP credit policy on their registrar website."
-  - question: "Should I report a 3 to colleges?"
-    answer: "If applying test-optional for AP, reporting a 3 in a core subject can show rigor. For credit purposes, verify the specific college's minimum score."
-image: "/og-image.png"
-imageAlt: "Chart showing AP scores 1 through 5 and typical college credit acceptance levels"
+  - question: Is a 3 a passing AP score?
+    answer: >-
+      Yes. College Board defines 3 as 'qualified' — a passing score on the AP
+      scale. Most colleges consider 3+ as passing, but credit policies differ.
+  - question: Do colleges accept a 3 for credit?
+    answer: >-
+      Many public universities accept 3s for credit; selective privates often
+      require 4 or 5. Check each college's AP credit policy on their registrar
+      website.
+  - question: Should I report a 3 to colleges?
+    answer: >-
+      If applying test-optional for AP, reporting a 3 in a core subject can show
+      rigor. For credit purposes, verify the specific college's minimum score.
+image: /og-image.png
+imageAlt: >-
+  Chart showing AP scores 1 through 5 and typical college credit acceptance
+  levels
+updated: '2026-07-21'
 ---
 
 After July score release, one question dominates every AP forum: **"Is a 3 good enough?"** The answer depends on whether you mean College Board's definition, college credit, or competitive admissions.

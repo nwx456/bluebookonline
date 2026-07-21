@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Activity, Loader2 } from "lucide-react";
+import { Activity, ExternalLink, Eye, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import type { ModeratorActivityAction, ModeratorActivityItem } from "@/lib/moderator-activity";
+import { buildFrqExamPreviewUrl, buildMcqExamPreviewUrl } from "@/lib/moderator-exam-preview";
 import { cn } from "@/lib/utils";
 
 const LIMIT = 50;
@@ -68,6 +69,79 @@ function targetTypeLabel(targetType: ModeratorActivityItem["targetType"]): strin
   }
 }
 
+function buildExamScreenHref(item: ModeratorActivityItem): string | null {
+  if (!item.uploadId || !item.questionId || !item.examKind) return null;
+  if (item.examKind === "frq") {
+    return buildFrqExamPreviewUrl(item.uploadId, item.questionId, item.partLabel);
+  }
+  return buildMcqExamPreviewUrl(item.uploadId, item.questionId);
+}
+
+function ActivityPreviewActions({
+  item,
+  accessToken,
+  previewLoadingId,
+  onPdfPreview,
+}: {
+  item: ModeratorActivityItem;
+  accessToken: string | null;
+  previewLoadingId: string | null;
+  onPdfPreview: (item: ModeratorActivityItem) => void;
+}) {
+  const examScreenHref = buildExamScreenHref(item);
+  const isExamRow = item.targetType === "exam_mcq" || item.targetType === "exam_frq";
+  const showPdf = isExamRow && item.hasStoragePath && item.uploadId;
+
+  if (!showPdf && !examScreenHref) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  if (item.targetType === "report" && examScreenHref) {
+    return (
+      <a
+        href={examScreenHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100"
+      >
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+        View exam
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {showPdf ? (
+        <button
+          type="button"
+          disabled={!accessToken || previewLoadingId === item.id}
+          onClick={() => onPdfPreview(item)}
+          className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {previewLoadingId === item.id ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <Eye className="h-3.5 w-3.5" aria-hidden />
+          )}
+          PDF
+        </button>
+      ) : null}
+      {examScreenHref ? (
+        <a
+          href={examScreenHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100"
+        >
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          Exam
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AdminModeratorActivityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,6 +154,7 @@ export default function AdminModeratorActivityPage() {
   const [activityModeratorEmails, setActivityModeratorEmails] = useState<string[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
 
   const [moderatorFilter, setModeratorFilter] = useState(() => searchParams.get("moderator") ?? "");
   const [actionFilter, setActionFilter] = useState(() => searchParams.get("action") ?? "");
@@ -175,6 +250,30 @@ export default function AdminModeratorActivityPage() {
       setListLoading(false);
     }
   }, [accessToken, moderatorFilter, actionFilter, offset]);
+
+  const openPdfPreview = useCallback(
+    async (item: ModeratorActivityItem) => {
+      if (!accessToken || !item.uploadId) return;
+      setPreviewLoadingId(item.id);
+      try {
+        const kindParam = item.examKind === "frq" ? "?examKind=frq" : "";
+        const res = await fetch(`/api/moderator/exams/${item.uploadId}/url${kindParam}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || typeof data.url !== "string") {
+          setListError(typeof data.error === "string" ? data.error : "Could not load PDF preview.");
+          return;
+        }
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } catch {
+        setListError("Connection error while loading PDF preview.");
+      } finally {
+        setPreviewLoadingId(null);
+      }
+    },
+    [accessToken]
+  );
 
   useEffect(() => {
     if (!accessToken || checking) return;
@@ -274,6 +373,7 @@ export default function AdminModeratorActivityPage() {
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Moderator</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Action</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Target</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-700">Preview</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Note</th>
                 </tr>
               </thead>
@@ -295,6 +395,14 @@ export default function AdminModeratorActivityPage() {
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{item.targetLabel}</div>
                       <div className="text-xs text-gray-500">{targetTypeLabel(item.targetType)}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <ActivityPreviewActions
+                        item={item}
+                        accessToken={accessToken}
+                        previewLoadingId={previewLoadingId}
+                        onPdfPreview={openPdfPreview}
+                      />
                     </td>
                     <td className="max-w-[200px] truncate px-4 py-3 text-gray-500" title={item.note ?? undefined}>
                       {item.note ?? "—"}

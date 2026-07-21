@@ -1,23 +1,33 @@
 ---
-title: "AP European History Complete Study Guide (2026 Exam)"
-description: "Master AP Euro for May 2026: fully digital, MCQ + SAQ + DBQ + LEQ, unit weights from 1450 to present, and study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap european history study guide"
-seoTitle: "AP European History Study Guide 2026"
-metaDescription: "Complete AP Euro guide: 55 MCQs (40%) + essays (60%), DBQ/LEQ tips, and free practice + score calculator."
-tags: ["AP European History", "AP Euro", "Study Guide"]
+title: AP European History Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Euro for May 2026: fully digital, MCQ + SAQ + DBQ + LEQ, unit
+  weights from 1450 to present, and study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap european history study guide
+seoTitle: AP European History Study Guide 2026
+metaDescription: >-
+  Complete AP Euro guide: 55 MCQs (40%) + essays (60%), DBQ/LEQ tips, and free
+  practice + score calculator.
+tags:
+  - AP European History
+  - AP Euro
+  - Study Guide
 draft: false
 faq:
-  - question: "Is AP Euro harder than APUSH?"
-    answer: "Pass rates are similar (~73%). Euro covers 1450–present globally focused on Europe; writing skills transfer between both."
-  - question: "How much do essays count?"
-    answer: "Essays are 60% of the composite: SAQs 20%, DBQ 25%, LEQ 15%."
-  - question: "Are FRQs typed?"
-    answer: "Yes — fully digital. SAQ, DBQ, and LEQ are all typed in Bluebook."
+  - question: Is AP Euro harder than APUSH?
+    answer: >-
+      Pass rates are similar (~73%). Euro covers 1450–present globally focused
+      on Europe; writing skills transfer between both.
+  - question: How much do essays count?
+    answer: 'Essays are 60% of the composite: SAQs 20%, DBQ 25%, LEQ 15%.'
+  - question: Are FRQs typed?
+    answer: 'Yes — fully digital. SAQ, DBQ, and LEQ are all typed in Bluebook.'
 ---
+**Short answer:** The 2026 AP European History exam is Mon, May 4, 2026 (12 PM Local) — 55 MCQs, 195 minutes total, fully digital in Bluebook.
 
 The 2026 AP European History exam is **Monday, May 4, 2026 (12 PM local)**.
 

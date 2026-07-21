@@ -78,6 +78,8 @@ function HomeInner() {
   }, [program]);
 
   const examsHref = appendProgramToHref("/exams", program);
+  const blogHref = isSat ? "/blog?program=sat" : "/blog";
+  const calcHref = isSat ? "/tools/sat-score-calculator" : "/tools/ap-score-calculator";
 
   useEffect(() => {
     try {
@@ -810,8 +812,12 @@ function HomeInner() {
                   Practice tests
                 </Link>
                 <span className="text-gray-300">|</span>
-                <Link href="/blog" className="text-gray-600 hover:text-blue-600 hover:underline">
+                <Link href={blogHref} className="text-gray-600 hover:text-blue-600 hover:underline">
                   Blog
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href={calcHref} className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Score calculator
                 </Link>
                 <span className="text-gray-300">|</span>
                 <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">
@@ -840,8 +846,12 @@ function HomeInner() {
                   Practice tests
                 </Link>
                 <span className="text-gray-300">|</span>
-                <Link href="/blog" className="text-gray-600 hover:text-blue-600 hover:underline">
+                <Link href={blogHref} className="text-gray-600 hover:text-blue-600 hover:underline">
                   Blog
+                </Link>
+                <span className="text-gray-300">|</span>
+                <Link href={calcHref} className="text-gray-600 hover:text-blue-600 hover:underline">
+                  Score calculator
                 </Link>
                 <span className="text-gray-300">|</span>
                 <Link href="/about" className="text-gray-600 hover:text-blue-600 hover:underline">

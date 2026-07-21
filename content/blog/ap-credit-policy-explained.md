@@ -1,21 +1,34 @@
 ---
-title: "AP Credit Policy Explained: How Colleges Use Your AP Scores"
-description: "How AP credit and placement work: search College Board's credit policy database, typical score requirements by college, and what a 3 vs 5 gets you."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Scores & Curves"
-focusKeyword: "ap credit policy"
-seoTitle: "AP Credit Policy Explained (2026)"
-metaDescription: "How colleges award AP credit and placement. Use College Board's credit policy search + understand what scores 3, 4, and 5 mean."
-tags: ["AP Credit", "College Credit"]
+title: 'AP Credit Policy Explained: How Colleges Use Your AP Scores'
+description: >-
+  How AP credit and placement work: search College Board's credit policy
+  database, typical score requirements by college, and what a 3 vs 5 gets you.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Scores & Curves
+focusKeyword: ap credit policy
+seoTitle: AP Credit Policy Explained (2026)
+metaDescription: >-
+  How colleges award AP credit and placement. Use College Board's credit policy
+  search + understand what scores 3, 4, and 5 mean.
+tags:
+  - AP Credit
+  - College Credit
 draft: false
 faq:
-  - question: "Do all colleges accept AP credit?"
-    answer: "Most do, but policies vary. Some grant credit only for 4s and 5s; others for 3s. Always check the specific college's policy."
-  - question: "What is the difference between credit and placement?"
-    answer: "Credit counts toward graduation requirements. Placement lets you skip an introductory course without necessarily earning credit hours."
-  - question: "Where can I look up a college's AP policy?"
-    answer: "College Board's AP Credit Policy Search at apstudents.collegeboard.org/getting-credit-placement/search-policies."
+  - question: Do all colleges accept AP credit?
+    answer: >-
+      Most do, but policies vary. Some grant credit only for 4s and 5s; others
+      for 3s. Always check the specific college's policy.
+  - question: What is the difference between credit and placement?
+    answer: >-
+      Credit counts toward graduation requirements. Placement lets you skip an
+      introductory course without necessarily earning credit hours.
+  - question: Where can I look up a college's AP policy?
+    answer: >-
+      College Board's AP Credit Policy Search at
+      apstudents.collegeboard.org/getting-credit-placement/search-policies.
+updated: '2026-07-21'
 ---
 
 A score of 4 on AP Calculus BC might earn **8 credit hours** at one university and **nothing** at another. AP credit is **not universal** — each college sets its own policy.

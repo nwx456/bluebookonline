@@ -15,9 +15,11 @@ import {
   getPostImage,
   getPostLastModified,
   getPostMetaDescription,
+  getPostProgram,
   getPostSeoTitle,
   getRelatedPosts,
 } from "@/lib/blog";
+import { scoreCalculatorHref } from "@/lib/header-nav-items";
 import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
 const baseUrl = getSiteUrl();
@@ -92,6 +94,15 @@ export default async function BlogPostPage({
     },
     image: imageUrl,
     keywords: post.focusKeyword ?? post.tags?.join(", "),
+    ...(post.sources?.length
+      ? {
+          citation: post.sources.map((source) => ({
+            "@type": "CreativeWork",
+            name: source.name,
+            url: source.url,
+          })),
+        }
+      : {}),
   };
 
   const breadcrumbJsonLd = {
@@ -106,6 +117,27 @@ export default async function BlogPostPage({
 
   const faqJsonLd = buildFaqPageJsonLd(post.faq, url);
   const relatedPosts = getRelatedPosts(post, 3);
+  const postProgram = getPostProgram(post);
+  const isSatPost = postProgram === "SAT";
+  const blogHubHref = isSatPost ? "/blog?program=sat" : "/blog";
+  const examsHref = isSatPost ? "/exams?program=sat" : "/exams";
+  const homeHref = isSatPost ? "/sat" : "/";
+  const calcHref = scoreCalculatorHref(postProgram);
+
+  const completeGuideMatch = /^ap-(.+)-complete-guide$/.exec(post.slug);
+  const practiceHref = completeGuideMatch
+    ? `/exams/ap-${completeGuideMatch[1]}`
+    : post.slug === "digital-sat-complete-guide" ||
+        post.slug === "digital-sat-math-complete-guide" ||
+        post.slug === "digital-sat-reading-writing-complete-guide"
+      ? isSatPost
+        ? post.slug === "digital-sat-math-complete-guide"
+          ? "/exams/sat-math"
+          : post.slug === "digital-sat-reading-writing-complete-guide"
+            ? "/exams/sat-reading-writing"
+            : "/exams/sat-full-test"
+        : undefined
+      : undefined;
 
   return (
     <div className="blog-post-page min-h-screen bg-[#F9FAFB] flex flex-col">
@@ -130,7 +162,7 @@ export default async function BlogPostPage({
 
       <main className="flex-1 mx-auto w-full max-w-3xl px-4 py-10 print:max-w-none print:px-0 print:py-0">
         <Link
-          href="/blog"
+          href={blogHubHref}
           className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline mb-6 print:hidden"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -205,6 +237,33 @@ export default async function BlogPostPage({
             </section>
           )}
 
+          {(post.sources?.length || post.verifiedDate) && (
+            <section className="mt-10 border-t border-gray-100 pt-8">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Sources &amp; verification</h2>
+              {post.sources && post.sources.length > 0 && (
+                <ul className="space-y-2 text-sm text-gray-600">
+                  {post.sources.map((source) => (
+                    <li key={source.url}>
+                      <a
+                        href={source.url}
+                        className="text-blue-600 hover:underline"
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        {source.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {post.verifiedDate && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Content verified against official College Board materials: {post.verifiedDate}.
+                </p>
+              )}
+            </section>
+          )}
+
           <div className="print:hidden">
             <BlogPostCta post={post} />
           </div>
@@ -221,26 +280,32 @@ export default async function BlogPostPage({
         </article>
 
         <div className="print:hidden">
-          <BlogRelatedPosts posts={relatedPosts} />
+          <BlogRelatedPosts
+            posts={relatedPosts}
+            practiceHref={practiceHref}
+            practiceLabel={
+              isSatPost ? "Take a Digital SAT practice test" : "Take an AP practice test"
+            }
+          />
         </div>
       </main>
 
       <footer className="border-t border-gray-200 bg-white py-6 print:hidden">
         <div className="mx-auto max-w-4xl px-4">
           <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <Link href="/" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={homeHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Home
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/blog" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={blogHubHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Blog
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/exams" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={examsHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Practice tests
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/tools/ap-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={calcHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Score calculator
             </Link>
             <span className="text-gray-300">|</span>

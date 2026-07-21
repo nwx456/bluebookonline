@@ -1,20 +1,52 @@
 ---
-title: "AP World History: Modern Complete Study Guide (2026 Exam)"
-description: "Master the May 2026 AP World History: Modern exam: 9 units from 1200-Present, the four-part exam format (MCQ, SAQ, DBQ, LEQ), the 7-point DBQ rubric, comparison strategies, and a focused study plan."
-date: "2026-04-04"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap world history study guide"
-seoTitle: "AP World History Study Guide 2026 (Free)"
-metaDescription: "Complete AP World History guide: 9 units, DBQ/LEQ strategy, and free practice + score calculator."
+title: 'AP World History: Modern Complete Study Guide (2026 Exam)'
+description: >-
+  Master the May 2026 AP World History: Modern exam: 9 units from 1200-Present,
+  the four-part exam format (MCQ, SAQ, DBQ, LEQ), the 7-point DBQ rubric,
+  comparison strategies, and a focused study plan.
+date: '2026-04-04'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap world history study guide
+seoTitle: AP World History Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP World History guide: 9 units, DBQ/LEQ strategy, and free practice
+  + score calculator.
 tags:
-  - "AP World History"
-  - "AP World"
-  - "AP History"
-  - "Study Guide"
+  - AP World History
+  - AP World
+  - AP History
+  - Study Guide
 draft: false
+faq:
+  - question: What time period does AP World History cover?
+    answer: >-
+      Only c. 1200 CE to the present (2001). The earlier 'Foundations' content
+      was removed in the 2019-2020 redesign. Units 3-6 (1450-1900) carry the
+      heaviest weight at 12-15% each.
+  - question: How long is the AP World History exam?
+    answer: >-
+      The exam is 3 hours 15 minutes total: Section IA (55 MCQs, 55 min),
+      Section IB (3 SAQs, 40 min), Section II Part A (DBQ, 60 min including
+      15-min reading), and Section II Part B (LEQ, 40 min).
+  - question: How is AP World History different from AP US History?
+    answer: >-
+      AP World History is global and comparative; APUSH is single-nation. The
+      DBQ and LEQ rubrics are nearly identical (7-point DBQ, 6-point LEQ). World
+      History DBQ topics span 1450-2001 instead of APUSH's 1754-1980.
+  - question: Should I take AP World History before or after APUSH?
+    answer: >-
+      Either order works. Taking AP World History first builds historical
+      thinking skills (CCOT, comparison, causation) that transfer directly to
+      APUSH and AP European History. Many schools schedule World History in 10th
+      grade and APUSH in 11th grade.
+sources:
+  - name: 'College Board AP World History: Modern CED'
+    url: 'https://apcentral.collegeboard.org/courses/ap-world-history-modern'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP World History: Modern exam is Thu, May 7, 2026 (8 AM Local) — 55 MCQs, 195 minutes total, fully digital in Bluebook.
 
 The 2026 AP World History: Modern exam runs on **Thursday, May 7, 2026 (8 AM local)**. AP World covers global developments from **c. 1200 CE to the present (2001)** across nine units. The exam structure mirrors APUSH almost exactly — the same four-part format, the same DBQ and LEQ rubrics, the same historical thinking skills — but with global scope instead of single-nation focus.
 

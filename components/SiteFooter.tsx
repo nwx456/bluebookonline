@@ -78,7 +78,15 @@ export function SiteFooter() {
 
           <Link href="/tools/ap-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
 
-            Score calculator
+            AP calculator
+
+          </Link>
+
+          <span className="text-gray-300">|</span>
+
+          <Link href="/tools/sat-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
+
+            SAT calculator
 
           </Link>
 

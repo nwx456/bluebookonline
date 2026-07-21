@@ -1,20 +1,55 @@
 ---
-title: "AP English Language Complete Study Guide (2026 Exam)"
-description: "Master the May 2026 AP English Language and Composition exam: 45-question MCQ format, three essays, the 6-point rubric explained, sophistication strategies, and a focused study plan."
-date: "2026-04-06"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap english language study guide"
-seoTitle: "AP English Language Study Guide 2026 (Free)"
-metaDescription: "Complete AP Lang guide: 3 essays, MCQ format, 6-point rubric, and free practice + score calculator."
+title: AP English Language Complete Study Guide (2026 Exam)
+description: >-
+  Master the May 2026 AP English Language and Composition exam: 45-question MCQ
+  format, three essays, the 6-point rubric explained, sophistication strategies,
+  and a focused study plan.
+date: '2026-04-06'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap english language study guide
+seoTitle: AP English Language Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Lang guide: 3 essays, MCQ format, 6-point rubric, and free
+  practice + score calculator.
 tags:
-  - "AP English Language"
-  - "AP Lang"
-  - "AP English"
-  - "Study Guide"
+  - AP English Language
+  - AP Lang
+  - AP English
+  - Study Guide
 draft: false
+faq:
+  - question: How long is the AP English Language exam?
+    answer: >-
+      The exam is 3 hours 15 minutes: 60 minutes for 45 multiple-choice
+      questions (45% of score), then a 15-minute reading period and 2 hours for
+      3 essays (55% of score). Each essay is recommended at 40 minutes.
+  - question: How is AP Lang different from AP Lit?
+    answer: >-
+      AP Lang focuses on nonfiction and rhetoric: speeches, essays, articles,
+      op-eds, and revision skills. AP Lit focuses on fiction and poetry: novels,
+      short stories, plays, and poems with literary analysis essays.
+  - question: Which AP Lang essay is hardest and how is it scored?
+    answer: >-
+      The Synthesis essay challenges most students because it requires reading 6
+      sources under time pressure and integrating at least 3 of them into a
+      coherent argument. All three essays use the same 6-point rubric: 1 point
+      for a defensible thesis, up to 4 points for evidence and commentary, and 1
+      point for sophistication.
+  - question: How do I improve my AP Lang essay score quickly?
+    answer: >-
+      Focus on a clear, defensible thesis in the first paragraph and embedding
+      evidence with line-of-reasoning commentary. The rubric explicitly rewards
+      sophisticated reasoning over vocabulary or length. Practice with released
+      FRQs and compare your work to the College Board's anchor papers.
+sources:
+  - name: College Board AP English Language and Composition CED
+    url: >-
+      https://apcentral.collegeboard.org/courses/ap-english-language-and-composition
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP English Language and Composition exam is Wed, May 13, 2026 (8 AM Local) — 45 MCQs, 195 minutes total, fully digital in Bluebook.
 
 The 2026 AP English Language and Composition exam runs on **Wednesday, May 13, 2026 (8 AM local)**. AP Lang is the rhetoric-focused English exam — it analyzes nonfiction prose (essays, speeches, op-eds, articles, memoirs) and asks you to read like a writer, write three timed essays, and answer revision-style multiple-choice questions. It is one of the most popular AP exams in the country (over 550,000 students each year) and one of the highest-scoring on the 5-point scale.
 

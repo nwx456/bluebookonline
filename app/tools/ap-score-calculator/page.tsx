@@ -3,21 +3,28 @@ import Link from "next/link";
 import { Calculator, ArrowRight } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import {
+  AP_CALCULATOR_HOW_TO_STEPS,
+  AP_CALCULATOR_HUB_FAQ,
+  buildFaqPageJsonLd,
+  buildHowToJsonLd,
+} from "@/lib/geo-schema";
 import { SCORE_CALCULATOR_EXAMS } from "@/lib/score-calculator-data";
 import { getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
 const baseUrl = getSiteUrl();
+const pageUrl = `${baseUrl}/tools/ap-score-calculator`;
 
 export const metadata: Metadata = {
   title: "AP Score Calculator 2026 — Free Score Predictors",
   description:
     "Free AP score calculators for all 24 AP exams. Enter MCQ and FRQ practice scores to predict your 1–5 AP score. Based on official section weights.",
-  alternates: { canonical: `${baseUrl}/tools/ap-score-calculator` },
+  alternates: { canonical: pageUrl },
   openGraph: {
     title: `AP Score Calculator 2026 | ${SITE_NAME}`,
     description:
       "Predict your AP exam score from practice test results. Free calculators for all 24 AP subjects including Calculus, Biology, Chemistry, Physics, History, and more.",
-    url: `${baseUrl}/tools/ap-score-calculator`,
+    url: pageUrl,
     type: "website",
     images: [`${baseUrl}/og-image.png`],
   },
@@ -33,7 +40,7 @@ export default function ApScoreCalculatorHubPage() {
         "@type": "ListItem",
         position: 2,
         name: "AP Score Calculator",
-        item: `${baseUrl}/tools/ap-score-calculator`,
+        item: pageUrl,
       },
     ],
   };
@@ -44,11 +51,21 @@ export default function ApScoreCalculatorHubPage() {
     name: "AP Score Calculator",
     description:
       "Free AP score calculators that estimate your 1–5 score from multiple-choice and free-response practice results.",
-    url: `${baseUrl}/tools/ap-score-calculator`,
+    url: pageUrl,
     applicationCategory: "EducationalApplication",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     provider: { "@type": "Organization", name: SITE_NAME, url: baseUrl },
   };
+
+  const howToJsonLd = buildHowToJsonLd({
+    name: "How to use an AP score calculator",
+    description:
+      "Estimate your AP exam score from multiple-choice and free-response practice results.",
+    url: pageUrl,
+    steps: AP_CALCULATOR_HOW_TO_STEPS,
+  });
+
+  const faqJsonLd = buildFaqPageJsonLd(AP_CALCULATOR_HUB_FAQ, pageUrl);
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col">
@@ -60,6 +77,16 @@ export default function ApScoreCalculatorHubPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }}
+      />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
 
       <SiteHeader />
 
@@ -120,7 +147,23 @@ export default function ApScoreCalculatorHubPage() {
             <Link href="/blog/ap-score-distributions" className="text-blue-600 hover:underline">
               See 2026 AP score distributions and pass rates
             </Link>
+            {" · "}
+            <Link href="/blog/ap-score-calculator-how-to-use" className="text-blue-600 hover:underline">
+              Step-by-step calculator guide
+            </Link>
           </p>
+        </section>
+
+        <section className="mt-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">FAQ</h2>
+          <div className="space-y-3">
+            {AP_CALCULATOR_HUB_FAQ.map((item) => (
+              <div key={item.question} className="rounded-lg bg-white border border-gray-100 px-4 py-3">
+                <h3 className="text-sm font-semibold text-gray-900">{item.question}</h3>
+                <p className="mt-1 text-sm text-gray-600">{item.answer}</p>
+              </div>
+            ))}
+          </div>
         </section>
       </main>
 

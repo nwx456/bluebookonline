@@ -17,21 +17,7 @@ import {
   type SatSection,
 } from "@/lib/exam-program";
 
-const HARD_M2_BONUS = 30;
-
-/** Scale raw correct count -> SAT scaled score (200-800). */
-function scaleSectionScore(
-  correct: number,
-  totalAvailable: number,
-  useSixModule: boolean,
-  hardM2: boolean
-): number {
-  if (totalAvailable <= 0) return 200;
-  const ratio = Math.max(0, Math.min(1, correct / totalAvailable));
-  let score = Math.round(200 + ratio * 600);
-  if (useSixModule && hardM2) score = Math.min(800, score + HARD_M2_BONUS);
-  return Math.max(200, Math.min(800, score));
-}
+import { scaleSectionScore } from "@/lib/sat-scoring";
 
 function normalizeVariant(raw: string | undefined): SatModuleVariant | null {
   return raw === "easy" || raw === "hard" ? raw : null;

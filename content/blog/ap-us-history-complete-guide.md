@@ -1,20 +1,55 @@
 ---
-title: "AP US History (APUSH) Complete Study Guide (2026 Exam)"
-description: "Master the May 2026 APUSH exam: 9 historical periods, the four-part exam format (MCQ, SAQ, DBQ, LEQ), 7-point DBQ rubric, and the questions Reddit asks every spring."
-date: "2026-04-07"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "apush study guide"
-seoTitle: "AP US History (APUSH) Study Guide 2026"
-metaDescription: "Complete APUSH guide: 9 periods, DBQ/LEQ rubrics, and free practice + score calculator."
+title: AP US History (APUSH) Complete Study Guide (2026 Exam)
+description: >-
+  Master the May 2026 APUSH exam: 9 historical periods, the four-part exam
+  format (MCQ, SAQ, DBQ, LEQ), 7-point DBQ rubric, and the questions Reddit asks
+  every spring.
+date: '2026-04-07'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: apush study guide
+seoTitle: AP US History (APUSH) Study Guide 2026
+metaDescription: >-
+  Complete APUSH guide: 9 periods, DBQ/LEQ rubrics, and free practice + score
+  calculator.
 tags:
-  - "AP US History"
-  - "APUSH"
-  - "AP History"
-  - "Study Guide"
+  - AP US History
+  - APUSH
+  - AP History
+  - Study Guide
 draft: false
+faq:
+  - question: How long is the AP US History exam?
+    answer: >-
+      The total exam is 3 hours 15 minutes: Section IA (MCQ, 55 min), Section IB
+      (SAQ, 40 min), Section II Part A (DBQ, 60 min including a 15-minute
+      reading period), and Section II Part B (LEQ, 40 min).
+  - question: Is APUSH the hardest AP history?
+    answer: >-
+      APUSH is widely considered one of the toughest AP exams because of the
+      volume of content (1491 to present) and four distinct question formats.
+      The pass rate hovers around 67-72% but earning a 5 is among the harder
+      fives in the AP catalog.
+  - question: How do I prepare for the APUSH DBQ?
+    answer: >-
+      Practice the seven-point rubric: thesis (1), contextualization (1),
+      evidence from documents (3), evidence beyond documents (1), sourcing (1),
+      complexity (1). Use the 15-minute reading period to outline a thesis and
+      group documents by perspective. Time-blocked 60-minute practice is
+      critical.
+  - question: Which APUSH period is most heavily tested?
+    answer: >-
+      Periods 3 through 8 (1754 to 1980) carry the bulk of MCQ and FRQ weight,
+      each at 10-17%. Period 1 (1491-1607) and Period 9 (1980-present) are
+      lighter at 4-6% each. The DBQ always covers 1754-1980, and the LEQ rotates
+      among three time periods.
+sources:
+  - name: College Board AP United States History CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-united-states-history'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP United States History exam is Fri, May 8, 2026 (8 AM Local) — 55 MCQs, 195 minutes total, fully digital in Bluebook.
 
 The 2026 AP US History (APUSH) exam runs on **Friday, May 8, 2026 (8 AM local)**. APUSH covers more than 500 years of American history across **nine periods (1491-Present)** and tests four historical thinking skills (contextualization, comparison, causation, continuity-and-change-over-time) through **four distinct question types**. It is one of the most content-heavy AP exams — and one of the highest-volume, with over 480,000 students taking it each year.
 

@@ -5,6 +5,7 @@ import "./globals.css";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { AdSenseLoader } from "@/components/AdSenseLoader";
 import { ErrorReportingProvider } from "@/components/errors/ErrorReportingProvider";
+import { buildWebSiteJsonLd } from "@/lib/geo-schema";
 import { SITE_META_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site-config";
 
 const inter = Inter({
@@ -92,6 +93,7 @@ export default function RootLayout({
         url: baseUrl,
         logo: `${baseUrl}/icon.png`,
       },
+      buildWebSiteJsonLd(),
     ],
   };
 

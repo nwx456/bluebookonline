@@ -1,23 +1,35 @@
 ---
-title: "AP Computer Science A Complete Study Guide (2026 Exam)"
-description: "Master AP CSA for May 2026: Java programming, 40 MCQs + 4 FRQs, unit weights, and a focused study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap computer science a study guide"
-seoTitle: "AP Computer Science A Study Guide 2026"
-metaDescription: "Complete AP CSA guide: Java FRQs, unit weights, exam format, and free practice + score calculator."
-tags: ["AP Computer Science A", "AP CSA", "Study Guide"]
+title: AP Computer Science A Complete Study Guide (2026 Exam)
+description: >-
+  Master AP CSA for May 2026: Java programming, 40 MCQs + 4 FRQs, unit weights,
+  and a focused study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap computer science a study guide
+seoTitle: AP Computer Science A Study Guide 2026
+metaDescription: >-
+  Complete AP CSA guide: Java FRQs, unit weights, exam format, and free practice
+  + score calculator.
+tags:
+  - AP Computer Science A
+  - AP CSA
+  - Study Guide
 draft: false
 faq:
-  - question: "What language is AP CSA?"
-    answer: "Java. You write classes, methods, arrays, ArrayLists, and 2D arrays on the exam."
-  - question: "Are FRQs typed?"
-    answer: "Yes. AP CSA is fully digital — you type Java code directly in Bluebook."
-  - question: "Which units matter most?"
-    answer: "Units 3–4 (conditionals and iteration) and Unit 6 (arrays) are the heaviest at 15–22% each."
+  - question: What language is AP CSA?
+    answer: >-
+      Java. You write classes, methods, arrays, ArrayLists, and 2D arrays on the
+      exam.
+  - question: Are FRQs typed?
+    answer: Yes. AP CSA is fully digital — you type Java code directly in Bluebook.
+  - question: Which units matter most?
+    answer: >-
+      Units 3–4 (conditionals and iteration) and Unit 6 (arrays) are the
+      heaviest at 15–22% each.
 ---
+**Short answer:** The 2026 AP Computer Science A exam is Fri, May 15, 2026 (12 PM Local) — 42 MCQs, 180 minutes total, fully digital in Bluebook.
 
 The 2026 AP Computer Science A exam is **Friday, May 15, 2026 (12 PM local)**.
 

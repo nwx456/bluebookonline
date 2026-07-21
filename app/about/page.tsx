@@ -145,6 +145,29 @@ export default async function AboutPage({ searchParams }: AboutPageProps) {
         </section>
 
         <section className="rounded-2xl bg-white px-6 py-8 shadow-sm border border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-900">How we verify content</h2>
+          <p className="mt-3 text-gray-600 leading-relaxed">
+            Study guides, exam format pages, and score calculators on this site are cross-checked
+            against official College Board Course and Exam Descriptions (AP) and Digital SAT
+            documentation. Each guide lists primary sources and a verification date when facts
+            change for a new exam cycle.
+          </p>
+          <ul className="mt-4 space-y-2 text-sm text-gray-600 list-disc pl-5">
+            <li>Exam dates, section weights, and question counts follow published College Board schedules.</li>
+            <li>Score calculators use official MCQ/FRQ weights — not classroom curves.</li>
+            <li>We update guides when College Board announces format changes (e.g. fully digital FRQs).</li>
+          </ul>
+          <p className="mt-4 text-sm text-gray-600">
+            We are independent and not endorsed by College Board. If you spot an error, email{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-blue-600 hover:underline">
+              {CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+          <p className="mt-2 text-xs text-gray-500">Content verification cycle: updated each July for the upcoming May exam administration.</p>
+        </section>
+
+        <section className="rounded-2xl bg-white px-6 py-8 shadow-sm border border-gray-100">
           <h2 className="text-xl font-semibold text-gray-900">Why we built this</h2>
           {isSat ? (
             <>

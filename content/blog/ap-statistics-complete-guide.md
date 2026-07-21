@@ -1,20 +1,57 @@
 ---
-title: "AP Statistics Complete Study Guide (2026 Exam)"
-description: "Master the May 2026 AP Statistics exam: hybrid digital format, 9 units with weights, the FRQ types graders score, calculator skills, the investigative task, and a focused study plan."
-date: "2026-04-03"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap statistics study guide"
-seoTitle: "AP Statistics Study Guide 2026 (Free)"
-metaDescription: "Complete AP Statistics guide: 9 units, inference recipe, Investigative Task, and free practice + score calculator."
+title: AP Statistics Complete Study Guide (2026 Exam)
+description: >-
+  Master the May 2026 AP Statistics exam: hybrid digital format, 9 units with
+  weights, the FRQ types graders score, calculator skills, the investigative
+  task, and a focused study plan.
+date: '2026-04-03'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap statistics study guide
+seoTitle: AP Statistics Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Statistics guide: 9 units, inference recipe, Investigative Task,
+  and free practice + score calculator.
 tags:
-  - "AP Statistics"
-  - "AP Stats"
-  - "AP Math"
-  - "Study Guide"
+  - AP Statistics
+  - AP Stats
+  - AP Math
+  - Study Guide
 draft: false
+faq:
+  - question: How long is the AP Statistics exam and how is it structured?
+    answer: >-
+      The exam is 3 hours total: 90 minutes for 40 multiple-choice questions
+      (50%) and 90 minutes for 6 free-response questions (50%). Section 2 splits
+      into Part A (5 FRQs, ~13 min each, 37.5%) and Part B (1 investigative
+      task, ~25 min, 12.5%).
+  - question: Do I need a calculator for the AP Statistics exam?
+    answer: >-
+      Yes. A graphing calculator with statistics functions (TI-84, NumWorks,
+      Casio fx-CG50, etc.) is required for both sections. Know how to use
+      invNorm, tcdf, chi-square test, 1-sample/2-sample tests, and 1-Var Stats
+      efficiently.
+  - question: What are the most common AP Statistics free-response topics?
+    answer: >-
+      FRQ 1-2 are usually data collection (sampling, experimental design) and
+      exploring data. FRQ 3-5 hit probability, sampling distributions, and
+      inference (1- or 2-sample t-tests, z-tests for proportions). The
+      investigative task at the end always combines multiple units in a novel
+      context.
+  - question: Is AP Statistics harder than AP Calculus?
+    answer: >-
+      They test different skills. Statistics has less algebra but heavy
+      interpretation, conditions checking, and writing. Calculus is more
+      procedural. Many students find Statistics easier mathematically but harder
+      to communicate clearly — losing points for missing context, parameters, or
+      assumption checks.
+sources:
+  - name: College Board AP Statistics CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-statistics'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Statistics exam is Thu, May 7, 2026 (12 PM Local) — 40 MCQs, 180 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Statistics exam runs on **Thursday, May 7, 2026 (12 PM local)**. AP Stats is one of the most communication-heavy AP exams: the math is generally lighter than AP Calculus, but you have to **explain reasoning in context**, **check conditions before every inference test**, and **interpret calculator output in plain English**. That mismatch — easier math but heavier writing — is why many students underestimate AP Stats and lose points on FRQ communication.
 

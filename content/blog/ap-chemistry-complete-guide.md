@@ -1,20 +1,54 @@
 ---
-title: "AP Chemistry Complete Study Guide (2026 Exam)"
-description: "Conquer the May 2026 AP Chemistry exam: all 9 units with weights, hybrid digital format, FRQ point values, calculator and reference-sheet rules, equilibrium and acid-base strategies, and a focused study plan."
-date: "2026-04-05"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap chemistry study guide"
-seoTitle: "AP Chemistry Study Guide 2026 (Free)"
-metaDescription: "Complete AP Chemistry guide: 9 units, FRQ strategy, hybrid format, and free practice + score calculator."
+title: AP Chemistry Complete Study Guide (2026 Exam)
+description: >-
+  Conquer the May 2026 AP Chemistry exam: all 9 units with weights, hybrid
+  digital format, FRQ point values, calculator and reference-sheet rules,
+  equilibrium and acid-base strategies, and a focused study plan.
+date: '2026-04-05'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap chemistry study guide
+seoTitle: AP Chemistry Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Chemistry guide: 9 units, FRQ strategy, hybrid format, and free
+  practice + score calculator.
 tags:
-  - "AP Chemistry"
-  - "AP Science"
-  - "Chemistry"
-  - "Study Guide"
+  - AP Chemistry
+  - AP Science
+  - Chemistry
+  - Study Guide
 draft: false
+faq:
+  - question: How long is the AP Chemistry exam and how is it scored?
+    answer: >-
+      The exam is 3 hours 15 minutes total: 90 minutes for 60 multiple-choice
+      questions (50%) and 105 minutes for 7 free-response questions (50%). Long
+      FRQs are worth 10 points each (30 total) and short FRQs 4 points each (16
+      total) — 46 total FRQ points.
+  - question: Is AP Chemistry one of the hardest AP exams?
+    answer: >-
+      Yes. AP Chemistry consistently sits among the lower pass rates (around 75%
+      pass, but the share of 5s is one of the lowest among AP sciences). Strong
+      algebra skills, mole-ratio fluency, and conceptual depth are all required.
+  - question: What is the AP Chemistry calculator policy?
+    answer: >-
+      A scientific or graphing calculator is recommended on both sections. The
+      formulas and constants sheet plus the periodic table are provided.
+      Calculators with QWERTY keyboards or computer-algebra systems are NOT
+      allowed.
+  - question: Which AP Chemistry unit gives students the most trouble?
+    answer: >-
+      Equilibrium (Unit 7) and Acids and Bases (Unit 8, 11-15%) typically have
+      the lowest scores on free-response questions. Intermolecular Forces (Unit
+      3, 18-22%) is the most heavily weighted unit. Practice ICE tables, Ka/Kb
+      calculations, and buffer (Henderson-Hasselbalch) problems heavily.
+sources:
+  - name: College Board AP Chemistry CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-chemistry'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Chemistry exam is Tue, May 5, 2026 (8 AM Local) — 60 MCQs, 195 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 The 2026 AP Chemistry exam is on **Tuesday, May 5, 2026 (8 AM local)** — among the earliest AP exams. AP Chemistry is one of the most quantitative AP science courses and historically one of the lower-scoring AP exams. Pass rates hover around 75% earning 3+, but only about 12-16% earn a 5 — among the lowest 5-rates of any AP science.
 

@@ -1,28 +1,40 @@
 ---
-title: "The Easiest AP Exams to Self-Study (Ranked by Official Pass Rates)"
-description: "Which AP exams are easiest to self-study? Ranked by pass rates, content accessibility, and student reports — with official College Board data."
-date: "2026-02-18"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "easiest ap exams to self study"
-seoTitle: "Easiest AP Exams to Self-Study (2026 Ranked)"
-metaDescription: "Ranked list of the easiest AP exams to self-study using pass rates and student data. Pick your exam — then practice free with Bluebook-style tests."
+title: The Easiest AP Exams to Self-Study (Ranked by Official Pass Rates)
+description: >-
+  Which AP exams are easiest to self-study? Ranked by pass rates, content
+  accessibility, and student reports — with official College Board data.
+date: '2026-02-18'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: easiest ap exams to self study
+seoTitle: Easiest AP Exams to Self-Study (2026 Ranked)
+metaDescription: >-
+  Ranked list of the easiest AP exams to self-study using pass rates and student
+  data. Pick your exam — then practice free with Bluebook-style tests.
 tags:
-  - "Self-Study"
-  - "Easiest AP"
-  - "Pass Rates"
+  - Self-Study
+  - Easiest AP
+  - Pass Rates
 draft: false
-ctaPrimaryHref: "/exams/ap-psychology"
-ctaPrimaryLabel: "Start AP Psych practice"
+ctaPrimaryHref: /exams/ap-psychology
+ctaPrimaryLabel: Start AP Psych practice
 faq:
-  - question: "What is the easiest AP exam to self-study?"
-    answer: "AP Psychology and AP Human Geography are commonly cited as easiest due to approachable content, strong pass rates, and abundant free resources. Individual results depend on your strengths."
-  - question: "Is AP Psychology easy to self-study?"
-    answer: "Yes — content is conceptual, MCQs are 67% of the score, and the CED is well-organized. Most self-studiers need 8–10 weeks of consistent prep."
-  - question: "Which AP exams should you NOT self-study?"
-    answer: "AP Physics C, AP Art portfolios, and AP English Literature are harder solo due to advanced prerequisites or subjective FRQ feedback needs."
-image: "/og-image.png"
-imageAlt: "Ranked list of easiest AP exams for self-study with pass rate percentages"
+  - question: What is the easiest AP exam to self-study?
+    answer: >-
+      AP Psychology and AP Human Geography are commonly cited as easiest due to
+      approachable content, strong pass rates, and abundant free resources.
+      Individual results depend on your strengths.
+  - question: Is AP Psychology easy to self-study?
+    answer: >-
+      Yes — content is conceptual, MCQs are 67% of the score, and the CED is
+      well-organized. Most self-studiers need 8–10 weeks of consistent prep.
+  - question: Which AP exams should you NOT self-study?
+    answer: >-
+      AP Physics C, AP Art portfolios, and AP English Literature are harder solo
+      due to advanced prerequisites or subjective FRQ feedback needs.
+image: /og-image.png
+imageAlt: Ranked list of easiest AP exams for self-study with pass rate percentages
+updated: '2026-07-21'
 ---
 
 "What's the easiest AP to self-study?" is one of the most searched questions on r/APStudents every fall. The honest answer: **easiest depends on your skills**, but **official pass rates** and **exam structure** reveal clear patterns.

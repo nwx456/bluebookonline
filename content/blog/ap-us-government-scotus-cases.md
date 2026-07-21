@@ -1,21 +1,35 @@
 ---
-title: "AP US Government Required SCOTUS Cases (2026)"
-description: "All 15 required Supreme Court cases for AP US Government with holdings, significance, and FRQ comparison tips."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap gov required cases"
-seoTitle: "AP Gov Required SCOTUS Cases (2026)"
-metaDescription: "15 required Supreme Court cases for AP US Government: holdings, significance, and how to use them on the SCOTUS Comparison FRQ."
-tags: ["AP US Government", "SCOTUS", "Supreme Court"]
+title: AP US Government Required SCOTUS Cases (2026)
+description: >-
+  All 15 required Supreme Court cases for AP US Government with holdings,
+  significance, and FRQ comparison tips.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap gov required cases
+seoTitle: AP Gov Required SCOTUS Cases (2026)
+metaDescription: >-
+  15 required Supreme Court cases for AP US Government: holdings, significance,
+  and how to use them on the SCOTUS Comparison FRQ.
+tags:
+  - AP US Government
+  - SCOTUS
+  - Supreme Court
 draft: false
 faq:
-  - question: "How many SCOTUS cases are required for AP Gov?"
-    answer: "15 cases are listed in the CED. You must know the holding, constitutional principle, and significance of each."
-  - question: "Which FRQ tests SCOTUS cases?"
-    answer: "FRQ 3 (SCOTUS Comparison) asks you to compare a non-required case with a required one."
-  - question: "Do I need to memorize case names?"
-    answer: "Yes — case names, years, holdings, and how they apply to constitutional principles."
+  - question: How many SCOTUS cases are required for AP Gov?
+    answer: >-
+      15 cases are listed in the CED. You must know the holding, constitutional
+      principle, and significance of each.
+  - question: Which FRQ tests SCOTUS cases?
+    answer: >-
+      FRQ 3 (SCOTUS Comparison) asks you to compare a non-required case with a
+      required one.
+  - question: Do I need to memorize case names?
+    answer: >-
+      Yes — case names, years, holdings, and how they apply to constitutional
+      principles.
+updated: '2026-07-21'
 ---
 
 AP US Government centers on **9 foundational documents** and **15 required Supreme Court cases**. FRQ 3 (SCOTUS Comparison) directly tests this knowledge.

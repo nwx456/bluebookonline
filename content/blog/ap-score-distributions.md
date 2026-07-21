@@ -109,7 +109,7 @@ Every subject has a [complete study guide](/blog) with CED unit weights, FRQ str
 
 **English & Psych:** [Lang](/blog/ap-english-language-complete-guide) · [Lit](/blog/ap-english-literature-complete-guide) · [Psychology](/blog/ap-psychology-complete-guide)
 
-**All calculators:** [AP score calculator by subject](/blog/ap-score-calculator-by-subject)
+**All calculators:** [AP score calculator by subject](/blog/ap-score-calculator-by-subject) · [How AP score calculators work](/blog/how-ap-score-calculators-work) · [What is a good AP score?](/blog/what-is-a-good-ap-score)
 
 ## Score Distributions vs. Equating
 

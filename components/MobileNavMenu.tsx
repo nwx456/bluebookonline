@@ -60,7 +60,7 @@ export function MobileNavMenu({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, close]);
 
-  const items = navItemsForUser(Boolean(user), isTeacher);
+  const items = navItemsForUser(Boolean(user), isTeacher, program);
   const displayName = user
     ? (user.user_metadata?.username as string)?.trim() ||
       user.email?.split("@")[0] ||

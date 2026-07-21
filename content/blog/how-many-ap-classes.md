@@ -1,28 +1,42 @@
 ---
-title: "How Many AP Classes Do You Need for Top Colleges?"
-description: "How many AP courses do Ivy League and selective colleges expect? Data-driven guidance on AP course load vs quality over quantity."
-date: "2026-02-12"
-author: "AP Practice Exam Online Team"
-category: "Course Selection"
-focusKeyword: "how many ap classes for college"
-seoTitle: "How Many AP Classes for Top Colleges?"
-metaDescription: "How many AP classes do top colleges want? Quality beats quantity — see realistic AP loads for selective schools & free prep tools."
+title: How Many AP Classes Do You Need for Top Colleges?
+description: >-
+  How many AP courses do Ivy League and selective colleges expect? Data-driven
+  guidance on AP course load vs quality over quantity.
+date: '2026-02-12'
+author: AP Practice Exam Online Team
+category: Course Selection
+focusKeyword: how many ap classes for college
+seoTitle: How Many AP Classes for Top Colleges?
+metaDescription: >-
+  How many AP classes do top colleges want? Quality beats quantity — see
+  realistic AP loads for selective schools & free prep tools.
 tags:
-  - "College Admissions"
-  - "AP Course Load"
-  - "Ivy League"
+  - College Admissions
+  - AP Course Load
+  - Ivy League
 draft: false
-ctaPrimaryHref: "/blog/which-ap-classes-to-take"
-ctaPrimaryLabel: "Grade-by-grade AP roadmap"
+ctaPrimaryHref: /blog/which-ap-classes-to-take
+ctaPrimaryLabel: Grade-by-grade AP roadmap
 faq:
-  - question: "How many AP classes do Ivy League schools want?"
-    answer: "There's no fixed number. Ivy League schools expect you to take the most rigorous curriculum available at YOUR school — often 8–12 APs total across high school for competitive applicants."
-  - question: "Is 5 AP classes enough for a top college?"
-    answer: "Yes, if they're the hardest courses your school offers and you perform well. Five APs with strong grades beats eight APs with Bs."
-  - question: "Do AP exam scores matter for admission?"
-    answer: "Course rigor on your transcript matters more than AP scores for admission. Scores primarily affect college credit after enrollment."
-image: "/og-image.png"
-imageAlt: "Guide showing recommended number of AP courses for competitive college applicants by grade level"
+  - question: How many AP classes do Ivy League schools want?
+    answer: >-
+      There's no fixed number. Ivy League schools expect you to take the most
+      rigorous curriculum available at YOUR school — often 8–12 APs total across
+      high school for competitive applicants.
+  - question: Is 5 AP classes enough for a top college?
+    answer: >-
+      Yes, if they're the hardest courses your school offers and you perform
+      well. Five APs with strong grades beats eight APs with Bs.
+  - question: Do AP exam scores matter for admission?
+    answer: >-
+      Course rigor on your transcript matters more than AP scores for admission.
+      Scores primarily affect college credit after enrollment.
+image: /og-image.png
+imageAlt: >-
+  Guide showing recommended number of AP courses for competitive college
+  applicants by grade level
+updated: '2026-07-21'
 ---
 
 "Do I need 10 APs for Harvard?" The anxiety is real, but the answer isn't a single number. Selective colleges evaluate **rigor relative to your school's offerings** — not an AP count leaderboard.

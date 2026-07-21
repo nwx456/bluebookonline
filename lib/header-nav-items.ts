@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { BookOpen, Calculator, FileText, Home, Info, LayoutDashboard, Newspaper } from "lucide-react";
+import type { ExamProgram } from "@/lib/exam-program";
 
 export type HeaderNavItem = {
   href: string;
@@ -9,14 +10,36 @@ export type HeaderNavItem = {
   noProgram?: boolean;
 };
 
-export const PUBLIC_NAV_ITEMS: HeaderNavItem[] = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/exams", label: "Practice Tests", icon: BookOpen, matchPrefix: "/exams" },
-  { href: "/tools/ap-score-calculator", label: "Score Calculator", icon: Calculator, matchPrefix: "/tools/ap-score-calculator" },
-  { href: "/resources", label: "Resources", icon: FileText, matchPrefix: "/resources" },
-  { href: "/blog", label: "Blog", icon: Newspaper, matchPrefix: "/blog" },
-  { href: "/about", label: "About", icon: Info, matchPrefix: "/about" },
-];
+export function scoreCalculatorHref(program: ExamProgram): string {
+  return program === "SAT"
+    ? "/tools/sat-score-calculator"
+    : "/tools/ap-score-calculator";
+}
+
+export function publicNavItems(program: ExamProgram = "AP"): HeaderNavItem[] {
+  const calcHref = scoreCalculatorHref(program);
+  return [
+    { href: program === "SAT" ? "/sat" : "/", label: "Home", icon: Home },
+    { href: "/exams", label: "Practice Tests", icon: BookOpen, matchPrefix: "/exams" },
+    {
+      href: calcHref,
+      label: "Score Calculator",
+      icon: Calculator,
+      matchPrefix: program === "SAT" ? "/tools/sat-score-calculator" : "/tools/ap-score-calculator",
+    },
+    { href: "/resources", label: "Resources", icon: FileText, matchPrefix: "/resources" },
+    {
+      href: program === "SAT" ? "/blog?program=sat" : "/blog",
+      label: "Blog",
+      icon: Newspaper,
+      matchPrefix: "/blog",
+    },
+    { href: "/about", label: "About", icon: Info, matchPrefix: "/about" },
+  ];
+}
+
+/** @deprecated Use publicNavItems(program) */
+export const PUBLIC_NAV_ITEMS: HeaderNavItem[] = publicNavItems("AP");
 
 export function isNavItemActive(pathname: string | null, item: HeaderNavItem): boolean {
   if (!pathname) return false;
@@ -25,10 +48,15 @@ export function isNavItemActive(pathname: string | null, item: HeaderNavItem): b
   return pathname === item.href;
 }
 
-export function navItemsForUser(loggedIn: boolean, isTeacher?: boolean): HeaderNavItem[] {
+export function navItemsForUser(
+  loggedIn: boolean,
+  isTeacher?: boolean,
+  program: ExamProgram = "AP",
+): HeaderNavItem[] {
+  const base = publicNavItems(program);
   if (loggedIn) {
     const items: HeaderNavItem[] = [
-      ...PUBLIC_NAV_ITEMS,
+      ...base,
       {
         href: "/dashboard",
         label: "Dashboard",
@@ -48,5 +76,5 @@ export function navItemsForUser(loggedIn: boolean, isTeacher?: boolean): HeaderN
     }
     return items;
   }
-  return PUBLIC_NAV_ITEMS;
+  return base;
 }

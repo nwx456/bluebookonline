@@ -1,21 +1,35 @@
 ---
-title: "AP Environmental Science FRQ Guide: All 3 Question Types"
-description: "Master APES free-response questions: Design an Investigation, Analyze a Problem, and Analyze with Calculation — rubric tips for 2026."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "apes frq"
-seoTitle: "AP Environmental Science FRQ Guide (2026)"
-metaDescription: "All 3 APES FRQ types explained with rubric tips. Design an Investigation, Analyze a Problem, and Calculation FRQs."
-tags: ["AP Environmental Science", "APES", "FRQ"]
+title: 'AP Environmental Science FRQ Guide: All 3 Question Types'
+description: >-
+  Master APES free-response questions: Design an Investigation, Analyze a
+  Problem, and Analyze with Calculation — rubric tips for 2026.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: apes frq
+seoTitle: AP Environmental Science FRQ Guide (2026)
+metaDescription: >-
+  All 3 APES FRQ types explained with rubric tips. Design an Investigation,
+  Analyze a Problem, and Calculation FRQs.
+tags:
+  - AP Environmental Science
+  - APES
+  - FRQ
 draft: false
 faq:
-  - question: "How many FRQs are on APES?"
-    answer: "Three FRQs, each worth 10 points. FRQs account for 40% of your total score (MCQs are 60%)."
-  - question: "Are APES FRQs typed?"
-    answer: "Yes. AP Environmental Science is fully digital — all FRQs are typed in Bluebook."
-  - question: "Is a calculator allowed on FRQs?"
-    answer: "Yes. Four-function, scientific, or graphing calculator permitted on both sections."
+  - question: How many FRQs are on APES?
+    answer: >-
+      Three FRQs, each worth 10 points. FRQs account for 40% of your total score
+      (MCQs are 60%).
+  - question: Are APES FRQs typed?
+    answer: >-
+      Yes. AP Environmental Science is fully digital — all FRQs are typed in
+      Bluebook.
+  - question: Is a calculator allowed on FRQs?
+    answer: >-
+      Yes. Four-function, scientific, or graphing calculator permitted on both
+      sections.
+updated: '2026-07-21'
 ---
 
 AP Environmental Science FRQs are **40% of your score** — three questions, 10 points each, typed in Bluebook. Official rubrics: [AP Central APES scoring guidelines](https://apcentral.collegeboard.org/courses/ap-environmental-science/exam/past-exam-questions).

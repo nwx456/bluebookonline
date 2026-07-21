@@ -1882,6 +1882,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "No. The Digital SAT is entirely multiple choice (4 options A-D) for Reading & Writing.",
       },
     ],
+    relatedBlogSlug: "digital-sat-reading-writing-complete-guide",
   },
   SAT_MATH: {
     key: "SAT_MATH",
@@ -1927,6 +1928,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Student-Produced Response questions ask you to type a numeric answer (fraction or decimal) instead of choosing A/B/C/D. About 25% of SAT Math questions are grid-in.",
       },
     ],
+    relatedBlogSlug: "digital-sat-math-complete-guide",
   },
   SAT_FULL_TEST: {
     key: "SAT_FULL_TEST",
@@ -1979,6 +1981,7 @@ export const SUBJECT_META: Record<SubjectKey, SubjectMeta> = {
         a: "Yes — a 10-minute break is offered between Reading & Writing and Math sections.",
       },
     ],
+    relatedBlogSlug: "digital-sat-complete-guide",
   },
 };
 

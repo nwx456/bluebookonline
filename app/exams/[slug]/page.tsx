@@ -224,6 +224,35 @@ export default async function SubjectLandingPage({
         )}
 
         <section className="mb-8">
+          <Link
+            href={
+              isSat
+                ? "/tools/sat-score-calculator"
+                : `/tools/ap-score-calculator/${meta.slug}`
+            }
+            className="block rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-4 hover:border-emerald-300 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm border border-emerald-100">
+                <Calculator className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Score Calculator</p>
+                <p className="text-sm font-semibold text-gray-900 mt-0.5">
+                  Estimate your {isSat ? "Digital SAT" : meta.fullName} score
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {isSat
+                    ? "Enter module-level practice results to predict Reading & Writing, Math, and total 400–1600."
+                    : "Enter MCQ and FRQ practice scores to predict your 1–5 AP score from official section weights."}
+                </p>
+              </div>
+              <span className="text-emerald-600 text-sm font-medium hidden sm:inline">Calculate &rarr;</span>
+            </div>
+          </Link>
+        </section>
+
+        <section className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Exam format</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">

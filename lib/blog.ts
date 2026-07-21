@@ -4,22 +4,31 @@ import matter from "gray-matter";
 import { remark } from "remark";
 import remarkHtml from "remark-html";
 import remarkGfm from "remark-gfm";
+import type { ExamProgram } from "@/lib/exam-program";
 
 const BLOG_DIR = path.join(process.cwd(), "content", "blog");
 
 export const BLOG_CATEGORIES = [
   "Scores & Curves",
   "Digital Exams",
+  "Digital SAT",
   "Study Guides",
   "Course Selection",
   "Score Calculators",
 ] as const;
+
+export type BlogProgram = ExamProgram;
 
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
 
 export interface BlogFaqItem {
   question: string;
   answer: string;
+}
+
+export interface BlogSource {
+  name: string;
+  url: string;
 }
 
 export interface BlogFrontmatter {
@@ -37,11 +46,15 @@ export interface BlogFrontmatter {
   image?: string;
   imageAlt?: string;
   category?: BlogCategory;
+  /** AP (default) or SAT — controls blog hub filtering and related posts */
+  program?: BlogProgram;
   /** Optional CTA overrides for post footer */
   ctaPrimaryHref?: string;
   ctaPrimaryLabel?: string;
   ctaSecondaryHref?: string;
   ctaSecondaryLabel?: string;
+  sources?: BlogSource[];
+  verifiedDate?: string;
 }
 
 export interface BlogPostMeta extends BlogFrontmatter {
@@ -112,6 +125,10 @@ export function getAllPostSlugs(): string[] {
     .map((f) => f.replace(/\.md$/, ""));
 }
 
+export function getPostProgram(post: BlogPostMeta): BlogProgram {
+  return post.program ?? "AP";
+}
+
 export function getAllPostMeta(): BlogPostMeta[] {
   const slugs = getAllPostSlugs();
   const posts: BlogPostMeta[] = [];
@@ -122,6 +139,10 @@ export function getAllPostMeta(): BlogPostMeta[] {
     posts.push({ slug, ...file.data });
   }
   return posts.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+export function getPostsByProgram(program: BlogProgram): BlogPostMeta[] {
+  return getAllPostMeta().filter((p) => getPostProgram(p) === program);
 }
 
 export function getPostLastModified(post: BlogPostMeta): string {
@@ -141,7 +162,10 @@ export function getPostImage(post: BlogPostMeta): string {
 }
 
 export function getRelatedPosts(current: BlogPostMeta, limit = 3): BlogPostMeta[] {
-  const all = getAllPostMeta().filter((p) => p.slug !== current.slug);
+  const program = getPostProgram(current);
+  const all = getAllPostMeta().filter(
+    (p) => p.slug !== current.slug && getPostProgram(p) === program,
+  );
   const scored = all.map((p) => {
     let score = 0;
     if (current.category && p.category === current.category) score += 10;

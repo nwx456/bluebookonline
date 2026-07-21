@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen, Calendar } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { BLOG_CATEGORIES, formatBlogDate, getAllPostMeta } from "@/lib/blog";
+import { BLOG_CATEGORIES, formatBlogDate, getPostsByProgram } from "@/lib/blog";
 import type { ExamProgram } from "@/lib/exam-program";
 import { CONTACT_EMAIL, getSiteUrl, SITE_NAME } from "@/lib/site-config";
 
@@ -45,15 +45,20 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
       ? (categoryRaw as (typeof BLOG_CATEGORIES)[number])
       : null;
 
-  const allPosts = isSat ? [] : getAllPostMeta();
+  const allPosts = getPostsByProgram(program);
+  const programCategories = BLOG_CATEGORIES.filter((cat) =>
+    allPosts.some((p) => p.category === cat),
+  );
   const posts = activeCategory
     ? allPosts.filter((p) => p.category === activeCategory)
     : allPosts;
 
   const heroTitle = isSat ? "Digital SAT Prep Blog" : "AP Exam Prep Blog";
   const heroSubtitle = isSat
-    ? "Practical guides for the Digital SAT: Bluebook strategies, Module 2 adaptive routing, grid-in pacing, and Desmos tips. Fresh posts coming soon."
-    : "Complete guides for all 24 AP subjects, free score calculators, digital Bluebook strategies, and official College Board study resources.";
+    ? "Complete guides for the Digital SAT: adaptive Module 2 routing, Desmos strategies, grid-in pacing, score calculators, and official Bluebook practice tips."
+    : "Complete guides for all 24 AP subjects, free score calculators, digital Bluebook strategies, and official College Board study resources";
+
+  const scoreCalcHref = isSat ? "/tools/sat-score-calculator" : "/tools/ap-score-calculator";
 
   const blogJsonLd = {
     "@context": "https://schema.org",
@@ -92,13 +97,13 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto leading-relaxed">{heroSubtitle}</p>
         </section>
 
-        {!isSat && (
+        {programCategories.length > 0 && (
           <nav
             aria-label="Blog categories"
             className="mb-8 flex flex-wrap gap-2 justify-center"
           >
             <Link
-              href="/blog"
+              href={isSat ? "/blog?program=sat" : "/blog"}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 !activeCategory
                   ? "bg-blue-600 text-white"
@@ -107,10 +112,14 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
             >
               All
             </Link>
-            {BLOG_CATEGORIES.map((cat) => (
+            {programCategories.map((cat) => (
               <Link
                 key={cat}
-                href={`/blog?category=${encodeURIComponent(cat)}`}
+                href={
+                  isSat
+                    ? `/blog?program=sat&category=${encodeURIComponent(cat)}`
+                    : `/blog?category=${encodeURIComponent(cat)}`
+                }
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                   activeCategory === cat
                     ? "bg-blue-600 text-white"
@@ -211,7 +220,7 @@ export default async function BlogIndexPage({ searchParams }: BlogIndexPageProps
               Practice tests
             </Link>
             <span className="text-gray-300">|</span>
-            <Link href="/tools/ap-score-calculator" className="text-gray-600 hover:text-blue-600 hover:underline">
+            <Link href={scoreCalcHref} className="text-gray-600 hover:text-blue-600 hover:underline">
               Score calculator
             </Link>
             <span className="text-gray-300">|</span>

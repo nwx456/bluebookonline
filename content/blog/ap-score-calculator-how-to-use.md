@@ -1,23 +1,37 @@
 ---
-title: "How to Use an AP Score Calculator (Step-by-Step Guide)"
-description: "Learn how AP score calculators work: enter MCQ and FRQ practice results, understand composite scores, and predict your 1–5 AP score before July."
-date: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Score Calculators"
-focusKeyword: "ap score calculator"
-seoTitle: "How to Use an AP Score Calculator (2026)"
-metaDescription: "Step-by-step guide to AP score calculators. Enter MCQ + FRQ practice scores and estimate your 1–5 for all 24 AP exams."
-tags: ["AP Score Calculator", "AP Scoring"]
+title: How to Use an AP Score Calculator (Step-by-Step Guide)
+description: >-
+  Learn how AP score calculators work: enter MCQ and FRQ practice results,
+  understand composite scores, and predict your 1–5 AP score before July.
+date: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Score Calculators
+focusKeyword: ap score calculator
+seoTitle: How to Use an AP Score Calculator (2026)
+metaDescription: >-
+  Step-by-step guide to AP score calculators. Enter MCQ + FRQ practice scores
+  and estimate your 1–5 for all 24 AP exams.
+tags:
+  - AP Score Calculator
+  - AP Scoring
 draft: false
-ctaPrimaryHref: "/tools/ap-score-calculator"
-ctaPrimaryLabel: "Try free AP score calculators"
+ctaPrimaryHref: /tools/ap-score-calculator
+ctaPrimaryLabel: Try free AP score calculators
 faq:
-  - question: "Are AP score calculators accurate?"
-    answer: "They provide estimates based on official section weights and historical cutoffs. College Board equating adjusts cutoffs each year, so treat results as planning tools."
-  - question: "What do I need to enter?"
-    answer: "Your MCQ correct count and FRQ points earned on a practice test. Each calculator matches that subject's official exam structure."
-  - question: "When should I use a score calculator?"
-    answer: "After every full-length practice test — track whether you're trending toward a 3, 4, or 5 and adjust study focus accordingly."
+  - question: Are AP score calculators accurate?
+    answer: >-
+      They provide estimates based on official section weights and historical
+      cutoffs. College Board equating adjusts cutoffs each year, so treat
+      results as planning tools.
+  - question: What do I need to enter?
+    answer: >-
+      Your MCQ correct count and FRQ points earned on a practice test. Each
+      calculator matches that subject's official exam structure.
+  - question: When should I use a score calculator?
+    answer: >-
+      After every full-length practice test — track whether you're trending
+      toward a 3, 4, or 5 and adjust study focus accordingly.
+updated: '2026-07-21'
 ---
 
 You finished a practice test. You got 38/45 MCQs right and scored 28/54 FRQ points. **What AP score does that translate to?**

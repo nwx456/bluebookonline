@@ -10,6 +10,8 @@ export type ModeratorActivityAction =
 
 export type ModeratorActivityTargetType = "exam_mcq" | "exam_frq" | "report";
 
+export type ModeratorActivityExamKind = "mcq" | "frq";
+
 export type ModeratorActivityItem = {
   id: string;
   at: string;
@@ -18,6 +20,11 @@ export type ModeratorActivityItem = {
   targetType: ModeratorActivityTargetType;
   targetLabel: string;
   note: string | null;
+  uploadId: string | null;
+  questionId: string | null;
+  partLabel: string | null;
+  hasStoragePath: boolean;
+  examKind: ModeratorActivityExamKind | null;
 };
 
 export function deriveExamModerationAction(params: {

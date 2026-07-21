@@ -1,23 +1,36 @@
 ---
-title: "AP Human Geography Complete Study Guide (2026 Exam)"
-description: "Master AP Human Geography for May 2026: fully digital, 60 MCQs + 3 FRQs, all 7 units, and a focused study plan."
-date: "2026-07-19"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap human geography study guide"
-seoTitle: "AP Human Geography Study Guide 2026"
-metaDescription: "Complete AP Human Geo guide: exam format, unit weights, FRQ tips, and free practice + score calculator."
-tags: ["AP Human Geography", "Study Guide"]
+title: AP Human Geography Complete Study Guide (2026 Exam)
+description: >-
+  Master AP Human Geography for May 2026: fully digital, 60 MCQs + 3 FRQs, all 7
+  units, and a focused study plan.
+date: '2026-07-19'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap human geography study guide
+seoTitle: AP Human Geography Study Guide 2026
+metaDescription: >-
+  Complete AP Human Geo guide: exam format, unit weights, FRQ tips, and free
+  practice + score calculator.
+tags:
+  - AP Human Geography
+  - Study Guide
 draft: false
 faq:
-  - question: "Is AP Human Geography good for freshmen?"
-    answer: "Yes — it's one of the most popular first AP courses. Pass rate was ~65% in 2025."
-  - question: "Are FRQs typed?"
-    answer: "Yes. The exam is fully digital — you type all three FRQ responses in Bluebook."
-  - question: "Do I need to memorize every country?"
-    answer: "No. Focus on models (Demographic Transition, Rostow, Von Thünen) and applying them to scenarios."
+  - question: Is AP Human Geography good for freshmen?
+    answer: >-
+      Yes — it's one of the most popular first AP courses. Pass rate was ~65% in
+      2025.
+  - question: Are FRQs typed?
+    answer: >-
+      Yes. The exam is fully digital — you type all three FRQ responses in
+      Bluebook.
+  - question: Do I need to memorize every country?
+    answer: >-
+      No. Focus on models (Demographic Transition, Rostow, Von Thünen) and
+      applying them to scenarios.
 ---
+**Short answer:** The 2026 AP Human Geography exam is Tue, May 5, 2026 (8 AM Local) — 60 MCQs, 135 minutes total, fully digital in Bluebook.
 
 The 2026 AP Human Geography exam is **Tuesday, May 5, 2026 (8 AM local)** — often a student's first AP exam.
 

@@ -1,20 +1,54 @@
 ---
-title: "AP Calculus AB Complete Study Guide (2026 Exam)"
-description: "Everything you need for the May 2026 AP Calculus AB exam: format, unit-by-unit breakdown, FRQ strategy, calculator policy, the questions students actually ask, and a 12-week study plan."
-date: "2026-04-10"
-updated: "2026-07-19"
-author: "AP Practice Exam Online Team"
-category: "Study Guides"
-focusKeyword: "ap calculus ab study guide"
-seoTitle: "AP Calculus AB Study Guide 2026 (Free)"
-metaDescription: "Complete AP Calculus AB guide: 8 units, calculator policy, FRQ tips, and free practice + score calculator."
+title: AP Calculus AB Complete Study Guide (2026 Exam)
+description: >-
+  Everything you need for the May 2026 AP Calculus AB exam: format, unit-by-unit
+  breakdown, FRQ strategy, calculator policy, the questions students actually
+  ask, and a 12-week study plan.
+date: '2026-04-10'
+updated: '2026-07-19'
+author: AP Practice Exam Online Team
+category: Study Guides
+focusKeyword: ap calculus ab study guide
+seoTitle: AP Calculus AB Study Guide 2026 (Free)
+metaDescription: >-
+  Complete AP Calculus AB guide: 8 units, calculator policy, FRQ tips, and free
+  practice + score calculator.
 tags:
-  - "AP Calculus AB"
-  - "AP Math"
-  - "Study Guide"
-  - "Calculus"
+  - AP Calculus AB
+  - AP Math
+  - Study Guide
+  - Calculus
 draft: false
+faq:
+  - question: Should I take Calculus AB or BC?
+    answer: >-
+      BC covers everything in AB plus parametric, polar, vector functions, and
+      series. Take BC if your school offers it and you have strong precalculus
+      skills; otherwise AB is excellent preparation. Note: you cannot take both
+      AB and BC exams in the same year.
+  - question: What is the calculator policy on the AP Calculus AB exam?
+    answer: >-
+      A graphing calculator is required on Section I Part B (15 MCQs, 45 min)
+      and Section II Part A (2 FRQs, 30 min). It is NOT permitted on Section I
+      Part A (30 MCQs, 60 min) or Section II Part B (4 FRQs, 60 min). Roughly
+      half the exam is calculator-allowed.
+  - question: How long is the AP Calculus AB exam?
+    answer: >-
+      The total exam is 3 hours 15 minutes: 1 hour 45 minutes for the
+      multiple-choice section (50% of score) and 1 hour 30 minutes for the
+      free-response section (50% of score).
+  - question: What is the most missed topic?
+    answer: >-
+      Implicit differentiation, related rates, and applications of integrals
+      (especially volumes of solids of revolution) are commonly missed on the
+      FRQ section. Unit 5 (Analytical Applications of Differentiation) and Unit
+      6 (Integration) together account for 32-38% of the exam.
+sources:
+  - name: College Board AP Calculus AB CED
+    url: 'https://apcentral.collegeboard.org/courses/ap-calculus-ab'
+verifiedDate: July 2026
 ---
+**Short answer:** The 2026 AP Calculus AB exam is Mon, May 11, 2026 (8 AM Local) — 45 MCQs, 195 minutes total, hybrid digital (MCQ in Bluebook, paper FRQs).
 
 If you are taking AP Calculus AB on **Monday, May 11, 2026 (8 AM local)**, this guide gives you everything you need: the exact exam format pulled from the College Board Course and Exam Description, a unit-by-unit weight breakdown, the questions Reddit's r/APStudents asks every spring, the FRQ strategies graders reward, and a realistic 12-week study plan.
 
