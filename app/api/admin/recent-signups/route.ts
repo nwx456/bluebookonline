@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limitRaw = Number(searchParams.get("limit"));
     const offsetRaw = Number(searchParams.get("offset"));
+    const q = searchParams.get("q")?.trim() ?? "";
     const limit =
       Number.isFinite(limitRaw) && limitRaw > 0
         ? Math.min(Math.floor(limitRaw), MAX_LIMIT)
@@ -26,13 +27,19 @@ export async function GET(request: NextRequest) {
     const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw) : 0;
 
     const supabase = createServerSupabaseAdmin();
-    const { data: rows, error, count } = await supabase
+    let query = supabase
       .from("usertable")
       .select("email, username, role, country_code, legal_region, marketing_opt_in, created_at", {
         count: "exact",
       })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order("created_at", { ascending: false });
+
+    if (q) {
+      const escaped = q.replace(/[%_\\]/g, "\\$&");
+      query = query.or(`email.ilike.%${escaped}%,username.ilike.%${escaped}%`);
+    }
+
+    const { data: rows, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       console.error("admin/recent-signups:", error);
