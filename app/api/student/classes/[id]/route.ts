@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-session";
 import { isClassMember, usernamesForEmails } from "@/lib/class-server";
+import { getInstitutionNamesByIds } from "@/lib/institution-server";
 import { normalizeEmail } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   const { data: cls } = await supabase
     .from("classes")
-    .select("id, name, description, class_code, teacher_email, archived_at")
+    .select("id, name, description, class_code, teacher_email, institution_id, archived_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -187,6 +188,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .eq("email", normalizeEmail(cls.teacher_email as string))
     .maybeSingle();
 
+  let institutionName: string | null = null;
+  if (cls.institution_id) {
+    const names = await getInstitutionNamesByIds(supabase, [String(cls.institution_id)]);
+    institutionName = names[String(cls.institution_id)] ?? null;
+  }
+
   return NextResponse.json({
     class: {
       id: cls.id,
@@ -196,6 +203,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         (teacherRow?.username as string | null)?.trim() ||
         cls.teacher_email?.split("@")[0] ||
         "Teacher",
+      institutionId: cls.institution_id,
+      institutionName,
+      isIndependent: !cls.institution_id,
     },
     classmates: memberEmails.map((email) => ({
       email,

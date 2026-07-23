@@ -4,7 +4,7 @@ import { getAuthUser } from "@/lib/auth-session";
 import { normalizeEmail } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
-export type UserRole = "STUDENT" | "TEACHER";
+export type UserRole = "STUDENT" | "TEACHER" | "INSTITUTION";
 
 export async function getUserRole(
   email: string | null | undefined
@@ -24,7 +24,9 @@ export async function getUserRole(
     return "STUDENT";
   }
 
-  return data?.role === "TEACHER" ? "TEACHER" : "STUDENT";
+  if (data?.role === "TEACHER") return "TEACHER";
+  if (data?.role === "INSTITUTION") return "INSTITUTION";
+  return "STUDENT";
 }
 
 export async function isTeacherEmail(

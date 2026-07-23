@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeacherClass, usernamesForEmails } from "@/lib/class-server";
+import { getInstitutionNamesByIds } from "@/lib/institution-server";
 import { normalizeEmail } from "@/lib/moderator-auth";
 import { requireTeacherUser } from "@/lib/teacher-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
@@ -134,6 +135,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       name: cls.name,
       description: cls.description,
       classCode: cls.class_code,
+      institutionId: cls.institution_id,
+      institutionName: cls.institution_id
+        ? (await getInstitutionNamesByIds(supabase, [String(cls.institution_id)]))[
+            String(cls.institution_id)
+          ] ?? null
+        : null,
+      isIndependent: !cls.institution_id,
       createdAt: cls.created_at,
       archivedAt: cls.archived_at,
     },

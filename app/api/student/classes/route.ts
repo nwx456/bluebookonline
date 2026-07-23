@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-session";
 import { countClassAssignments, countClassMembers } from "@/lib/class-server";
+import { getInstitutionNamesByIds } from "@/lib/institution-server";
 import { normalizeEmail } from "@/lib/moderator-auth";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   const { data: classRows, error: classError } = await supabase
     .from("classes")
-    .select("id, name, description, class_code, teacher_email, archived_at")
+    .select("id, name, description, class_code, teacher_email, institution_id, archived_at")
     .in("id", classIds)
     .is("archived_at", null);
 
@@ -43,9 +44,20 @@ export async function GET(request: NextRequest) {
   const activeMemberships = (memberships ?? []).filter((m) => classMap[String(m.class_id)]);
 
   const activeClassIds = activeMemberships.map((m) => String(m.class_id));
-  const [memberCounts, assignmentCounts] = await Promise.all([
+  const institutionIds = [
+    ...new Set(
+      activeClassIds
+        .map((id) => {
+          const instId = classMap[id]?.institution_id;
+          return instId ? String(instId) : null;
+        })
+        .filter(Boolean) as string[]
+    ),
+  ];
+  const [memberCounts, assignmentCounts, institutionNames] = await Promise.all([
     countClassMembers(supabase, activeClassIds),
     countClassAssignments(supabase, activeClassIds),
+    getInstitutionNamesByIds(supabase, institutionIds),
   ]);
 
   const teacherEmails = [
@@ -78,6 +90,11 @@ export async function GET(request: NextRequest) {
         classCode: cls.class_code,
         teacherEmail,
         teacherName: teacherNames[teacherEmail] ?? "Teacher",
+        institutionId: cls.institution_id,
+        institutionName: cls.institution_id
+          ? institutionNames[String(cls.institution_id)] ?? null
+          : null,
+        isIndependent: !cls.institution_id,
         joinedAt: m.joined_at,
         memberCount: memberCounts[String(cls.id)] ?? 0,
         assignmentCount: assignmentCounts[String(cls.id)] ?? 0,

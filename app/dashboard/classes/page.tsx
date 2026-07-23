@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Plus, Users } from "lucide-react";
+import { InstitutionBadge } from "@/components/institution/InstitutionBadge";
 import {
   libraryAuthHeaders,
   useDashboardAuth,
@@ -15,6 +16,8 @@ type ClassCard = {
   teacherName: string;
   memberCount: number;
   assignmentCount: number;
+  institutionName: string | null;
+  isIndependent: boolean;
 };
 
 export default function StudentClassesPage() {
@@ -131,7 +134,12 @@ export default function StudentClassesPage() {
               href={`/dashboard/classes/${cls.id}`}
               className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md"
             >
-              <h2 className="font-semibold text-gray-900">{cls.name}</h2>
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="font-semibold text-gray-900">{cls.name}</h2>
+                <InstitutionBadge
+                  institutionName={cls.isIndependent ? null : cls.institutionName}
+                />
+              </div>
               <p className="mt-1 text-sm text-gray-600">Teacher: {cls.teacherName}</p>
               <div className="mt-4 flex gap-3 text-xs text-gray-500">
                 <span>{cls.memberCount} classmates</span>

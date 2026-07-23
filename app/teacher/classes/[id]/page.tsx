@@ -10,6 +10,7 @@ import {
   UserMinus,
   Users,
 } from "lucide-react";
+import { InstitutionBadge } from "@/components/institution/InstitutionBadge";
 import { ClassCodeCopyButton } from "@/components/teacher/ClassCodeCopyButton";
 import { AssignContentPicker } from "@/components/teacher/AssignContentPicker";
 import { TeacherAssignmentRow } from "@/components/teacher/TeacherAssignmentRow";
@@ -52,6 +53,8 @@ export default function TeacherClassDetailPage() {
   const [tab, setTab] = useState<Tab>("roster");
   const [className, setClassName] = useState("");
   const [classCode, setClassCode] = useState("");
+  const [institutionName, setInstitutionName] = useState<string | null>(null);
+  const [isIndependent, setIsIndependent] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
   const [assignments, setAssignments] = useState<TeacherClassAssignment[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsRow[]>([]);
@@ -72,6 +75,8 @@ export default function TeacherClassDetailPage() {
       if (!res.ok) throw new Error(data.error ?? "Could not load class.");
       setClassName(data.class?.name ?? "");
       setClassCode(data.class?.classCode ?? "");
+      setInstitutionName(data.class?.institutionName ?? null);
+      setIsIndependent(data.class?.isIndependent ?? true);
       setMembers(data.members ?? []);
       setAssignments(data.assignments ?? []);
     } catch (err) {
@@ -170,7 +175,10 @@ export default function TeacherClassDetailPage() {
         <Link href="/teacher" className="text-sm text-blue-600 hover:text-blue-700">
           ← Back to classes
         </Link>
-        <h1 className="mt-2 text-xl font-semibold text-gray-900">{className}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold text-gray-900">{className}</h1>
+          <InstitutionBadge institutionName={isIndependent ? null : institutionName} />
+        </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
           <span>Class code:</span>
           <code className="rounded bg-gray-100 px-2 py-0.5 font-mono">{classCode}</code>

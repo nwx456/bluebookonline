@@ -55,10 +55,12 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         const redirectData = await redirectRes.json().catch(() => ({}));
         const redirectPath =
           typeof redirectData.path === "string" ? redirectData.path : "/dashboard";
-        // Teachers may use both /teacher and /dashboard; only bounce admin/moderator.
+        // Teachers may use both /teacher and /dashboard; institution accounts use /institution only.
         if (
           redirectPath !== "/dashboard" &&
-          (redirectPath.startsWith("/admin") || redirectPath === "/moderator")
+          (redirectPath.startsWith("/admin") ||
+            redirectPath === "/moderator" ||
+            redirectPath === "/institution")
         ) {
           router.replace(redirectPath);
           return;

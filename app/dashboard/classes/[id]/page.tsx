@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Download, ExternalLink, Eye, Loader2, Play } from "lucide-react";
+import { InstitutionBadge } from "@/components/institution/InstitutionBadge";
 import {
   libraryAuthHeaders,
   useDashboardAuth,
@@ -46,6 +47,8 @@ export default function StudentClassDetailPage() {
   const { accessToken } = useDashboardAuth();
   const [className, setClassName] = useState("");
   const [teacherName, setTeacherName] = useState("");
+  const [institutionName, setInstitutionName] = useState<string | null>(null);
+  const [isIndependent, setIsIndependent] = useState(true);
   const [classmates, setClassmates] = useState<Classmate[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,8 @@ export default function StudentClassDetailPage() {
       if (!res.ok) throw new Error(data.error ?? "Could not load class.");
       setClassName(data.class?.name ?? "");
       setTeacherName(data.class?.teacherName ?? "");
+      setInstitutionName(data.class?.institutionName ?? null);
+      setIsIndependent(data.class?.isIndependent ?? true);
       setClassmates(data.classmates ?? []);
       setAssignments(data.assignments ?? []);
     } catch (err) {
@@ -113,7 +118,10 @@ export default function StudentClassDetailPage() {
         ← Back to classes
       </Link>
       <h1 className="mt-2 text-xl font-semibold text-gray-900">{className}</h1>
-      <p className="text-sm text-gray-600">Teacher: {teacherName}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <p className="text-sm text-gray-600">Teacher: {teacherName}</p>
+        <InstitutionBadge institutionName={isIndependent ? null : institutionName} />
+      </div>
 
       {error && (
         <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

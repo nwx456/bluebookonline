@@ -39,6 +39,7 @@ function LoginFormInner() {
           password,
           ...(nextParam ? { next: nextParam } : {}),
         }),
+        signal: AbortSignal.timeout(30_000),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -56,8 +57,12 @@ function LoginFormInner() {
         typeof data.redirectPath === "string" ? data.redirectPath : "/dashboard";
       router.push(redirectPath);
       router.refresh();
-    } catch {
-      setError("Connection error. Please try again.");
+    } catch (err) {
+      if (err instanceof Error && err.name === "TimeoutError") {
+        setError("Sign in timed out. Please try again.");
+      } else {
+        setError("Connection error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

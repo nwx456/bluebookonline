@@ -10,6 +10,7 @@ export type ClassRow = {
   name: string;
   description: string | null;
   class_code: string;
+  institution_id: string | null;
   created_at: string;
   archived_at: string | null;
 };
@@ -37,7 +38,9 @@ export async function getTeacherClass(
 ): Promise<ClassRow | null> {
   const { data, error } = await supabase
     .from("classes")
-    .select("id, teacher_email, name, description, class_code, created_at, archived_at")
+    .select(
+      "id, teacher_email, name, description, class_code, institution_id, created_at, archived_at"
+    )
     .eq("id", classId)
     .eq("teacher_email", normalizeEmail(teacherEmail))
     .maybeSingle();
@@ -77,7 +80,9 @@ export async function findClassByCode(
 
   const { data, error } = await supabase
     .from("classes")
-    .select("id, teacher_email, name, description, class_code, created_at, archived_at")
+    .select(
+      "id, teacher_email, name, description, class_code, institution_id, created_at, archived_at"
+    )
     .eq("class_code", code)
     .maybeSingle();
 
