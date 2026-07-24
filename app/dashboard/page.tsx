@@ -64,6 +64,8 @@ export default function DashboardOverviewPage() {
             }
           : prev
       );
+    } catch {
+      // discard failed silently
     } finally {
       setDeletingId(null);
     }

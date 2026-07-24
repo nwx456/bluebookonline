@@ -41,6 +41,7 @@ export default function DashboardInsightsPage() {
     })
       .then((r) => r.json())
       .then((data) => setPayload(data.insights ?? null))
+      .catch(() => setPayload(null))
       .finally(() => setLoading(false));
   }, [accessToken, program, subject]);
 
@@ -52,32 +53,40 @@ export default function DashboardInsightsPage() {
 
   const exportJson = async () => {
     if (!accessToken) return;
-    const res = await fetch(`/api/library/export?format=json&${exportQuery()}`, {
-      headers: libraryAuthHeaders(accessToken),
-    });
-    const blob = new Blob([JSON.stringify(await res.json(), null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `exam-insights-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const res = await fetch(`/api/library/export?format=json&${exportQuery()}`, {
+        headers: libraryAuthHeaders(accessToken),
+      });
+      const blob = new Blob([JSON.stringify(await res.json(), null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `exam-insights-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // export failed silently
+    }
   };
 
   const exportCsv = async () => {
     if (!accessToken) return;
-    const res = await fetch(`/api/library/export?format=csv&${exportQuery()}`, {
-      headers: libraryAuthHeaders(accessToken),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `exam-insights-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const res = await fetch(`/api/library/export?format=csv&${exportQuery()}`, {
+        headers: libraryAuthHeaders(accessToken),
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `exam-insights-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // export failed silently
+    }
   };
 
   const overall = payload?.overall ?? null;

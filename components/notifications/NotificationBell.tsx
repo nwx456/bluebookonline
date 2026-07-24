@@ -45,6 +45,8 @@ export function NotificationBell() {
         setNotifications(data.notifications ?? []);
         setUnreadCount(data.unreadCount ?? 0);
       }
+    } catch {
+      // best-effort notification load
     } finally {
       setLoading(false);
     }
@@ -52,11 +54,16 @@ export function NotificationBell() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const token = session?.access_token ?? null;
-      setAccessToken(token);
-      if (token) void loadNotifications(token);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        const token = session?.access_token ?? null;
+        setAccessToken(token);
+        if (token) void loadNotifications(token);
+      })
+      .catch(() => {
+        setAccessToken(null);
+      });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -84,28 +91,36 @@ export function NotificationBell() {
 
   const markRead = async (ids: string[]) => {
     if (!accessToken || ids.length === 0) return;
-    await fetch("/api/user/notifications", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ ids }),
-    });
-    void loadNotifications(accessToken);
+    try {
+      await fetch("/api/user/notifications", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ ids }),
+      });
+      void loadNotifications(accessToken);
+    } catch {
+      // best-effort mark read
+    }
   };
 
   const markAllRead = async () => {
     if (!accessToken) return;
-    await fetch("/api/user/notifications", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ markAllRead: true }),
-    });
-    void loadNotifications(accessToken);
+    try {
+      await fetch("/api/user/notifications", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ markAllRead: true }),
+      });
+      void loadNotifications(accessToken);
+    } catch {
+      // best-effort mark all read
+    }
   };
 
   if (!accessToken) return null;

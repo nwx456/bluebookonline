@@ -40,6 +40,8 @@ export default function DashboardArchivedPage() {
       const attemptsData = await attemptsRes.json();
       if (uploadsRes.ok) setUploads(uploadsData.uploads ?? []);
       if (attemptsRes.ok) setAttempts(attemptsData.attempts ?? []);
+    } catch {
+      // best-effort load
     } finally {
       setLoading(false);
     }
@@ -59,6 +61,8 @@ export default function DashboardArchivedPage() {
         await patchUploadLibraryFields(accessToken, exam.id, { archived: false });
       }
       await loadArchived();
+    } catch {
+      // restore failed silently
     } finally {
       setBusyId(null);
     }
@@ -74,6 +78,8 @@ export default function DashboardArchivedPage() {
         await patchAttemptLibraryFields(accessToken, attempt.id, { archived: false });
       }
       await loadArchived();
+    } catch {
+      // restore failed silently
     } finally {
       setBusyId(null);
     }

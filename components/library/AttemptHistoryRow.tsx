@@ -48,18 +48,26 @@ export function AttemptHistoryRow({
   const [draftTitle, setDraftTitle] = useState(attempt.title);
 
   const saveTitle = async () => {
-    await onRename(draftTitle);
-    setEditing(false);
+    try {
+      await onRename(draftTitle);
+      setEditing(false);
+    } catch {
+      // rename failed; keep editing
+    }
   };
 
   const handleArchiveToggle = async () => {
-    const archiving = !attempt.archivedAt;
-    await onArchiveToggle(archiving);
-    if (archiving) {
-      notifyArchived(
-        { entityType: attemptEntityType(attempt.examKind), entityId: attempt.id, title: attempt.title },
-        onAfterRestore
-      );
+    try {
+      const archiving = !attempt.archivedAt;
+      await onArchiveToggle(archiving);
+      if (archiving) {
+        notifyArchived(
+          { entityType: attemptEntityType(attempt.examKind), entityId: attempt.id, title: attempt.title },
+          onAfterRestore
+        );
+      }
+    } catch {
+      // archive toggle failed silently
     }
   };
 
@@ -235,7 +243,11 @@ export function AttemptHistoryRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void onDelete()}
+              onClick={() => {
+                void onDelete().catch(() => {
+                  // delete failed silently
+                });
+              }}
               className="rounded-md border border-gray-200 p-1.5 text-red-600 hover:bg-red-50"
               aria-label="Delete attempt"
             >

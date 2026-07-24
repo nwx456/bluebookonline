@@ -61,6 +61,8 @@ export default function DashboardHistoryPage() {
       });
       const data = await res.json();
       if (res.ok) setAttempts(data.attempts ?? []);
+    } catch {
+      // best-effort load
     } finally {
       setLoading(false);
     }
@@ -80,6 +82,8 @@ export default function DashboardHistoryPage() {
         await patchAttemptLibraryFields(accessToken, attempt.id, patch);
       }
       await loadAttempts();
+    } catch {
+      alert("Update failed.");
     } finally {
       setBusyId(null);
     }
@@ -109,6 +113,8 @@ export default function DashboardHistoryPage() {
         return;
       }
       await loadAttempts();
+    } catch {
+      alert("Delete failed.");
     } finally {
       setBusyId(null);
     }
@@ -116,20 +122,24 @@ export default function DashboardHistoryPage() {
 
   const exportCsv = async () => {
     if (!accessToken) return;
-    const params = new URLSearchParams(buildLibraryQuery(toolbarWithProgram));
-    params.set("format", "csv");
-    if (scoreMin.trim()) params.set("scoreMin", scoreMin.trim());
-    if (scoreMax.trim()) params.set("scoreMax", scoreMax.trim());
-    const res = await fetch(`/api/library/export?${params.toString()}`, {
-      headers: libraryAuthHeaders(accessToken),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `exam-history-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const params = new URLSearchParams(buildLibraryQuery(toolbarWithProgram));
+      params.set("format", "csv");
+      if (scoreMin.trim()) params.set("scoreMin", scoreMin.trim());
+      if (scoreMax.trim()) params.set("scoreMax", scoreMax.trim());
+      const res = await fetch(`/api/library/export?${params.toString()}`, {
+        headers: libraryAuthHeaders(accessToken),
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `exam-history-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // export failed silently
+    }
   };
 
   return (

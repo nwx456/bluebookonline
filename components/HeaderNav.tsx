@@ -43,6 +43,31 @@ function HeaderNavInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isTeacher, setIsTeacher] = useState(false);
+  const [isInstitution, setIsInstitution] = useState(false);
+
+  async function loadUserRoles(token: string | null) {
+    if (!token) {
+      setIsTeacher(false);
+      setIsInstitution(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/user/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setIsTeacher(false);
+        setIsInstitution(false);
+        return;
+      }
+      const data = await res.json();
+      setIsTeacher(data.role === "TEACHER");
+      setIsInstitution(data.role === "INSTITUTION");
+    } catch {
+      setIsTeacher(false);
+      setIsInstitution(false);
+    }
+  }
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -57,35 +82,17 @@ function HeaderNavInner() {
       const supabase = createClient();
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         setUser(session?.user ?? null);
-        if (session?.access_token) {
-          try {
-            const res = await fetch("/api/teacher/me", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            setIsTeacher(res.ok);
-          } catch {
-            setIsTeacher(false);
-          }
-        } else {
-          setIsTeacher(false);
-        }
+        await loadUserRoles(session?.access_token ?? null);
+      }).catch(() => {
+        setUser(null);
+        setIsTeacher(false);
+        setIsInstitution(false);
       });
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange(async (_event, session) => {
         setUser(session?.user ?? null);
-        if (session?.access_token) {
-          try {
-            const res = await fetch("/api/teacher/me", {
-              headers: { Authorization: `Bearer ${session.access_token}` },
-            });
-            setIsTeacher(res.ok);
-          } catch {
-            setIsTeacher(false);
-          }
-        } else {
-          setIsTeacher(false);
-        }
+        await loadUserRoles(session?.access_token ?? null);
       });
       return () => subscription.unsubscribe();
     } catch {
@@ -95,8 +102,12 @@ function HeaderNavInner() {
   }, []);
 
   const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {
+      // proceed to home even if signOut fails
+    }
     window.location.href = "/";
   };
 
@@ -104,7 +115,7 @@ function HeaderNavInner() {
     noProgram ? target : appendProgramToHref(target, program);
 
   const loggedIn = mounted && !configError && Boolean(user);
-  const items = navItemsForUser(loggedIn, isTeacher, program);
+  const items = navItemsForUser(loggedIn, isTeacher, program, isInstitution);
 
   const displayName = user
     ? (user.user_metadata?.username as string)?.trim() ||
@@ -220,6 +231,7 @@ function HeaderNavInner() {
         avatarUrl={avatarUrl}
         resolveHref={resolveHref}
         isTeacher={isTeacher}
+        isInstitution={isInstitution}
         onSignOut={handleSignOut}
         onOpenProfile={() => {
           setMobileOpen(false);

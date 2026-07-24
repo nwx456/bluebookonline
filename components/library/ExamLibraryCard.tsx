@@ -62,18 +62,26 @@ export function ExamLibraryCard({
   const [draftTitle, setDraftTitle] = useState(exam.title);
 
   const saveTitle = async () => {
-    await onRename(draftTitle);
-    setEditing(false);
+    try {
+      await onRename(draftTitle);
+      setEditing(false);
+    } catch {
+      // rename failed; keep editing
+    }
   };
 
   const handleArchiveToggle = async () => {
-    const archiving = !exam.archivedAt;
-    await onArchiveToggle(archiving);
-    if (archiving) {
-      notifyArchived(
-        { entityType: uploadEntityType(exam.examKind), entityId: exam.id, title: exam.title },
-        onAfterRestore
-      );
+    try {
+      const archiving = !exam.archivedAt;
+      await onArchiveToggle(archiving);
+      if (archiving) {
+        notifyArchived(
+          { entityType: uploadEntityType(exam.examKind), entityId: exam.id, title: exam.title },
+          onAfterRestore
+        );
+      }
+    } catch {
+      // archive toggle failed silently
     }
   };
 
@@ -255,7 +263,11 @@ export function ExamLibraryCard({
           <button
             type="button"
             disabled={busy}
-            onClick={() => void onDelete()}
+            onClick={() => {
+              void onDelete().catch(() => {
+                // delete failed silently
+              });
+            }}
             className="rounded-md border border-gray-200 p-1.5 text-red-600 hover:bg-red-50"
             aria-label="Delete"
           >

@@ -88,11 +88,15 @@ export default function TeacherClassDetailPage() {
 
   const loadAnalytics = useCallback(async () => {
     if (!accessToken || !classId) return;
-    const res = await fetch(`/api/teacher/classes/${classId}/analytics`, {
-      headers: teacherAuthHeaders(accessToken),
-    });
-    const data = await res.json();
-    if (res.ok) setAnalytics(data.analytics ?? []);
+    try {
+      const res = await fetch(`/api/teacher/classes/${classId}/analytics`, {
+        headers: teacherAuthHeaders(accessToken),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setAnalytics(data.analytics ?? []);
+    } catch {
+      setError("Could not load analytics.");
+    }
   }, [accessToken, classId]);
 
   useEffect(() => {
@@ -140,11 +144,15 @@ export default function TeacherClassDetailPage() {
 
   const removeMember = async (email: string) => {
     if (!accessToken || !confirm("Remove this student from the class?")) return;
-    const res = await fetch(
-      `/api/teacher/classes/${classId}/members/${encodeURIComponent(email)}`,
-      { method: "DELETE", headers: teacherAuthHeaders(accessToken) }
-    );
-    if (res.ok) await loadClass();
+    try {
+      const res = await fetch(
+        `/api/teacher/classes/${classId}/members/${encodeURIComponent(email)}`,
+        { method: "DELETE", headers: teacherAuthHeaders(accessToken) }
+      );
+      if (res.ok) await loadClass();
+    } catch {
+      setError("Could not remove student.");
+    }
   };
 
   const handleAssignmentContentUpdated = (

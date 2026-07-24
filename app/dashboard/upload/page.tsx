@@ -687,6 +687,9 @@ function DashboardUploadPageInner() {
             sourceUrl: (row.source_url as string | null) ?? null,
           }))
         );
+      })
+      .catch(() => {
+        setUploads([]);
       });
   }, [userEmail, checkingAuth]);
 
@@ -725,6 +728,9 @@ function DashboardUploadPageInner() {
           result: { breakdown: data.result?.breakdown ?? [] },
         });
       })
+      .catch(() => {
+        setExpandedAttemptData(null);
+      })
       .finally(() => setExpandedAttemptLoading(false));
   }, [expandedAttemptId, accessToken]);
 
@@ -750,6 +756,8 @@ function DashboardUploadPageInner() {
           return;
         }
         setInProgressAttempts((prev) => prev.filter((x) => x.id !== attemptId));
+      } catch {
+        alert("Failed to discard.");
       } finally {
         setDeletingInProgressId(null);
       }
@@ -910,6 +918,8 @@ function DashboardUploadPageInner() {
           u.id === exam.id ? { ...u, isPublished, moderationStatus } : u
         )
       );
+    } catch {
+      setDeleteError("Failed to update publish status.");
     } finally {
       setTogglingPublishId(null);
     }
@@ -1541,6 +1551,8 @@ function DashboardUploadPageInner() {
       }
       setUploadConsentOpen(false);
       await runAnalyze();
+    } catch {
+      setUploadError("Could not save consent. Please try again.");
     } finally {
       setConsentLoading(false);
     }

@@ -19,6 +19,7 @@ export type MobileNavMenuProps = {
   user: User | null;
   avatarUrl?: string | null;
   isTeacher?: boolean;
+  isInstitution?: boolean;
   resolveHref: (target: string, noProgram?: boolean) => string;
   onSignOut: () => void;
   onOpenProfile?: () => void;
@@ -33,6 +34,7 @@ export function MobileNavMenu({
   user,
   avatarUrl = null,
   isTeacher = false,
+  isInstitution = false,
   resolveHref,
   onSignOut,
   onOpenProfile,
@@ -60,7 +62,7 @@ export function MobileNavMenu({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, close]);
 
-  const items = navItemsForUser(Boolean(user), isTeacher, program);
+  const items = navItemsForUser(Boolean(user), isTeacher, program, isInstitution);
   const displayName = user
     ? (user.user_metadata?.username as string)?.trim() ||
       user.email?.split("@")[0] ||

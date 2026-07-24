@@ -69,6 +69,8 @@ export function ArchiveUndoProvider({ children }: { children: ReactNode }) {
         await patchAttemptLibraryFields(accessToken, toast.entityId, { archived: false });
       }
       onRestoredRef.current?.();
+    } catch {
+      // undo failed silently
     } finally {
       clearTimer();
       setToast(null);

@@ -92,6 +92,8 @@ export default function DashboardLibraryPage() {
       });
       const data = await res.json();
       if (res.ok) setUploads(data.uploads ?? []);
+    } catch {
+      // best-effort load
     } finally {
       setLoading(false);
     }
@@ -159,6 +161,9 @@ export default function DashboardLibraryPage() {
 
         await loadUploads();
         return true;
+      } catch {
+        setPublishError("Publish update failed.");
+        return false;
       } finally {
         setBusyId(null);
       }
@@ -204,6 +209,8 @@ export default function DashboardLibraryPage() {
       const target = publishConsentTarget;
       setPublishConsentTarget(null);
       await applyPublishChange(target, true);
+    } catch {
+      setPublishError("Could not save publish consent.");
     } finally {
       setConsentLoading(false);
     }
@@ -219,6 +226,8 @@ export default function DashboardLibraryPage() {
         await patchUploadLibraryFields(accessToken, exam.id, patch);
       }
       await loadUploads();
+    } catch {
+      setPublishError("Update failed.");
     } finally {
       setBusyId(null);
     }
@@ -243,12 +252,12 @@ export default function DashboardLibraryPage() {
         return;
       }
       await loadUploads();
+    } catch {
+      setPublishError("Delete failed.");
     } finally {
       setBusyId(null);
     }
   };
-
-  const entityType = (exam: LibraryUploadItem) => uploadEntityType(exam.examKind);
 
   return (
     <div>

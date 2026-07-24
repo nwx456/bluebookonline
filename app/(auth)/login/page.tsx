@@ -48,10 +48,15 @@ function LoginFormInner() {
       }
       if (data.session?.access_token && data.session?.refresh_token) {
         const supabase = createClient();
-        await supabase.auth.setSession({
+        const { error: sessionError } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         });
+        if (sessionError) {
+          setError("Sign in failed. Please try again.");
+          return;
+        }
+        await supabase.auth.getSession();
       }
       const redirectPath =
         typeof data.redirectPath === "string" ? data.redirectPath : "/dashboard";

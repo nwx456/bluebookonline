@@ -12,6 +12,7 @@ import {
 } from "react";
 import { ErrorNoticeModal } from "@/components/errors/ErrorNoticeModal";
 import { reportClientError } from "@/lib/client-error-reporting";
+import { isIgnorableClientError } from "@/lib/ignorable-client-error";
 
 type ErrorReportingContextValue = {
   notifyError: (error: unknown, context?: string) => void;
@@ -36,6 +37,8 @@ export function ErrorReportingProvider({ children }: { children: ReactNode }) {
   const reportedRef = useRef<Set<string>>(new Set());
 
   const notifyError = useCallback((error: unknown, context?: string) => {
+    if (isIgnorableClientError(error)) return;
+
     const parsed =
       error instanceof Error
         ? { name: error.name, message: error.message }
@@ -52,13 +55,13 @@ export function ErrorReportingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
+      if (isIgnorableClientError(event.error ?? event.message)) return;
       notifyError(event.error ?? event.message, "window.error");
-      event.preventDefault();
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {
+      if (isIgnorableClientError(event.reason)) return;
       notifyError(event.reason, "unhandledrejection");
-      event.preventDefault();
     };
 
     window.addEventListener("error", onError);

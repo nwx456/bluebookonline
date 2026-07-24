@@ -18,6 +18,8 @@ export function useLibraryTags() {
       });
       const data = await res.json();
       if (res.ok) setTags(data.tags ?? []);
+    } catch {
+      // best-effort tag load
     } finally {
       setLoading(false);
     }

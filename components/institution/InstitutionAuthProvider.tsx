@@ -10,7 +10,9 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { isIgnorableClientError } from "@/lib/ignorable-client-error";
 
 interface InstitutionAuthContextValue {
   checkingAuth: boolean;
@@ -33,43 +35,57 @@ export function InstitutionAuthProvider({ children }: { children: ReactNode }) {
   const [joinCode, setJoinCode] = useState("");
 
   const refreshSession = useCallback(async () => {
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token ?? null;
-    setAccessToken(token);
-    return token;
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      setAccessToken(token);
+      return token;
+    } catch {
+      setAccessToken(null);
+      return null;
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    const token = await refreshSession();
-    if (!token) return;
-    const meRes = await fetch("/api/institution/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (meRes.ok) {
-      const data = await meRes.json();
-      setInstitutionName(data.institution?.name ?? "");
-      setJoinCode(data.institution?.joinCode ?? "");
+    try {
+      const token = await refreshSession();
+      if (!token) return;
+      const meRes = await fetch("/api/institution/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (meRes.ok) {
+        const data = await meRes.json().catch(() => ({}));
+        setInstitutionName(data.institution?.name ?? "");
+        setJoinCode(data.institution?.joinCode ?? "");
+      }
+    } catch {
+      // best-effort profile refresh
     }
   }, [refreshSession]);
 
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        if (!session) {
-          setCheckingAuth(false);
-          router.replace("/login?next=/institution");
-          return;
-        }
 
+    const verifyInstitution = async (session: Session | null) => {
+      if (cancelled) return;
+
+      if (!session) {
+        setCheckingAuth(false);
+        router.replace("/login?next=/institution");
+        return;
+      }
+
+      try {
         const token = session.access_token ?? "";
         const meRes = await fetch("/api/institution/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (cancelled) return;
 
         if (!meRes.ok) {
           setCheckingAuth(false);
@@ -83,11 +99,43 @@ export function InstitutionAuthProvider({ children }: { children: ReactNode }) {
         setInstitutionName(data.institution?.name ?? "Institution");
         setJoinCode(data.institution?.joinCode ?? "");
         setCheckingAuth(false);
-      })
-      .catch(() => {
+      } catch (err) {
+        if (cancelled || isIgnorableClientError(err)) return;
         setCheckingAuth(false);
         router.replace("/login?next=/institution");
+      }
+    };
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        void verifyInstitution(session);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCheckingAuth(false);
+          router.replace("/login?next=/institution");
+        }
       });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" && !cancelled) {
+        setCheckingAuth(false);
+        router.replace("/login?next=/institution");
+        return;
+      }
+      if (event === "SIGNED_IN" && session && !cancelled) {
+        setCheckingAuth(true);
+        void verifyInstitution(session);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   const value = useMemo(

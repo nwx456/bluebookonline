@@ -98,6 +98,9 @@ export function ProfileSheet({
         if (notifyAvatar) {
           onAvatarUrlChange?.(data.avatarUrl ?? null);
         }
+      } catch {
+        profileFetchFailedRef.current = true;
+        setError("Could not load profile.");
       } finally {
         setLoading(false);
       }
@@ -107,11 +110,16 @@ export function ProfileSheet({
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const token = session?.access_token ?? null;
-      setAccessToken(token);
-      if (token) void loadProfile(token, true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        const token = session?.access_token ?? null;
+        setAccessToken(token);
+        if (token) void loadProfile(token, true);
+      })
+      .catch(() => {
+        setAccessToken(null);
+      });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -196,6 +204,8 @@ export function ProfileSheet({
       const newUrl = (confirmData.avatarUrl as string | null) ?? null;
       onAvatarUrlChange?.(newUrl);
       setProfile((prev) => (prev ? { ...prev, avatarUrl: newUrl } : prev));
+    } catch {
+      setError("Could not upload image.");
     } finally {
       setUploading(false);
     }
@@ -221,6 +231,8 @@ export function ProfileSheet({
       }
       onAvatarUrlChange?.(null);
       setProfile((prev) => (prev ? { ...prev, avatarUrl: null } : prev));
+    } catch {
+      setError("Could not remove photo.");
     } finally {
       setRemoving(false);
     }

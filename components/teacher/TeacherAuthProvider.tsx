@@ -30,13 +30,18 @@ export function TeacherAuthProvider({ children }: { children: ReactNode }) {
   const [userDisplayName, setUserDisplayName] = useState("");
 
   const refreshSession = useCallback(async () => {
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token ?? null;
-    setAccessToken(token);
-    return token;
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? null;
+      setAccessToken(token);
+      return token;
+    } catch {
+      setAccessToken(null);
+      return null;
+    }
   }, []);
 
   useEffect(() => {

@@ -208,15 +208,6 @@ export default function DashboardGeneratePage() {
     }
 
     const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token ?? accessToken;
-    if (!token) {
-      setFormError("Please sign in again.");
-      return;
-    }
-
     const started = Date.now();
     const { phases, totalPredictedLabel: predictedLabel } = buildClientNotesGeneratePhases();
 
@@ -236,6 +227,15 @@ export default function DashboardGeneratePage() {
     const uploadedFiles: NotesStoredFileRef[] = [];
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token ?? accessToken;
+      if (!token) {
+        setFormError("Please sign in again.");
+        return;
+      }
+
       for (const file of files) {
         const signedRes = await fetch("/api/notes/create-signed-url", {
           method: "POST",
@@ -425,6 +425,8 @@ export default function DashboardGeneratePage() {
       }
       setConsentOpen(false);
       await runGenerate();
+    } catch {
+      setFormError("Could not save consent. Please try again.");
     } finally {
       setConsentLoading(false);
     }

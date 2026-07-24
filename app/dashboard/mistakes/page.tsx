@@ -40,6 +40,7 @@ export default function DashboardMistakesPage() {
     })
       .then((r) => r.json())
       .then((data) => setRows(data.wrongAnswers ?? []))
+      .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [accessToken, attemptFilter]);
 

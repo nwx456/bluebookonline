@@ -52,27 +52,36 @@ export function navItemsForUser(
   loggedIn: boolean,
   isTeacher?: boolean,
   program: ExamProgram = "AP",
+  isInstitution?: boolean,
 ): HeaderNavItem[] {
   const base = publicNavItems(program);
   if (loggedIn) {
-    const items: HeaderNavItem[] = [
-      ...base,
-      {
+    const items: HeaderNavItem[] = [...base];
+    if (isInstitution) {
+      items.push({
+        href: "/institution",
+        label: "Institution",
+        icon: LayoutDashboard,
+        matchPrefix: "/institution",
+        noProgram: true,
+      });
+    } else {
+      items.push({
         href: "/dashboard",
         label: "Dashboard",
         icon: LayoutDashboard,
         matchPrefix: "/dashboard",
         noProgram: true,
-      },
-    ];
-    if (isTeacher) {
-      items.push({
-        href: "/teacher",
-        label: "Teacher Panel",
-        icon: BookOpen,
-        matchPrefix: "/teacher",
-        noProgram: true,
       });
+      if (isTeacher) {
+        items.push({
+          href: "/teacher",
+          label: "Teacher Panel",
+          icon: BookOpen,
+          matchPrefix: "/teacher",
+          noProgram: true,
+        });
+      }
     }
     return items;
   }
