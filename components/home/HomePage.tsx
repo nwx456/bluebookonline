@@ -8,8 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { FileText, ChevronDown, ChevronUp, Play, BookOpen, Upload, AlertTriangle, Search, LayoutDashboard, Brain, Share2, PanelLeft, LayoutTemplate, Navigation, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
-import { SUBJECT_META } from "@/lib/subject-meta";
+import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/subjects";
+import { SUBJECT_META_LIGHT } from "@/lib/subject-meta-light";
 import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 import { appendProgramToHref, useProgram } from "@/lib/use-program";
 import { AP_SUBJECT_KEYS } from "@/lib/home-hero-content";
@@ -458,7 +458,7 @@ function HomeInner() {
                   {programKeys.map((key) => (
                     <Link
                       key={key}
-                      href={`/exams/${SUBJECT_META[key].slug}`}
+                      href={`/exams/${SUBJECT_META_LIGHT[key].slug}`}
                       className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
                     >
                       <BookOpen className="h-3.5 w-3.5 shrink-0 text-blue-600" />

@@ -6,6 +6,53 @@ const PAGE_SIZE = 1000;
 /** Keeps `.in("upload_id", …)` filter sizes reasonable for long query strings. */
 const UPLOAD_IDS_IN_CHUNK = 100;
 
+type McqCountRpcRow = { upload_id: string; cnt: number | string };
+type FrqCountRpcRow = { frq_upload_id: string; cnt: number | string };
+
+async function countQuestionsViaRpc(
+  supabase: SupabaseClient,
+  uploadIds: string[]
+): Promise<Record<string, number> | null> {
+  if (uploadIds.length === 0) return {};
+
+  const { data, error } = await supabase.rpc("question_counts_by_upload", {
+    ids: uploadIds,
+  });
+
+  if (error) {
+    console.warn("question_counts_by_upload RPC failed, using paginated fallback:", error.message);
+    return null;
+  }
+
+  const merged: Record<string, number> = {};
+  for (const row of (data ?? []) as McqCountRpcRow[]) {
+    merged[row.upload_id] = Number(row.cnt) || 0;
+  }
+  return merged;
+}
+
+async function countFrqQuestionsViaRpc(
+  supabase: SupabaseClient,
+  uploadIds: string[]
+): Promise<Record<string, number> | null> {
+  if (uploadIds.length === 0) return {};
+
+  const { data, error } = await supabase.rpc("frq_question_counts_by_upload", {
+    ids: uploadIds,
+  });
+
+  if (error) {
+    console.warn("frq_question_counts_by_upload RPC failed, using paginated fallback:", error.message);
+    return null;
+  }
+
+  const merged: Record<string, number> = {};
+  for (const row of (data ?? []) as FrqCountRpcRow[]) {
+    merged[row.frq_upload_id] = Number(row.cnt) || 0;
+  }
+  return merged;
+}
+
 async function countQuestionsForUploadIdChunk(
   supabase: SupabaseClient,
   uploadIds: string[]
@@ -44,9 +91,12 @@ export async function countQuestionsByUploadIds(
   supabase: SupabaseClient,
   uploadIds: string[]
 ): Promise<Record<string, number>> {
-  const merged: Record<string, number> = {};
-  if (uploadIds.length === 0) return merged;
+  if (uploadIds.length === 0) return {};
 
+  const rpcResult = await countQuestionsViaRpc(supabase, uploadIds);
+  if (rpcResult) return rpcResult;
+
+  const merged: Record<string, number> = {};
   for (let i = 0; i < uploadIds.length; i += UPLOAD_IDS_IN_CHUNK) {
     const chunk = uploadIds.slice(i, i + UPLOAD_IDS_IN_CHUNK);
     const partial = await countQuestionsForUploadIdChunk(supabase, chunk);
@@ -96,9 +146,12 @@ export async function countFrqQuestionsByUploadIds(
   supabase: SupabaseClient,
   uploadIds: string[]
 ): Promise<Record<string, number>> {
-  const merged: Record<string, number> = {};
-  if (uploadIds.length === 0) return merged;
+  if (uploadIds.length === 0) return {};
 
+  const rpcResult = await countFrqQuestionsViaRpc(supabase, uploadIds);
+  if (rpcResult) return rpcResult;
+
+  const merged: Record<string, number> = {};
   for (let i = 0; i < uploadIds.length; i += UPLOAD_IDS_IN_CHUNK) {
     const chunk = uploadIds.slice(i, i + UPLOAD_IDS_IN_CHUNK);
     const partial = await countFrqQuestionsForUploadIdChunk(supabase, chunk);

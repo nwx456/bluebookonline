@@ -18,7 +18,7 @@ import {
   HYBRID_COURSE_IDS,
   type FrqCourseId,
 } from "@/lib/frq-courses";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { MAX_PDF_UPLOAD_BYTES, MAX_PDF_UPLOAD_MB } from "@/lib/pdf-upload-limits";
 import { PdfDropzone } from "@/components/dashboard/PdfDropzone";
 import { UploadStepIndicator } from "@/components/dashboard/UploadStepIndicator";
@@ -54,7 +54,7 @@ export function FrqUploadSection() {
   const [sourceType, setSourceType] = useState<ExamSourceType | "">("");
   const [sourceName, setSourceName] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
-  const [notOfficialConfirmed, setNotOfficialConfirmed] = useState(false);
+  const [, setNotOfficialConfirmed] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
 
   const sourceValidation = useMemo(() => {
@@ -63,9 +63,8 @@ export function FrqUploadSection() {
       sourceType,
       sourceName,
       sourceUrl: sourceType === "school" ? undefined : sourceUrl,
-      notOfficialConfirmed,
     });
-  }, [sourceType, sourceName, sourceUrl, notOfficialConfirmed]);
+  }, [sourceType, sourceName, sourceUrl]);
 
   const isSourceValid = sourceValidation.ok;
 
@@ -163,7 +162,6 @@ export function FrqUploadSection() {
           sourceType: sourceValidation.normalized.sourceType,
           sourceName: sourceValidation.normalized.sourceName,
           sourceUrl: sourceValidation.normalized.sourceUrl,
-          notOfficialConfirmed: true,
         }),
       });
 
@@ -379,18 +377,6 @@ export function FrqUploadSection() {
                 </div>
               </div>
             ) : null}
-            <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={notOfficialConfirmed}
-                onChange={(e) => setNotOfficialConfirmed(e.target.checked)}
-                disabled={analyzing}
-                className="mt-0.5 rounded border-gray-300"
-              />
-              <span>
-                I confirm this is not official College Board, ACT, or Bluebook material.
-              </span>
-            </label>
             {!isSourceValid && sourceType && !sourceValidation.ok ? (
               <p className="mt-2 text-xs text-amber-700">{sourceValidation.error}</p>
             ) : null}

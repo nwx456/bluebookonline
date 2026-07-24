@@ -19,7 +19,7 @@ import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import type { QuestionReportInboxItem } from "@/lib/question-report-inbox";
 import { buildFrqExamPreviewUrl, buildMcqExamPreviewUrl } from "@/lib/moderator-exam-preview";
 import { FRQ_COURSE_IDS, getFrqCourseLabel } from "@/lib/frq-courses";
-import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { cn } from "@/lib/utils";
 
 type TabStatus = "open" | "dismissed" | "all";

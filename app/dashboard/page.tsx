@@ -9,7 +9,7 @@ import {
 } from "@/components/library/DashboardAuthProvider";
 import { useProgram } from "@/lib/use-program";
 import type { LibrarySummary } from "@/lib/library-types";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
 import { attemptReviewHref } from "@/lib/library-entity-utils";
 import { estimateApScore } from "@/lib/ap-score-estimate";

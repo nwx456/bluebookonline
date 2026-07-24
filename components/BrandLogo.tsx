@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import { SITE_NAME } from "@/lib/site-config";
 
 /** Must match `public/logo.png` (see scripts/generate-logo-assets.mjs). */
-export const LOGO_WIDTH = 1440;
-export const LOGO_HEIGHT = 507;
+export const LOGO_WIDTH = 800;
+export const LOGO_HEIGHT = 282;
 
 const heightClasses = {
   header: "h-10 w-auto sm:h-11",

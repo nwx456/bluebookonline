@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SubjectKey } from "@/lib/gemini-prompts";
+import type { SubjectKey } from "@/lib/subjects";
 import {
   isSatFullTest,
   isSatMath,

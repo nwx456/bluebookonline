@@ -1,4 +1,4 @@
-import { SUBJECT_KEYS } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS } from "@/lib/subjects";
 import { getExamProgram, type ExamProgram } from "@/lib/exam-program";
 
 const AP_SUBJECT_KEYS = SUBJECT_KEYS.filter((k) => getExamProgram(k) === "AP");

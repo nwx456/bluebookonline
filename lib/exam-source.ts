@@ -32,18 +32,11 @@ export function validateExamSource(input: {
   sourceType: string;
   sourceName: string;
   sourceUrl?: string;
-  notOfficialConfirmed: boolean;
+  notOfficialConfirmed?: boolean;
 }): ExamSourceValidationResult {
   const sourceType = input.sourceType?.trim().toLowerCase();
   if (!sourceType || !isExamSourceType(sourceType)) {
     return { ok: false, error: "Please select an exam source type." };
-  }
-
-  if (input.notOfficialConfirmed !== true) {
-    return {
-      ok: false,
-      error: "You must confirm this is not official College Board, ACT, or Bluebook material.",
-    };
   }
 
   const rawName = input.sourceName?.trim() ?? "";
@@ -106,8 +99,6 @@ export function parseExamSourceFields(raw: {
     sourceType: typeof raw.sourceType === "string" ? raw.sourceType : "",
     sourceName: typeof raw.sourceName === "string" ? raw.sourceName : "",
     sourceUrl: typeof raw.sourceUrl === "string" ? raw.sourceUrl : undefined,
-    notOfficialConfirmed:
-      raw.notOfficialConfirmed === true || raw.notOfficialConfirmed === "true",
   });
 }
 

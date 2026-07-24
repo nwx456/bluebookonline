@@ -14,7 +14,7 @@ import {
 } from "@/components/library/useLibraryTags";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
 import { useProgram } from "@/lib/use-program";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { estimateApScore } from "@/lib/ap-score-estimate";
 import { ArchiveRestore } from "lucide-react";
 

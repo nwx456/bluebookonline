@@ -11,7 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LibraryAttemptItem } from "@/lib/library-types";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { getFrqCourseLabel } from "@/lib/frq-courses";
 import { estimateApScore } from "@/lib/ap-score-estimate";
 import { isSatFullTest, satSectionForSubject } from "@/lib/exam-program";

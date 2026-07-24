@@ -24,17 +24,23 @@ function isUserFrqStoragePath(path: string, email: string): boolean {
 
 function normalizeParts(parts: FrqExtractedQuestion["parts"]): Array<{
   label: string;
+  display_label?: string;
   prompt: string;
   max_points?: number;
 }> {
   if (!Array.isArray(parts) || parts.length === 0) {
     return [{ label: "", prompt: "", max_points: undefined }];
   }
-  return parts.map((p) => ({
-    label: String(p.label ?? "").trim(),
-    prompt: String(p.prompt ?? "").trim(),
-    max_points: typeof p.max_points === "number" ? p.max_points : undefined,
-  }));
+  return parts.map((p) => {
+    const label = String(p.label ?? "").trim();
+    const displayLabel = String(p.display_label ?? "").trim();
+    return {
+      label,
+      ...(displayLabel ? { display_label: displayLabel } : {}),
+      prompt: String(p.prompt ?? "").trim(),
+      max_points: typeof p.max_points === "number" ? p.max_points : undefined,
+    };
+  });
 }
 
 export async function handleFrqAnalyze(request: NextRequest): Promise<NextResponse> {

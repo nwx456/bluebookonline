@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { countQuestionsByUploadIds } from "@/lib/countQuestionsByUpload";
 import { createServerSupabaseAdmin } from "@/lib/supabase/server";
-import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, type SubjectKey } from "@/lib/subjects";
 import { getExamProgram } from "@/lib/exam-program";
 import { formatSourceAttribution } from "@/lib/exam-source";
 import { getFrqExamDisplayName, getMcqExamDisplayName } from "@/lib/exam-display-name";
@@ -186,7 +186,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       { exams: result },
-      { headers: { "Cache-Control": "no-store, max-age=0" } }
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      }
     );
   } catch (err) {
     console.error("Published exams error:", err);

@@ -7,7 +7,7 @@ import {
   libraryAuthHeaders,
   useDashboardAuth,
 } from "@/components/library/DashboardAuthProvider";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { getExamProgram } from "@/lib/exam-program";
 import { useProgram } from "@/lib/use-program";
 

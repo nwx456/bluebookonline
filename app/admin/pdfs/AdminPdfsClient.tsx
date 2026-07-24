@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isAdminBroadcastEmail } from "@/lib/admin-mail";
 import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
 import { ExamTitleEditor } from "@/components/admin/ExamTitleEditor";
-import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import type { AnswerKeyKind } from "@/lib/answer-key-label";
 import {
   getModerationStatusBadgeClass,

@@ -3,6 +3,7 @@ import { getFrqCourse } from "./frq-courses";
 
 export interface FrqExtractedPart {
   label: string;
+  display_label?: string;
   prompt: string;
   max_points?: number;
 }
@@ -41,7 +42,7 @@ Return a JSON array of question objects with this exact schema:
     "prompt_html": "<p>HTML of shared question intro and instructions (left panel only). Do NOT include part-specific instructions.</p>",
     "stimulus_html": "<p>HTML of passages, documents, source material, or code context shown on the left panel. null if none.</p>",
     "parts": [
-      { "label": "a", "prompt": "<p>Part (a) instructions with HTML, e.g. <code>methodName</code></p>", "max_points": 3 }
+      { "label": "a", "display_label": "(a)", "prompt": "<p>Part (a) instructions with HTML, e.g. <code>methodName</code></p>", "max_points": 3 }
     ],
     "max_points": 6,
     "scoring_guidelines": { "rows": [{ "criterion": "...", "points": 1 }] },
@@ -52,6 +53,8 @@ Return a JSON array of question objects with this exact schema:
 Rules:
 - question_number starts at 1 and increments sequentially.
 - For multi-part questions, include each part in "parts" with label (a, b, c or A, B, C for coding FRQs).
+- parts[].display_label = the part label exactly as printed in the PDF (e.g. "(a)", "Part A", "B.", "(i)"). Keep punctuation and casing from the source.
+- parts[].label = canonical lowercase letter key for storage (a, b, c or a, b, c for roman numerals mapped to sequential letters when needed).
 - prompt_html = shared question intro and general instructions only (left panel). Example: question number line ("1. This question involves…"), course-wide directions. Do NOT put part-specific instructions (a, b, c or A, B, C) in prompt_html.
 - stimulus_html = read-only context for the left panel: passages, documents, graphs, tables, and full code class definitions (e.g. public class DogWalkCompany { … }). null if none.
 - parts[].prompt = HTML instructions for that part only (right panel). Use <code> for identifiers/method names. Each part prompt should start with its label (e.g. "Part (a)" or "A.").

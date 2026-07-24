@@ -44,7 +44,7 @@ import {
 import { QuestionReportButton } from "@/components/exam/QuestionReportButton";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS, isCodeSubject, type SubjectKey } from "@/lib/subjects";
 import { partitionStemAndSharedIntro } from "@/lib/shared-stimulus";
 import { partitionSatStemAndPassage } from "@/lib/sat-ingest-postprocess";
 import { parseBulletPassage } from "@/lib/passage-display";
@@ -71,7 +71,6 @@ import {
   type SatModuleGroup,
 } from "@/lib/sat-question-display";
 import { GraphZoomProvider, GraphZoomHeaderToolbar } from "./GraphZoomContext";
-import { DesmosCalculator } from "@/components/DesmosCalculator";
 import { useFloatingPanelDrag } from "@/app/exam/useFloatingPanelDrag";
 import {
   formatMathTextIfNeeded,
@@ -89,6 +88,10 @@ const ZoomableImagePanel = dynamic(() => import("./ZoomableImagePanel"), { ssr: 
 const FullPageModal = dynamic(() => import("./FullPageModal"), { ssr: false });
 const SafeStorageImage = dynamic(() => import("./SafeStorageImage"), { ssr: false });
 const PdfExplorePanel = dynamic(() => import("./PdfExplorePanel"), { ssr: false });
+const DesmosCalculator = dynamic(
+  () => import("@/components/DesmosCalculator").then((m) => ({ default: m.DesmosCalculator })),
+  { ssr: false }
+);
 const QuestionReportFlow = dynamic(
   () => import("@/components/exam/QuestionReportFlow"),
   { ssr: false }
@@ -1132,28 +1135,41 @@ export default function ExamPage() {
       return;
     }
     const supabase = createClient();
-    Promise.all([
-      supabase
-        .from("pdf_uploads")
-        .select(UPLOAD_SELECT_FIELDS)
-        .eq("id", id)
-        .single(),
-      supabase
-        .from("questions")
-        .select("*")
-        .eq("upload_id", id)
-        .order("question_number", { ascending: true })
-        .order("id", { ascending: true }),
-    ]).then(([uploadRes, questionsRes]) => {
-      setLoading(false);
-      if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);
-      if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const pdfFetchPromise = session?.access_token
+        ? fetch(`/api/upload/${id}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+            .then((r) => r.json())
+            .then((data) => (typeof data?.url === "string" && data.url ? data.url : null))
+            .catch(() => null)
+        : Promise.resolve(null);
+
+      Promise.all([
+        supabase
+          .from("pdf_uploads")
+          .select(UPLOAD_SELECT_FIELDS)
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("questions")
+          .select("*")
+          .eq("upload_id", id)
+          .order("question_number", { ascending: true })
+          .order("id", { ascending: true }),
+        pdfFetchPromise,
+      ]).then(([uploadRes, questionsRes, pdfUrlResult]) => {
+        setLoading(false);
+        if (uploadRes.data) setUpload(uploadRes.data as PdfUpload);
+        if (questionsRes.data) setQuestions((questionsRes.data as Question[]) ?? []);
+        if (pdfUrlResult) setPdfUrl(pdfUrlResult);
+      });
     });
   }, [id, loadAttemptId, reviewQuestion, isModeratorPreview, moderatorPreviewQuestionId, router, pathname, searchParams]);
 
   useEffect(() => {
-    if (!id || !upload?.storage_path) {
-      setPdfUrl(null);
+    if (!id || !upload?.storage_path || pdfUrl) {
+      if (!upload?.storage_path) setPdfUrl(null);
       return;
     }
     let cancelled = false;
@@ -1180,7 +1196,7 @@ export default function ExamPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, upload?.storage_path, upload?.subject]);
+  }, [id, upload?.storage_path, upload?.subject, pdfUrl]);
 
   const startExam = useCallback(async () => {
     if (!id || !userEmail || questions.length === 0) return;

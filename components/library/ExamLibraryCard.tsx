@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { LibraryUploadItem } from "@/lib/library-types";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { sourceTypeShortLabel } from "@/lib/exam-source";
 import {
   canRequestPublish,

@@ -6,6 +6,7 @@ import { getFrqCourseLabel } from "@/lib/frq-courses";
 import {
   comparePartLabels,
   flattenFrqParts,
+  formatFrqPartDisplayLabel,
   getExamMaxScore,
   getPartMaxPoints,
   normalizeFrqParts,
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     questionId: string;
     questionNumber: number;
     partLabel: string;
+    displayLabel: string;
     partPrompt: string;
     maxPoints: number;
     responseText: string;
@@ -79,12 +81,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const parts = normalizeFrqParts(q.parts);
     for (const part of parts) {
       const label = part.label ?? "";
+      const partDisplayLabel = part.display_label?.trim() || null;
       const key = `${q.id}::${label}`;
       const r = responseByKey.get(key);
       orderedResponses.push({
         questionId: q.id,
         questionNumber: q.question_number,
         partLabel: label,
+        displayLabel: formatFrqPartDisplayLabel(q.question_number, label, partDisplayLabel),
         partPrompt: part.prompt ?? "",
         maxPoints: getPartMaxPoints(q, label),
         responseText: (r?.response_text as string) ?? "",

@@ -44,7 +44,7 @@ export function PublishedExamsList({ subjectKey, subjectFullName, subjectShortNa
   useEffect(() => {
     let cancelled = false;
     const url = `/api/exams/published?subject=${encodeURIComponent(subjectKey)}`;
-    fetch(url, { cache: "no-store" })
+    fetch(url)
       .then((r) => r.json() as Promise<ApiResponse>)
       .then((data) => {
         if (cancelled) return;

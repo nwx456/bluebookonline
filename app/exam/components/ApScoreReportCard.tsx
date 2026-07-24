@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
-import { SUBJECT_META } from "@/lib/subject-meta";
+import { SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
+import { SUBJECT_META_LIGHT } from "@/lib/subject-meta-light";
 import {
   AP_SCORE_DISCLAIMER,
   estimateApScore,
@@ -54,7 +54,7 @@ export function ApScoreReportCard({
   className,
 }: Props) {
   const subjectLabel =
-    SUBJECT_META[subject]?.fullName ?? SUBJECT_LABELS[subject] ?? subject;
+    SUBJECT_META_LIGHT[subject]?.fullName ?? SUBJECT_LABELS[subject] ?? subject;
   const gradedAnswered = correctCount + incorrectCount;
   const headlineIsScore = !(skipAiGrading && gradedAnswered === 0);
   const estimatedScore = headlineIsScore ? estimateApScore(percentage) : null;

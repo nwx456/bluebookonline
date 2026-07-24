@@ -21,7 +21,7 @@ import { ExamSourceEditor } from "@/components/admin/ExamSourceEditor";
 import { ExamTitleEditor } from "@/components/admin/ExamTitleEditor";
 import { canAdminEditExamSource, examHasSource } from "@/lib/exam-source-admin";
 import type { ExamSourceType } from "@/lib/exam-source";
-import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { cn } from "@/lib/utils";
 
 type ExamRow = {

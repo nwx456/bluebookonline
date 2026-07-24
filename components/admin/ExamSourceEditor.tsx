@@ -48,11 +48,11 @@ export function ExamSourceEditor({
   );
   const [sourceName, setSourceName] = useState(initialValues.sourceName ?? "");
   const [sourceUrl, setSourceUrl] = useState(initialValues.sourceUrl ?? "");
-  const [notOfficialConfirmed, setNotOfficialConfirmed] = useState(true);
   const [sourceUrlCheck, setSourceUrlCheck] = useState<
     "idle" | "checking" | "valid" | "invalid"
   >("idle");
   const [sourceUrlCheckError, setSourceUrlCheckError] = useState("");
+  const [, setNotOfficialConfirmed] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedValues, setSavedValues] = useState(initialValues);
@@ -91,9 +91,8 @@ export function ExamSourceEditor({
       sourceType,
       sourceName,
       sourceUrl: sourceType === "school" ? undefined : sourceUrl,
-      notOfficialConfirmed,
     });
-  }, [sourceType, sourceName, sourceUrl, notOfficialConfirmed]);
+  }, [sourceType, sourceName, sourceUrl]);
 
   const sourceUrlReadyToVerify = useMemo(() => {
     if (sourceType !== "book" && sourceType !== "agency") return false;
@@ -101,7 +100,6 @@ export function ExamSourceEditor({
       sourceType,
       sourceName: "x",
       sourceUrl,
-      notOfficialConfirmed: true,
     });
     return probe.ok || !probe.error.toLowerCase().includes("url");
   }, [sourceType, sourceUrl]);
@@ -179,7 +177,6 @@ export function ExamSourceEditor({
           sourceType: sourceValidation.normalized.sourceType,
           sourceName: sourceValidation.normalized.sourceName,
           sourceUrl: sourceValidation.normalized.sourceUrl ?? undefined,
-          notOfficialConfirmed: true,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -403,18 +400,6 @@ export function ExamSourceEditor({
                     </div>
                   </div>
                 ) : null}
-
-                <label className="flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={notOfficialConfirmed}
-                    onChange={(e) => setNotOfficialConfirmed(e.target.checked)}
-                    className="mt-0.5 rounded border-gray-300"
-                  />
-                  <span>
-                    I confirm this is not official College Board, ACT, or Bluebook material.
-                  </span>
-                </label>
 
                 {!sourceValidation.ok && sourceType ? (
                   <p className="text-sm text-amber-700">{sourceValidation.error}</p>

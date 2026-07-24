@@ -1,5 +1,5 @@
-import type { SubjectKey } from "@/lib/gemini-prompts";
-import { SUBJECT_LABELS } from "@/lib/gemini-prompts";
+import type { SubjectKey } from "@/lib/subjects";
+import { SUBJECT_LABELS } from "@/lib/subjects";
 import {
   isSatFullTest,
   isSatMath,

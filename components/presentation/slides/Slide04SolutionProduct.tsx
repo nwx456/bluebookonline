@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { SUBJECT_KEYS } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS } from "@/lib/subjects";
 import { FRQ_COURSE_IDS } from "@/lib/frq-courses";
 import { FeatureCompareCard } from "../FeatureCompareCard";
 import { SlideAmbientBackground } from "../SlideAmbientBackground";

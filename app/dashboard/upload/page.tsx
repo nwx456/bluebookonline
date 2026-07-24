@@ -48,7 +48,7 @@ import {
   SUBJECT_DEFAULT_HAS_VISUALS,
   isCodeSubject,
   type SubjectKey,
-} from "@/lib/gemini-prompts";
+} from "@/lib/subjects";
 import {
   getExamProgram,
   isSatFullTest,
@@ -408,7 +408,7 @@ function DashboardUploadPageInner() {
     "idle" | "checking" | "valid" | "invalid"
   >("idle");
   const [sourceUrlCheckError, setSourceUrlCheckError] = useState("");
-  const [notOfficialConfirmed, setNotOfficialConfirmed] = useState(false);
+  const [, setNotOfficialConfirmed] = useState(false);
   const [unpublishCooldownSec, setUnpublishCooldownSec] = useState(0);
   const [inProgressAttempts, setInProgressAttempts] = useState<InProgressAttempt[]>([]);
   const [deletingInProgressId, setDeletingInProgressId] = useState<string | null>(null);
@@ -498,9 +498,8 @@ function DashboardUploadPageInner() {
       sourceType,
       sourceName,
       sourceUrl: sourceType === "school" ? undefined : sourceUrl,
-      notOfficialConfirmed,
     });
-  }, [sourceType, sourceName, sourceUrl, notOfficialConfirmed]);
+  }, [sourceType, sourceName, sourceUrl]);
   const isSourceValid = sourceValidation.ok;
 
   const sourceUrlReadyToVerify = useMemo(() => {
@@ -509,7 +508,6 @@ function DashboardUploadPageInner() {
       sourceType,
       sourceName: "x",
       sourceUrl,
-      notOfficialConfirmed: true,
     });
     return probe.ok;
   }, [sourceType, sourceUrl]);
@@ -1095,7 +1093,6 @@ function DashboardUploadPageInner() {
         formData.append("sourceType", s.sourceType);
         formData.append("sourceName", s.sourceName);
         if (s.sourceUrl) formData.append("sourceUrl", s.sourceUrl);
-        formData.append("notOfficialConfirmed", "true");
       }
 
       const res = await fetch("/api/upload/analyze", {
@@ -1330,7 +1327,6 @@ function DashboardUploadPageInner() {
         analyzeBody.sourceType = s.sourceType;
         analyzeBody.sourceName = s.sourceName;
         if (s.sourceUrl) analyzeBody.sourceUrl = s.sourceUrl;
-        analyzeBody.notOfficialConfirmed = true;
       }
       if (parsedSatModuleCounts) {
         const counts = { ...parsedSatModuleCounts };
@@ -2120,17 +2116,6 @@ function DashboardUploadPageInner() {
                     </div>
                   </div>
                 ) : null}
-                <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={notOfficialConfirmed}
-                    onChange={(e) => setNotOfficialConfirmed(e.target.checked)}
-                    className="mt-0.5 rounded border-gray-300"
-                  />
-                  <span>
-                    I confirm this PDF is <strong>not</strong> official College Board, ACT, or Bluebook material.
-                  </span>
-                </label>
                 {!isSourceValid && sourceType && !sourceValidation.ok ? (
                   <p className="mt-2 text-xs text-amber-700" role="status">
                     {sourceValidation.error}

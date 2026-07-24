@@ -18,6 +18,7 @@ import type { RubricRow } from "@/components/frq/FrqScoreReportCard";
 export type FrqReviewResponse = {
   questionNumber: number;
   partLabel: string;
+  displayLabel: string;
   partPrompt: string;
   score: number | null;
   maxPoints: number;
@@ -42,9 +43,6 @@ type Props = {
   sourceUrl?: string | null;
 };
 
-function formatDisplayLabel(questionNumber: number, partLabel: string): string {
-  return partLabel ? `${questionNumber} (${partLabel})` : String(questionNumber);
-}
 
 function scoreStatus(score: number | null, maxPoints: number): "full" | "partial" | "zero" | "empty" {
   if (maxPoints <= 0) return "empty";
@@ -215,7 +213,7 @@ export function FrqReview({
                                 )}
                               >
                                 <td className="px-4 py-3 font-medium text-gray-900">
-                                  {formatDisplayLabel(row.questionNumber, row.partLabel)}
+                                  {row.displayLabel}
                                 </td>
                                 <td className="px-4 py-3 tabular-nums">
                                   {row.score ?? 0} / {row.maxPoints}
@@ -262,7 +260,7 @@ export function FrqReview({
             <div className="rounded-xl border-2 border-blue-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <h3 className="text-base font-semibold text-gray-900">
-                  Question {formatDisplayLabel(selected.questionNumber, selected.partLabel)}
+                  Question {selected.displayLabel}
                 </h3>
                 <button
                   type="button"

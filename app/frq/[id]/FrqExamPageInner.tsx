@@ -28,7 +28,6 @@ import {
 import { ExamHeader } from "@/app/exam/ExamHeader";
 import { ExamFooter, ExamFooterQuestionNav } from "@/app/exam/ExamFooter";
 import { ExamQuestionChrome } from "@/app/exam/ExamQuestionChrome";
-import { BluebookRichTextEditor } from "@/components/frq/BluebookRichTextEditor";
 import { BluebookCodeEditor } from "@/components/frq/BluebookCodeEditor";
 import {
   JavaQuickReferenceButton,
@@ -39,7 +38,7 @@ import { ExamShareButton } from "@/components/exams/ExamShareButton";
 import { ExamSourceLine } from "@/components/exams/ExamSourceLine";
 import { QuestionReportButton } from "@/components/exam/QuestionReportButton";
 import { MODERATOR_PREVIEW_ATTEMPT_ID } from "@/lib/moderator-exam-preview";
-import { flattenFrqParts, type FrqFlatPartItem } from "@/lib/frq-server";
+import { flattenFrqParts, formatFrqPartDisplayLabel, type FrqFlatPartItem } from "@/lib/frq-server";
 import {
   frqStemProseClass,
   getFrqLeftPanelHtml,
@@ -52,13 +51,21 @@ const QuestionReportFlow = dynamic(
   { ssr: false }
 );
 
+const BluebookRichTextEditor = dynamic(
+  () =>
+    import("@/components/frq/BluebookRichTextEditor").then((m) => ({
+      default: m.BluebookRichTextEditor,
+    })),
+  { ssr: false, loading: () => <div className="min-h-[120px] animate-pulse rounded bg-gray-100" /> }
+);
+
 interface FrqQuestion {
   id: string;
   questionNumber: number;
   questionType: string;
   promptHtml: string;
   stimulusHtml: string | null;
-  parts: Array<{ label: string; prompt?: string; max_points?: number }>;
+  parts: Array<{ label: string; prompt?: string; max_points?: number; display_label?: string }>;
   maxPoints: number;
   pageRefs?: number[] | null;
 }
@@ -346,6 +353,7 @@ export default function FrqExamPageInner() {
               (r: {
                 questionNumber: number;
                 partLabel: string;
+                displayLabel?: string;
                 partPrompt: string;
                 score: number | null;
                 maxPoints: number;
@@ -357,6 +365,8 @@ export default function FrqExamPageInner() {
               }): FrqReviewResponse => ({
                 questionNumber: r.questionNumber,
                 partLabel: r.partLabel,
+                displayLabel:
+                  r.displayLabel ?? formatFrqPartDisplayLabel(r.questionNumber, r.partLabel),
                 partPrompt: r.partPrompt ?? "",
                 score: r.score,
                 maxPoints: r.maxPoints,
@@ -372,14 +382,16 @@ export default function FrqExamPageInner() {
           return;
         }
 
-        const examRes = await fetch(`/api/frq/upload/${frqUploadId}`, { headers });
+        const [examRes, pdfRes] = await Promise.all([
+          fetch(`/api/frq/upload/${frqUploadId}`, { headers }),
+          fetch(`/api/frq/upload/${frqUploadId}/pdf-url`, { headers }),
+        ]);
         if (!examRes.ok) throw new Error("Could not load FRQ exam.");
         const examData = await examRes.json();
         setUpload(examData.upload);
         setQuestions(examData.questions);
         setRemainingSeconds((examData.upload.sectionDurationMin ?? 90) * 60);
 
-        const pdfRes = await fetch(`/api/frq/upload/${frqUploadId}/pdf-url`, { headers });
         if (pdfRes.ok) {
           const pdfData = await pdfRes.json();
           if (!cancelled && pdfData.pdfUrl) setPdfUrl(pdfData.pdfUrl as string);
@@ -593,6 +605,8 @@ export default function FrqExamPageInner() {
           className={cn(frqStemProseClass, apStemTextClass)}
           dangerouslySetInnerHTML={{ __html: partStemHtml }}
         />
+      ) : currentItem.partDisplayLabel ? (
+        <p className={apStemTextClass}>{currentItem.partDisplayLabel}</p>
       ) : currentItem.partLabel ? (
         <p className={apStemTextClass}>Part ({currentItem.partLabel})</p>
       ) : (
@@ -606,7 +620,11 @@ export default function FrqExamPageInner() {
             handleResponseChange(currentItem.questionId, currentItem.partLabel, text)
           }
           label={
-            currentItem.partLabel ? `Part ${currentItem.partLabel}.java` : "Response.java"
+            currentItem.partDisplayLabel
+              ? `${currentItem.partDisplayLabel.replace(/\.$/, "")}.java`
+              : currentItem.partLabel
+                ? `Part ${currentItem.partLabel}.java`
+                : "Response.java"
           }
           disabled={grading || isModeratorPreview}
         />
@@ -622,7 +640,30 @@ export default function FrqExamPageInner() {
     </div>
   );
 
+  const headerToolbarExtras = (
+    <>
+      {pdfUrl ? (
+        <button
+          type="button"
+          onClick={() => setFullPageModalOpen(true)}
+          className={cn(examToolbarBtn, examToolbarBtnShowPage, "shrink-0")}
+          aria-label="Show page"
+        >
+          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+          Show page
+        </button>
+      ) : null}
+      {showHeaderZoomToolbar ? (
+        <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
+      ) : null}
+      {canReport ? (
+        <QuestionReportButton onClick={() => setReportModalOpen(true)} />
+      ) : null}
+    </>
+  );
+
   return (
+    <GraphZoomProvider>
     <div className={cn(examUi.examShellMobile, "bg-[#f2f5f9]")}>
       {isModeratorPreview ? (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
@@ -666,9 +707,7 @@ export default function FrqExamPageInner() {
             {upload.editorType === "code" && (
               <JavaQuickReferenceButton onClick={() => setJavaRefOpen(true)} />
             )}
-            {canReport && (
-              <QuestionReportButton onClick={() => setReportModalOpen(true)} />
-            )}
+            {headerToolbarExtras}
           </>
         }
         toolbar={
@@ -684,9 +723,7 @@ export default function FrqExamPageInner() {
             {upload.editorType === "code" && (
               <JavaQuickReferenceButton onClick={() => setJavaRefOpen(true)} />
             )}
-            {canReport && (
-              <QuestionReportButton onClick={() => setReportModalOpen(true)} />
-            )}
+            {headerToolbarExtras}
           </>
         }
         sourceLine={
@@ -700,7 +737,6 @@ export default function FrqExamPageInner() {
         }
       />
 
-      <GraphZoomProvider>
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
           {hasMeaningfulLeftContent ? (
             <div className="flex shrink-0 border-b border-gray-200 bg-[#f2f5f9] md:hidden">
@@ -744,25 +780,6 @@ export default function FrqExamPageInner() {
                   <p className="mb-3 font-sans text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Question {currentQuestion.questionNumber}
                   </p>
-                  {(pdfUrl || showHeaderZoomToolbar || canReport) && (
-                    <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1.5">
-                      {pdfUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setFullPageModalOpen(true)}
-                          className={cn(examToolbarBtn, examToolbarBtnShowPage, "bg-white/90")}
-                          aria-label="Show page"
-                        >
-                          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
-                          Show page
-                        </button>
-                      )}
-                      {canReport && (
-                        <QuestionReportButton onClick={() => setReportModalOpen(true)} />
-                      )}
-                      <GraphZoomHeaderToolbar visible={showHeaderZoomToolbar} />
-                    </div>
-                  )}
                   <FrqLeftPanelContent
                     mode={leftPanelMode}
                     content={leftPanelHtml}
@@ -796,25 +813,11 @@ export default function FrqExamPageInner() {
             </>
           ) : (
             <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-auto">
-              {pdfUrl && (
-                <div className="flex justify-end px-4 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setFullPageModalOpen(true)}
-                    className={cn(examToolbarBtn, examToolbarBtnShowPage)}
-                    aria-label="Show page"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" aria-hidden />
-                    Show page
-                  </button>
-                </div>
-              )}
               {answerPanel}
             </div>
           )}
           </div>
         </main>
-      </GraphZoomProvider>
 
       <ExamFooter
         displayUsername={displayUsername}
@@ -848,7 +851,7 @@ export default function FrqExamPageInner() {
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       )}
                     >
-                      {item.displayLabel}
+                      {item.displayLabelCompact}
                       {isFlagged ? (
                         <Flag
                           className="absolute -right-0.5 -top-0.5 h-3 w-3 fill-amber-500 text-amber-600"
@@ -978,5 +981,6 @@ export default function FrqExamPageInner() {
         />
       )}
     </div>
+    </GraphZoomProvider>
   );
 }

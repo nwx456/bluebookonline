@@ -1,16 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import type { LibraryInsightsPayload } from "@/lib/library-types";
 import {
   libraryAuthHeaders,
   useDashboardAuth,
 } from "@/components/library/DashboardAuthProvider";
-import { InsightsCharts } from "@/components/library/InsightsCharts";
 import { InsightsKpiRow } from "@/components/library/InsightsKpiRow";
 import { useProgram } from "@/lib/use-program";
 import { getInsightsSubjectLabel } from "@/lib/insights-subject-label";
 import { Download } from "lucide-react";
+
+const InsightsCharts = dynamic(
+  () => import("@/components/library/InsightsCharts").then((m) => ({ default: m.InsightsCharts })),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 animate-pulse rounded-lg bg-gray-100" />,
+  }
+);
 
 export default function DashboardInsightsPage() {
   const { accessToken } = useDashboardAuth();

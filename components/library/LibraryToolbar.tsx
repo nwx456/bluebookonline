@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import type { LibrarySort, LibraryTag } from "@/lib/library-types";
-import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS } from "@/lib/subjects";
 import { getExamProgram } from "@/lib/exam-program";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";

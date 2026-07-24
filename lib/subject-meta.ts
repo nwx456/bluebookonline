@@ -1,4 +1,4 @@
-import { SUBJECT_KEYS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, type SubjectKey } from "@/lib/subjects";
 
 export type SubjectCategory = "math" | "science" | "history" | "english" | "social" | "cs" | "economics" | "sat";
 

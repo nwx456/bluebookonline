@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { resolvePostAuthPath } from "@/lib/post-login-redirect";
+import { isDemoLoginAlias, resolveDemoLoginEmail } from "@/lib/demo-login";
 import { logServerError } from "@/lib/error-logging";
 
 export async function POST(request: NextRequest) {
@@ -25,9 +26,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const demoEmail = resolveDemoLoginEmail(email, password);
+    if (isDemoLoginAlias(email) && !demoEmail) {
+      return NextResponse.json(
+        { error: "Invalid email or password." },
+        { status: 401 }
+      );
+    }
+
+    const authEmail = demoEmail ?? email.trim().toLowerCase();
+
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: authEmail,
       password,
     });
 
@@ -44,9 +55,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
     const redirectPath = await resolvePostAuthPath(
-      normalizedEmail,
+      authEmail,
       typeof next === "string" ? next : null
     );
 

@@ -11,7 +11,7 @@ import { ConsentModal } from "@/components/ConsentModal";
 import { type PhaseTiming } from "@/components/UploadAnalyzeProgress";
 import { useDashboardAuth } from "@/components/library/DashboardAuthProvider";
 import { createClient } from "@/lib/supabase/client";
-import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/gemini-prompts";
+import { SUBJECT_KEYS, SUBJECT_LABELS, type SubjectKey } from "@/lib/subjects";
 import { getExamProgram } from "@/lib/exam-program";
 import { cn } from "@/lib/utils";
 import {

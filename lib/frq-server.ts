@@ -133,7 +133,12 @@ export type FrqResponseRow = {
   ai_feedback: string | null;
 };
 
-export type FrqQuestionPart = { label: string; prompt?: string; max_points?: number };
+export type FrqQuestionPart = {
+  label: string;
+  prompt?: string;
+  max_points?: number;
+  display_label?: string;
+};
 
 /** Normalize parts array; parts-less questions become a single empty-label part. */
 export function normalizeFrqParts(
@@ -195,9 +200,49 @@ export function getExamMaxScore(
   return questions.reduce((sum, q) => sum + getQuestionMaxPoints(q), 0);
 }
 
-/** Footer label for a question part, e.g. "1a" or "2". */
+/** Legacy footer label for a question part, e.g. "1a" or "2". */
 export function formatFrqPartLabel(questionNumber: number, partLabel: string): string {
   return partLabel ? `${questionNumber}${partLabel}` : String(questionNumber);
+}
+
+/** Full display label honoring PDF display_label when present. */
+export function formatFrqPartDisplayLabel(
+  questionNumber: number,
+  partLabel: string,
+  displayLabel?: string | null
+): string {
+  const pdfLabel = displayLabel?.trim();
+  if (pdfLabel) {
+    if (/^Part\s+/i.test(pdfLabel)) {
+      return `${questionNumber} — ${pdfLabel}`;
+    }
+    if (/^\([a-z0-9]+\)$/i.test(pdfLabel) || /^[A-Z]\.$/i.test(pdfLabel)) {
+      return `${questionNumber} ${pdfLabel}`;
+    }
+    return `${questionNumber} — ${pdfLabel}`;
+  }
+  return formatFrqPartLabel(questionNumber, partLabel);
+}
+
+/** Compact label for footer grid buttons. */
+export function formatFrqPartDisplayLabelCompact(
+  questionNumber: number,
+  partLabel: string,
+  displayLabel?: string | null
+): string {
+  const pdfLabel = displayLabel?.trim();
+  if (pdfLabel) {
+    const short = pdfLabel.replace(/^Part\s+/i, "").trim();
+    if (/^\([a-z0-9]+\)$/i.test(short) || /^\([ivx]+\)$/i.test(short)) {
+      return `${questionNumber}${short}`;
+    }
+    if (/^[A-Z]\.?$/i.test(short)) {
+      return `${questionNumber}${short.replace(/\.$/, "")}`;
+    }
+    const cleaned = short.replace(/\s+/g, "");
+    return cleaned.length <= 4 ? `${questionNumber}${cleaned}` : `${questionNumber}—${cleaned.slice(0, 3)}`;
+  }
+  return formatFrqPartLabel(questionNumber, partLabel);
 }
 
 /** Compare part labels for stable ordering (a, b, c …). */
@@ -212,9 +257,11 @@ export type FrqFlatPartItem = {
   questionId: string;
   questionNumber: number;
   partLabel: string;
+  partDisplayLabel: string | null;
   partPrompt: string;
   partMaxPoints: number;
   displayLabel: string;
+  displayLabelCompact: string;
 };
 
 /** Flatten questions into ordered part navigation items. */
@@ -230,13 +277,20 @@ export function flattenFrqParts(
     const parts = normalizeFrqParts(q.parts);
     for (const part of parts) {
       const label = part.label ?? "";
+      const partDisplayLabel = part.display_label?.trim() || null;
       items.push({
         questionId: q.id,
         questionNumber: q.question_number,
         partLabel: label,
+        partDisplayLabel,
         partPrompt: part.prompt ?? "",
         partMaxPoints: getPartMaxPoints(q, label),
-        displayLabel: formatFrqPartLabel(q.question_number, label),
+        displayLabel: formatFrqPartDisplayLabel(q.question_number, label, partDisplayLabel),
+        displayLabelCompact: formatFrqPartDisplayLabelCompact(
+          q.question_number,
+          label,
+          partDisplayLabel
+        ),
       });
     }
   }
