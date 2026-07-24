@@ -649,12 +649,13 @@ function DashboardUploadPageInner() {
   useEffect(() => {
     if (!userEmail || checkingAuth) return;
     const supabase = createClient();
-    supabase
-      .from("pdf_uploads")
-      .select("id, filename, subject, exam_program, created_at, is_published, moderation_status, source_type, source_name, source_url")
-      .eq("user_email", userEmail)
-      .order("created_at", { ascending: false })
-      .then(async ({ data: rows, error }) => {
+    void (async () => {
+      try {
+        const { data: rows, error } = await supabase
+          .from("pdf_uploads")
+          .select("id, filename, subject, exam_program, created_at, is_published, moderation_status, source_type, source_name, source_url")
+          .eq("user_email", userEmail)
+          .order("created_at", { ascending: false });
         if (error) return;
         if (!rows?.length) {
           setUploads([]);
@@ -687,10 +688,10 @@ function DashboardUploadPageInner() {
             sourceUrl: (row.source_url as string | null) ?? null,
           }))
         );
-      })
-      .catch(() => {
+      } catch {
         setUploads([]);
-      });
+      }
+    })();
   }, [userEmail, checkingAuth]);
 
   useEffect(() => {

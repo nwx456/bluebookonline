@@ -259,6 +259,8 @@ export default function DashboardLibraryPage() {
     }
   };
 
+  const entityType = (exam: LibraryUploadItem) => uploadEntityType(exam.examKind);
+
   return (
     <div>
       <div className="mb-6">
